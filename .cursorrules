@@ -1,0 +1,176 @@
+# Cursor Rules - Clip iOS App (nw2025)
+
+> **Project:** Clip (iOS Companion App for Meta Ray-Ban Glasses)
+> **Platform:** iOS 26+ (SwiftUI with Liquid Glass)
+> **Design Philosophy:** Apple-native, modern iOS 26 Liquid Glass aesthetic
+> **Core Concept:** Invisible Interface for reviewing, searching, and reliving 60s video clips
+
+---
+
+## Apple Documentation Reference
+
+**IMPORTANT:** Always reference Apple's official iOS 26 documentation when implementing UI:
+
+```
+/Applications/Xcode.app/Contents/PlugIns/IDEIntelligenceChat.framework/Versions/A/Resources/AdditionalDocumentation/
+```
+
+Key files:
+- `SwiftUI-Implementing-Liquid-Glass-Design.md` - Use `.glassEffect()` modifier
+- `FoundationModels-Using-on-device-LLM-in-your-app.md` - On-device AI
+- `Swift-Concurrency-Updates.md` - Modern async/await patterns
+
+---
+
+## Liquid Glass Design System (iOS 26)
+
+### Basic Implementation
+```swift
+// Basic glass effect
+Text("Hello").glassEffect()
+
+// Custom shape
+Text("Hello").glassEffect(in: .rect(cornerRadius: 16))
+
+// Interactive glass (for buttons/tappable elements)
+Button("Tap").glassEffect(.regular.interactive())
+
+// Glass button styles
+Button("Action") { }.buttonStyle(.glass)
+Button("Important") { }.buttonStyle(.glassProminent)
+
+// Multiple glass views (use container for morphing)
+GlassEffectContainer(spacing: 20) {
+    // views with .glassEffect()
+}
+```
+
+### Glass Effect Rules
+- Use `.glassEffect()` instead of `.ultraThinMaterial` for iOS 26
+- Navigation bars, toolbars, tab bars → automatic glass
+- Floating UI elements → `.glassEffect()`
+- Interactive buttons → `.glassEffect(.regular.interactive())`
+- **DO NOT use for content areas** - glass is for chrome/navigation only
+
+### Morphing Transitions
+```swift
+@Namespace private var namespace
+
+GlassEffectContainer(spacing: 40.0) {
+    HStack(spacing: 40.0) {
+        Image(systemName: "icon")
+            .glassEffect()
+            .glassEffectID("uniqueID", in: namespace)
+    }
+}
+```
+
+---
+
+## Swift 6.2 Concurrency
+
+### Default MainActor Isolation
+Swift 6.2 infers MainActor by default - no need to annotate everything with @MainActor.
+
+### Background Work with @concurrent
+```swift
+nonisolated struct PhotoProcessor {
+    @concurrent
+    func process(data: Data) async -> ProcessedPhoto? { ... }
+}
+
+// Call with await
+processedPhotos[item.id] = await PhotoProcessor().process(data: data)
+```
+
+### Isolated Conformances
+```swift
+extension StickerModel: @MainActor Exportable {
+    func export() {
+        photoProcessor.exportAsPNG()
+    }
+}
+```
+
+---
+
+## Foundation Models (On-Device LLM)
+
+### Check Availability First
+```swift
+private var model = SystemLanguageModel.default
+
+switch model.availability {
+case .available:
+    // Show intelligence UI
+case .unavailable(.deviceNotEligible):
+    // Show alternative UI
+case .unavailable(.appleIntelligenceNotEnabled):
+    // Ask user to enable Apple Intelligence
+case .unavailable(.modelNotReady):
+    // Model downloading
+case .unavailable(let other):
+    // Unknown reason
+}
+```
+
+### Basic Usage
+```swift
+let session = LanguageModelSession(instructions: "You are a helpful assistant.")
+let response = try await session.respond(to: prompt)
+print(response.content)
+```
+
+### Guided Generation (Structured Output)
+```swift
+@Generable(description: "Profile information")
+struct Profile {
+    var name: String
+    @Guide(description: "Age of person", .range(0...120))
+    var age: Int
+}
+
+let response = try await session.respond(to: "Generate a profile", generating: Profile.self)
+print(response.content.name)
+```
+
+---
+
+## Project Architecture
+
+### Split-State Pipeline
+1. **Capture (Edge)** - Save 60s video to Photo Library via PhotoKit
+2. **Siphon (Background)** - Extract audio, upload to backend
+3. **Intelligence (Cloud)** - Whisper → Gemini → MongoDB
+4. **Search Loop** - Semantic search returns localIdentifiers, frontend rehydrates
+
+### Design Tokens
+- **Colors:** Use semantic colors (AppColors.background, .surface, .textPrimary, etc.)
+- **Typography:** SF Pro (heroHeader 34pt bold, cardTitle 18pt semibold, body 16pt, metadata 14pt mono)
+- **Layout:** Padding 20pt, Card radius 16pt, Search pill 30pt
+
+### Project Structure
+```
+ClipApp/
+├── App/
+│   ├── ClipApp.swift
+│   └── GlobalViewState.swift
+├── Core/
+│   ├── Navigation/RootView.swift
+│   ├── DesignSystem/ (Colors, Typography, Components)
+│   └── Managers/ (Haptic, Photo, Camera)
+├── Features/
+│   ├── Feed/ (HomeFeedView, ClipCardView, StatusHeader)
+│   └── Search/ (LiquidSearchOverlay, SearchResultsGrid)
+├── Services/ (APIService, MockData)
+└── Models/ (ClipMetadata, SearchResult)
+```
+
+---
+
+## Key Implementation Notes
+
+1. **No TabView** - Search floats above content
+2. **Haptics:** playSuccess() → rigid double tap, playLight() → soft impact, playError() → heavy triple
+3. **Search:** Semantic search via backend, results rendered as 2-column grid with thumbnails
+4. **Status Header:** Green pulse dot + "RAY-BAN META • 82%" + aperture button

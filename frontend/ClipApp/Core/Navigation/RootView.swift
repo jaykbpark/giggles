@@ -144,8 +144,9 @@ struct RootView: View {
             showRecordConfirmation = true
         }
         
-        // Handle exported clip
+        // Handle exported clip and add to timeline
         if let url = exportedURL {
+            addClipToTimeline(exportedURL: url)
             Task {
                 await handleExportedClip(url: url)
             }
@@ -181,6 +182,21 @@ struct RootView: View {
     private func sendClipToBackend(transcript: String) async {
         // TODO: Implement backend API call
         print("📝 Clip triggered with transcript: \(transcript)")
+    }
+    
+    private func addClipToTimeline(exportedURL: URL) {
+        let newClip = ClipMetadata(
+            id: UUID(),
+            localIdentifier: exportedURL.lastPathComponent,
+            title: "Clip \(Date().formatted(date: .omitted, time: .shortened))",
+            transcript: "[Recording]",
+            topics: ["Clip"],
+            capturedAt: Date(),
+            duration: 30.0
+        )
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+            viewState.clips.insert(newClip, at: 0)
+        }
     }
     
     // MARK: - Header Bar
@@ -303,19 +319,31 @@ struct RootView: View {
             recordPulse = true
         }
         
-        // Simulate recording for 1 second then show confirmation
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                isRecording = false
-                showRecordConfirmation = true
+        // Export the last 30 seconds from the rolling buffer
+        Task {
+            do {
+                let url = try await captureCoordinator.triggerClipExport()
+                await MainActor.run {
+                    addClipToTimeline(exportedURL: url)
+                }
+                print("✅ Clip exported: \(url.lastPathComponent)")
+            } catch {
+                print("❌ Export failed: \(error.localizedDescription)")
             }
-            recordPulse = false
-            recordProgress = 0
             
-            // Auto-dismiss confirmation
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                withAnimation(.spring(response: 0.3)) {
-                    showRecordConfirmation = false
+            await MainActor.run {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                    isRecording = false
+                    showRecordConfirmation = true
+                }
+                recordPulse = false
+                recordProgress = 0
+                
+                // Auto-dismiss confirmation
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                    withAnimation(.spring(response: 0.3)) {
+                        showRecordConfirmation = false
+                    }
                 }
             }
         }

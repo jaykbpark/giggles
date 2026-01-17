@@ -167,14 +167,6 @@ struct ClipCard: View {
                     .foregroundStyle(AppColors.textPrimary)
                     .lineLimit(2)
                 
-                // Transcript preview
-                if !clip.transcript.isEmpty {
-                    Text(clip.transcript)
-                        .font(.system(size: 14))
-                        .foregroundStyle(AppColors.textSecondary)
-                        .lineLimit(2)
-                }
-                
                 // Metadata row
                 HStack(spacing: 12) {
                     // Time

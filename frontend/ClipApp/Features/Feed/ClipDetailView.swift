@@ -11,28 +11,26 @@ struct ClipDetailView: View {
     @State private var controlsTimer: Timer?
 
     var body: some View {
-        GeometryReader { geometry in
-            ZStack {
-                // Fullscreen black background
-                Color.black
-                    .ignoresSafeArea()
-                
-                // Video player area - fullscreen
-                videoPlayerArea
-                    .frame(width: geometry.size.width, height: geometry.size.height)
-                    .matchedGeometryEffect(id: clip.id, in: namespace)
-                    .ignoresSafeArea()
-                    .onTapGesture {
-                        toggleControls()
-                    }
-                
-                // Overlay controls (fade in/out)
-                if showControls {
-                    controlsOverlay
-                        .transition(.opacity)
+        ZStack {
+            // Fullscreen black background
+            Color.black
+                .ignoresSafeArea(.all)
+            
+            // Video player area - fullscreen
+            videoPlayerArea
+                .matchedGeometryEffect(id: clip.id, in: namespace)
+                .ignoresSafeArea(.all)
+                .onTapGesture {
+                    toggleControls()
                 }
+            
+            // Overlay controls (fade in/out)
+            if showControls {
+                controlsOverlay
+                    .transition(.opacity)
             }
         }
+        .ignoresSafeArea(.all)
         .statusBarHidden(true)
         .onAppear {
             isPlaying = true

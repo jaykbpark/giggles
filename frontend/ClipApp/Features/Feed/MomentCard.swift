@@ -8,7 +8,6 @@ struct MomentCard: View {
     let animationDelay: Double
     
     @State private var isAppeared = false
-    @State private var isPressed = false
     
     var body: some View {
         HStack(spacing: 16) {
@@ -16,15 +15,10 @@ struct MomentCard: View {
                 Spacer(minLength: 0)
             }
             
-            // Card content
+            // Card content with glass
             cardContent
-                .frame(maxWidth: 280)
-                .background {
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                        .fill(AppColors.warmSurface)
-                        .shadow(color: AppColors.cardShadow, radius: 16, y: 8)
-                }
-                .scaleEffect(isPressed ? 0.97 : 1.0)
+                .frame(maxWidth: 260)
+                .glassEffect(in: .rect(cornerRadius: 20))
                 .opacity(isAppeared ? 1 : 0)
                 .offset(x: isAppeared ? 0 : (isLeft ? -20 : 20))
                 .animation(.spring(response: 0.5, dampingFraction: 0.8).delay(animationDelay), value: isAppeared)
@@ -51,21 +45,20 @@ struct MomentCard: View {
                 // Duration badge
                 Text(clip.formattedDuration)
                     .font(.system(size: 11, weight: .bold, design: .monospaced))
-                    .foregroundStyle(AppColors.textSecondary)
+                    .foregroundStyle(.secondary)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
                     .background {
                         Capsule()
-                            .fill(AppColors.warmBackground)
+                            .fill(.ultraThinMaterial)
                     }
             }
             
-            // Transcript preview
-            Text(clip.transcript)
-                .font(.system(size: 15, weight: .regular))
+            // Title
+            Text(clip.title)
+                .font(.system(size: 15, weight: .medium))
                 .foregroundStyle(AppColors.textPrimary)
                 .lineLimit(2)
-                .lineSpacing(2)
             
             // Topics (if any)
             if !clip.topics.isEmpty {
@@ -73,19 +66,19 @@ struct MomentCard: View {
                     ForEach(clip.topics.prefix(2), id: \.self) { topic in
                         Text(topic)
                             .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(AppColors.textSecondary)
+                            .foregroundStyle(.secondary)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
                             .background {
                                 Capsule()
-                                    .stroke(AppColors.timelineLine, lineWidth: 1)
+                                    .stroke(.quaternary, lineWidth: 1)
                             }
                     }
                     
                     if clip.topics.count > 2 {
                         Text("+\(clip.topics.count - 2)")
                             .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(AppColors.textSecondary)
+                            .foregroundStyle(.tertiary)
                     }
                 }
             }
@@ -99,8 +92,8 @@ struct MomentCard: View {
 struct MomentCardButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
-            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed ? 0.96 : 1.0)
+            .animation(.spring(response: 0.25, dampingFraction: 0.7), value: configuration.isPressed)
     }
 }
 

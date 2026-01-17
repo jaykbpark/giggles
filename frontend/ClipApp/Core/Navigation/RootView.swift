@@ -1,13 +1,13 @@
 import SwiftUI
-import AVFoundation
 
 struct RootView: View {
     @StateObject private var viewState = GlobalViewState()
-    @StateObject private var wakeWordDetector = WakeWordDetector()
     @State private var selectedClip: ClipMetadata?
-    @State private var showClipConfirmation = false
     @State private var showSearch = false
+    @State private var isRecording = false
+    @State private var showRecordConfirmation = false
     @Namespace private var namespace
+    @Namespace private var glassNamespace
 
     var body: some View {
         ZStack {
@@ -17,7 +17,7 @@ struct RootView: View {
             
             // Main content
             VStack(spacing: 0) {
-                // Minimal header
+                // Header
                 headerBar
                 
                 // Timeline
@@ -29,6 +29,14 @@ struct RootView: View {
                 )
             }
             .opacity(selectedClip != nil ? 0 : 1)
+            
+            // Floating glass toolbar at bottom
+            if selectedClip == nil && !showSearch {
+                VStack {
+                    Spacer()
+                    glassToolbar
+                }
+            }
 
             // Detail view overlay
             if let clip = selectedClip {
@@ -43,33 +51,13 @@ struct RootView: View {
                     .transition(.opacity)
                     .zIndex(50)
             }
-        }
-        .overlay {
-            // Clip confirmation
-            if showClipConfirmation {
+            
+            // Record confirmation overlay
+            if showRecordConfirmation {
                 ClipConfirmation()
                     .transition(.scale.combined(with: .opacity))
-                    .onAppear {
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                            withAnimation(.spring(response: 0.3)) {
-                                showClipConfirmation = false
-                            }
-                        }
-                    }
+                    .zIndex(200)
             }
-            
-            // Listening indicator
-            if wakeWordDetector.isListening {
-                VStack {
-                    ListeningPill()
-                        .padding(.top, 60)
-                    Spacer()
-                }
-                .transition(.move(edge: .top).combined(with: .opacity))
-            }
-        }
-        .task {
-            await setupWakeWordDetection()
         }
     }
     
@@ -84,15 +72,7 @@ struct RootView: View {
             
             Spacer()
             
-            // Connection status dot
-            if wakeWordDetector.isListening {
-                Circle()
-                    .fill(AppColors.connected)
-                    .frame(width: 8, height: 8)
-                    .padding(.trailing, 8)
-            }
-            
-            // Search button
+            // Search button with glass
             Button {
                 HapticManager.playLight()
                 withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
@@ -100,9 +80,10 @@ struct RootView: View {
                 }
             } label: {
                 Image(systemName: "magnifyingglass")
-                    .font(.system(size: 18, weight: .medium))
+                    .font(.system(size: 16, weight: .medium))
                     .foregroundStyle(AppColors.textSecondary)
-                    .frame(width: 44, height: 44)
+                    .frame(width: 40, height: 40)
+                    .glassEffect(.regular.interactive())
             }
         }
         .padding(.horizontal, 20)
@@ -110,154 +91,178 @@ struct RootView: View {
         .padding(.bottom, 4)
     }
     
+    // MARK: - Glass Toolbar
+    
+    private var glassToolbar: some View {
+        HStack(spacing: 20) {
+            // Recent clips button
+            Button {
+                HapticManager.playLight()
+            } label: {
+                Image(systemName: "clock.arrow.circlepath")
+                    .font(.system(size: 18, weight: .medium))
+                    .foregroundStyle(AppColors.textSecondary)
+                    .frame(width: 48, height: 48)
+            }
+            
+            // Record button (prominent)
+            Button {
+                triggerRecording()
+            } label: {
+                ZStack {
+                    Circle()
+                        .fill(AppColors.accent)
+                        .frame(width: 56, height: 56)
+                    
+                    if isRecording {
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(.white)
+                            .frame(width: 18, height: 18)
+                    } else {
+                        Circle()
+                            .fill(.white)
+                            .frame(width: 22, height: 22)
+                    }
+                }
+            }
+            .buttonStyle(RecordButtonStyle())
+            .shadow(color: AppColors.accent.opacity(0.4), radius: 16, y: 8)
+            
+            // Settings/profile button
+            Button {
+                HapticManager.playLight()
+            } label: {
+                Image(systemName: "person.crop.circle")
+                    .font(.system(size: 18, weight: .medium))
+                    .foregroundStyle(AppColors.textSecondary)
+                    .frame(width: 48, height: 48)
+            }
+        }
+        .padding(.horizontal, 24)
+        .padding(.vertical, 12)
+        .glassEffect(in: .capsule)
+        .padding(.bottom, 30)
+    }
+    
+    private func triggerRecording() {
+        HapticManager.playSuccess()
+        
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+            isRecording = true
+        }
+        
+        // Simulate recording for 1 second then show confirmation
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                isRecording = false
+                showRecordConfirmation = true
+            }
+            
+            // Auto-dismiss confirmation
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                withAnimation(.spring(response: 0.3)) {
+                    showRecordConfirmation = false
+                }
+            }
+        }
+    }
+    
     // MARK: - Search Overlay
     
     private var searchOverlay: some View {
         ZStack {
             // Dimmed background
-            AppColors.warmBackground.opacity(0.98)
+            Color.black.opacity(0.3)
                 .ignoresSafeArea()
                 .onTapGesture {
                     dismissSearch()
                 }
             
-            VStack(spacing: 24) {
-                // Search field
+            VStack(spacing: 0) {
+                // Search field with glass
                 HStack(spacing: 12) {
-                    Image(systemName: "magnifyingglass")
-                        .font(.system(size: 18, weight: .medium))
-                        .foregroundStyle(AppColors.textSecondary)
-                    
-                    TextField("Search your moments...", text: $viewState.searchText)
-                        .font(.system(size: 17))
-                        .foregroundStyle(AppColors.textPrimary)
-                        .autocorrectionDisabled()
-                    
-                    if !viewState.searchText.isEmpty {
-                        Button {
-                            viewState.searchText = ""
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .font(.system(size: 18))
-                                .foregroundStyle(AppColors.textSecondary)
+                    HStack(spacing: 10) {
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundStyle(.secondary)
+                        
+                        TextField("Search your moments...", text: $viewState.searchText)
+                            .font(.system(size: 16))
+                            .autocorrectionDisabled()
+                        
+                        if !viewState.searchText.isEmpty {
+                            Button {
+                                viewState.searchText = ""
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.system(size: 16))
+                                    .foregroundStyle(.tertiary)
+                            }
                         }
                     }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 12)
+                    .glassEffect(in: .rect(cornerRadius: 16))
+                    
+                    // Close button
+                    Button {
+                        dismissSearch()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 36, height: 36)
+                            .glassEffect(.regular.interactive())
+                    }
                 }
-                .padding(16)
-                .background {
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(AppColors.warmSurface)
-                }
+                .padding(.horizontal, 20)
+                .padding(.top, 60)
                 
-                // Quick suggestions
+                // Suggestions with glass pills
                 if viewState.searchText.isEmpty {
                     VStack(alignment: .leading, spacing: 16) {
-                        Text("Recent")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(AppColors.textSecondary)
+                        Text("SUGGESTIONS")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(.secondary)
+                            .padding(.top, 28)
                         
-                        FlowLayout(spacing: 8) {
-                            ForEach(["coffee", "meeting", "dinner", "travel"], id: \.self) { suggestion in
+                        FlowLayout(spacing: 10) {
+                            ForEach(["coffee", "meeting", "idea", "travel", "dinner"], id: \.self) { suggestion in
                                 Button {
                                     viewState.searchText = suggestion
                                 } label: {
                                     Text(suggestion)
                                         .font(.system(size: 14, weight: .medium))
-                                        .foregroundStyle(AppColors.textPrimary)
-                                        .padding(.horizontal, 14)
-                                        .padding(.vertical, 8)
-                                        .background {
-                                            Capsule()
-                                                .fill(AppColors.warmSurface)
-                                        }
+                                        .padding(.horizontal, 16)
+                                        .padding(.vertical, 10)
+                                        .glassEffect(.regular.interactive(), in: .capsule)
                                 }
                             }
                         }
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 20)
                 }
                 
                 Spacer()
-                
-                // Cancel button
-                Button {
-                    dismissSearch()
-                } label: {
-                    Text("Cancel")
-                        .font(.system(size: 17, weight: .medium))
-                        .foregroundStyle(AppColors.accent)
-                }
-                .padding(.bottom, 20)
             }
-            .padding(20)
-            .padding(.top, 40)
         }
     }
     
     private func dismissSearch() {
         withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
             showSearch = false
+            viewState.searchText = ""
         }
-    }
-    
-    // MARK: - Wake Word Detection Setup
-    
-    private func setupWakeWordDetection() async {
-        await wakeWordDetector.requestAuthorization()
-        
-        wakeWordDetector.onClipTriggered = { [self] transcript in
-            captureClip(transcript: transcript)
-        }
-    }
-
-    private func captureClip(transcript: String = "") {
-        HapticManager.playSuccess()
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-            showClipConfirmation = true
-        }
-        
-        if !transcript.isEmpty {
-            Task {
-                await sendClipToBackend(transcript: transcript)
-            }
-        }
-    }
-    
-    private func sendClipToBackend(transcript: String) async {
-        print("📝 Clip triggered with transcript: \(transcript)")
     }
 }
 
-// MARK: - Listening Pill
+// MARK: - Record Button Style
 
-struct ListeningPill: View {
-    @State private var isPulsing = false
-    
-    var body: some View {
-        HStack(spacing: 8) {
-            Circle()
-                .fill(AppColors.accent)
-                .frame(width: 8, height: 8)
-                .scaleEffect(isPulsing ? 1.2 : 1.0)
-                .animation(
-                    .easeInOut(duration: 0.8).repeatForever(autoreverses: true),
-                    value: isPulsing
-                )
-            
-            Text("Listening...")
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(AppColors.textSecondary)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .background {
-            Capsule()
-                .fill(AppColors.warmSurface)
-                .shadow(color: AppColors.cardShadow, radius: 12, y: 4)
-        }
-        .onAppear {
-            isPulsing = true
-        }
+struct RecordButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.9 : 1.0)
+            .animation(.spring(response: 0.2, dampingFraction: 0.6), value: configuration.isPressed)
     }
 }
 
@@ -273,43 +278,39 @@ struct ClipConfirmation: View {
             ZStack {
                 // Animated ring
                 Circle()
-                    .stroke(AppColors.accent.opacity(0.3), lineWidth: 2)
-                    .frame(width: 80, height: 80)
+                    .stroke(AppColors.accent.opacity(0.4), lineWidth: 2)
+                    .frame(width: 88, height: 88)
                     .scaleEffect(ringScale)
                     .opacity(ringOpacity)
                 
-                // Main circle
+                // Glass circle background
                 Circle()
-                    .fill(AppColors.warmSurface)
-                    .frame(width: 72, height: 72)
-                    .shadow(color: AppColors.cardShadow, radius: 16, y: 8)
+                    .fill(.clear)
+                    .frame(width: 76, height: 76)
+                    .glassEffect(in: .circle)
 
                 // Checkmark
                 Image(systemName: "checkmark")
-                    .font(.system(size: 28, weight: .bold))
+                    .font(.system(size: 30, weight: .bold))
                     .foregroundStyle(AppColors.accent)
                     .scaleEffect(checkScale)
             }
 
             VStack(spacing: 4) {
-                Text("Captured")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(AppColors.textPrimary)
+                Text("Clipped!")
+                    .font(.system(size: 20, weight: .semibold))
 
-                Text("Moment saved")
+                Text("Last 30 seconds saved")
                     .font(.system(size: 14))
-                    .foregroundStyle(AppColors.textSecondary)
+                    .foregroundStyle(.secondary)
             }
         }
-        .padding(40)
-        .background {
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .fill(AppColors.warmBackground)
-                .shadow(color: .black.opacity(0.15), radius: 40, y: 20)
-        }
+        .padding(44)
+        .glassEffect(in: .rect(cornerRadius: 32))
+        .shadow(color: .black.opacity(0.2), radius: 40, y: 20)
         .onAppear {
             withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
-                ringScale = 1
+                ringScale = 1.1
                 ringOpacity = 1
             }
             withAnimation(.spring(response: 0.4, dampingFraction: 0.6).delay(0.1)) {

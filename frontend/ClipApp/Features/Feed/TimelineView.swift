@@ -51,36 +51,37 @@ struct TimelineView: View {
     
     private var skeletonCard: some View {
         RoundedRectangle(cornerRadius: 20, style: .continuous)
-            .fill(AppColors.warmSurface)
+            .fill(.clear)
             .frame(maxWidth: 280, minHeight: 100)
+            .glassEffect(in: .rect(cornerRadius: 20))
             .shimmering()
     }
     
     // MARK: - Empty State
     
     private var emptyState: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: 28) {
             Spacer()
             
-            // Elegant empty illustration
+            // Glass illustration container
             ZStack {
                 Circle()
-                    .fill(AppColors.warmSurface)
+                    .fill(.clear)
                     .frame(width: 120, height: 120)
+                    .glassEffect(in: .circle)
                 
                 Image(systemName: "waveform")
                     .font(.system(size: 44, weight: .light))
-                    .foregroundStyle(AppColors.textSecondary.opacity(0.5))
+                    .foregroundStyle(.secondary)
             }
             
-            VStack(spacing: 8) {
+            VStack(spacing: 10) {
                 Text("No moments yet")
                     .font(.system(size: 24, weight: .semibold))
-                    .foregroundStyle(AppColors.textPrimary)
-                
+
                 Text("Say \"Clip that\" while wearing your\nglasses to capture a moment")
                     .font(.system(size: 15))
-                    .foregroundStyle(AppColors.textSecondary)
+                    .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .lineSpacing(4)
             }
@@ -127,7 +128,7 @@ struct TimelineView: View {
                 }
                 .padding(.top, 20)
             }
-            .padding(.bottom, 100)
+            .padding(.bottom, 140) // Extra padding for floating toolbar
         }
         .scrollIndicators(.hidden)
     }
@@ -150,7 +151,7 @@ struct TimelineView: View {
         }
     }
     
-    // MARK: - Section Header
+    // MARK: - Section Header (Glass Pill)
     
     private func sectionHeader(_ title: String) -> some View {
         HStack {
@@ -158,14 +159,10 @@ struct TimelineView: View {
             
             Text(title)
                 .font(.system(size: 13, weight: .bold))
-                .foregroundStyle(AppColors.textSecondary)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-                .background {
-                    Capsule()
-                        .fill(AppColors.warmBackground)
-                        .shadow(color: AppColors.cardShadow, radius: 8, y: 2)
-                }
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 18)
+                .padding(.vertical, 10)
+                .glassEffect(in: .capsule)
             
             Spacer()
         }
@@ -233,10 +230,13 @@ struct TimelineMoment: View {
     
     private var timelineNode: some View {
         ZStack {
+            // Glass outer ring
             Circle()
-                .fill(AppColors.warmBackground)
-                .frame(width: 16, height: 16)
+                .fill(.clear)
+                .frame(width: 20, height: 20)
+                .glassEffect(in: .circle)
             
+            // Accent center dot
             Circle()
                 .fill(AppColors.accent)
                 .frame(width: 8, height: 8)
@@ -262,7 +262,7 @@ struct ShimmerModifier: ViewModifier {
                     LinearGradient(
                         colors: [
                             .clear,
-                            AppColors.warmBackground.opacity(0.5),
+                            .white.opacity(0.2),
                             .clear
                         ],
                         startPoint: .leading,

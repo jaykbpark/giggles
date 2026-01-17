@@ -9,6 +9,35 @@
 
 ---
 
+## ⚠️ MANDATORY: Build After Every Feature
+
+**After completing ANY feature or code change, you MUST build and deploy the app so the user can test immediately.**
+
+### Simulator Build (Default)
+```bash
+cd /Users/jaypark/Documents/GitHub/nw2025/frontend && \
+xcodebuild -project nw2025.xcodeproj -scheme nw2025 \
+  -destination 'id=F67C7C32-2408-447C-9696-0479949DC5B3' \
+  -configuration Debug build && \
+xcrun simctl install booted ~/Library/Developer/Xcode/DerivedData/nw2025-giuernfepgvhmaaxchsxxgbkygdd/Build/Products/Debug-iphonesimulator/nw2025.app && \
+xcrun simctl launch booted me.park.jay.nw2025
+```
+
+### iPhone Build (When Device Connected)
+```bash
+cd /Users/jaypark/Documents/GitHub/nw2025/frontend && \
+xcodebuild -project nw2025.xcodeproj -scheme nw2025 \
+  -destination 'id=00008140-001534E83647001C' \
+  -configuration Debug -allowProvisioningUpdates build && \
+xcrun devicectl device install app --device 00008140-001534E83647001C \
+  ~/Library/Developer/Xcode/DerivedData/nw2025-giuernfepgvhmaaxchsxxgbkygdd/Build/Products/Debug-iphoneos/nw2025.app && \
+xcrun devicectl device process launch --device 00008140-001534E83647001C me.park.jay.nw2025
+```
+
+**DO NOT consider a feature complete until the build succeeds and the app is running.**
+
+---
+
 ## Apple Documentation Reference
 
 **IMPORTANT:** Always reference Apple's official iOS 26 documentation when implementing UI:
@@ -234,6 +263,66 @@ Or just `⌘R` in Xcode with simulator selected.
 - Haptics testing (`HapticManager`)
 - Wake word detection with real microphone
 - Performance profiling
+
+---
+
+## iOS Simulator Interaction (for AI/Automation)
+
+### Taking Screenshots
+Use `xcrun simctl io` to capture simulator screenshots for visual verification:
+```bash
+# Take a screenshot of the running simulator
+xcrun simctl io "iPhone 17 Pro" screenshot /tmp/screenshot.png
+
+# Then read the image to inspect UI state
+# (use read_file tool on /tmp/screenshot.png)
+```
+
+### Launch and Install Apps
+```bash
+# Boot simulator
+xcrun simctl boot "iPhone 17 Pro"
+open -a Simulator
+
+# Install app to simulator
+xcrun simctl install "iPhone 17 Pro" ~/Library/Developer/Xcode/DerivedData/nw2025-*/Build/Products/Debug-iphonesimulator/nw2025.app
+
+# Launch app
+xcrun simctl launch "iPhone 17 Pro" me.park.jay.nw2025
+
+# Full build + install + launch + screenshot workflow
+cd frontend && xcodebuild -project nw2025.xcodeproj -scheme nw2025 \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+  -configuration Debug build && \
+xcrun simctl install "iPhone 17 Pro" ~/Library/Developer/Xcode/DerivedData/nw2025-giuernfepgvhmaaxchsxxgbkygdd/Build/Products/Debug-iphonesimulator/nw2025.app && \
+xcrun simctl launch "iPhone 17 Pro" me.park.jay.nw2025 && \
+sleep 2 && \
+xcrun simctl io "iPhone 17 Pro" screenshot /tmp/app_screenshot.png
+```
+
+### Other Useful Commands
+```bash
+# List available simulators
+xcrun simctl list devices available
+
+# Terminate app
+xcrun simctl terminate "iPhone 17 Pro" me.park.jay.nw2025
+
+# Erase simulator (reset to clean state)
+xcrun simctl erase "iPhone 17 Pro"
+
+# Open URL in simulator
+xcrun simctl openurl "iPhone 17 Pro" "https://example.com"
+
+# Record video
+xcrun simctl io "iPhone 17 Pro" recordVideo /tmp/recording.mp4
+# (Press Ctrl+C to stop recording)
+```
+
+### Limitations
+- **No programmatic tapping:** `xcrun simctl` cannot simulate touch events
+- **AppleScript requires permissions:** System Events automation needs Accessibility permissions in System Settings
+- **cliclick:** Can be installed via `brew install cliclick` for mouse automation, but requires screen coordinates
 
 ---
 

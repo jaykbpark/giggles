@@ -25,12 +25,12 @@ struct ClipDetailView: View {
                         .frame(maxHeight: 400)
                         .clipShape(RoundedRectangle(cornerRadius: appearAnimation ? 24 : 4, style: .continuous))
                         .matchedGeometryEffect(id: clip.id, in: namespace)
-                        .shadow(color: .black.opacity(0.1), radius: 20, y: 10)
+                        .shadow(color: .black.opacity(0.15), radius: 24, y: 12)
                         .padding(.horizontal, 20)
                         .padding(.top, 60)
 
                     // Content Area
-                    VStack(alignment: .leading, spacing: 32) {
+                    VStack(alignment: .leading, spacing: 28) {
                         headerSection
                         transcriptSection
                         topicsSection
@@ -44,7 +44,7 @@ struct ClipDetailView: View {
             }
             .scrollIndicators(.hidden)
 
-            // Close Button
+            // Close Button with glass
             HStack {
                 Spacer()
                 Button {
@@ -52,17 +52,9 @@ struct ClipDetailView: View {
                 } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(.secondary)
                         .frame(width: 36, height: 36)
-                        .background {
-                            Circle()
-                                .fill(.black.opacity(0.5))
-                                .overlay {
-                                    Circle()
-                                        .strokeBorder(.white.opacity(0.2), lineWidth: 1)
-                                }
-                        }
-                        .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
+                        .glassEffect(.regular.interactive())
                 }
                 .opacity(appearAnimation ? 1 : 0)
             }
@@ -90,8 +82,10 @@ struct ClipDetailView: View {
 
     private var videoPlayerArea: some View {
         ZStack {
-            // Background
-            AppColors.warmSurface
+            // Glass background
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(.clear)
+                .glassEffect(in: .rect(cornerRadius: 24))
 
             // Play button
             VStack(spacing: 12) {
@@ -101,13 +95,12 @@ struct ClipDetailView: View {
                 } label: {
                     ZStack {
                         Circle()
-                            .fill(AppColors.warmBackground)
+                            .fill(.clear)
                             .frame(width: 72, height: 72)
-                            .shadow(color: AppColors.cardShadow, radius: 12, y: 4)
+                            .glassEffect(.regular.interactive(), in: .circle)
 
                         Image(systemName: isPlaying ? "pause.fill" : "play.fill")
                             .font(.system(size: 24, weight: .semibold))
-                            .foregroundStyle(AppColors.textPrimary)
                             .offset(x: isPlaying ? 0 : 2)
                     }
                 }
@@ -116,7 +109,7 @@ struct ClipDetailView: View {
                 if !isPlaying {
                     Text("Tap to play")
                         .font(.system(size: 13))
-                        .foregroundStyle(AppColors.textSecondary)
+                        .foregroundStyle(.secondary)
                 }
             }
         }
@@ -124,22 +117,24 @@ struct ClipDetailView: View {
 
     private var headerSection: some View {
         VStack(alignment: .leading, spacing: 16) {
-            // Time
+            // Time badge with glass
             Text(clip.formattedTime)
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(AppColors.accent)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .glassEffect(in: .capsule)
             
-            // Title/Date
+            // Date
             Text(clip.dateGroupKey)
                 .font(.system(size: 28, weight: .bold))
-                .foregroundStyle(AppColors.textPrimary)
 
             HStack(spacing: 16) {
                 Label(clip.formattedDuration, systemImage: "clock")
                 Label(clip.relativeDate, systemImage: "calendar")
             }
             .font(.system(size: 14))
-            .foregroundStyle(AppColors.textSecondary)
+            .foregroundStyle(.secondary)
         }
     }
 
@@ -148,7 +143,7 @@ struct ClipDetailView: View {
             HStack {
                 Text("Transcript")
                     .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(AppColors.textSecondary)
+                    .foregroundStyle(.secondary)
 
                 Spacer()
 
@@ -158,20 +153,18 @@ struct ClipDetailView: View {
                 } label: {
                     Image(systemName: "doc.on.doc")
                         .font(.system(size: 14))
-                        .foregroundStyle(AppColors.textSecondary)
+                        .foregroundStyle(.secondary)
+                        .frame(width: 32, height: 32)
+                        .glassEffect(.regular.interactive())
                 }
             }
 
             Text(clip.transcript)
                 .font(.system(size: 16))
-                .foregroundStyle(AppColors.textPrimary)
                 .lineSpacing(6)
                 .padding(20)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background {
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(AppColors.warmSurface)
-                }
+                .glassEffect(in: .rect(cornerRadius: 16))
         }
     }
 
@@ -179,19 +172,15 @@ struct ClipDetailView: View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Topics")
                 .font(.system(size: 13, weight: .bold))
-                .foregroundStyle(AppColors.textSecondary)
+                .foregroundStyle(.secondary)
 
             FlowLayout(spacing: 8) {
                 ForEach(clip.topics, id: \.self) { topic in
                     Text(topic)
                         .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(AppColors.textPrimary)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 8)
-                        .background {
-                            Capsule()
-                                .fill(AppColors.warmSurface)
-                        }
+                        .glassEffect(in: .capsule)
                 }
             }
         }

@@ -1,6 +1,24 @@
 import AVFoundation
 import Combine
+import CoreMedia
 import CoreVideo
+
+// MARK: - Timestamped Video Frame
+
+/// Video frame with timestamp for synchronization with audio
+struct TimestampedVideoFrame: Sendable {
+    let pixelBuffer: CVPixelBuffer
+    let hostTime: UInt64
+    let presentationTime: CMTime
+    
+    /// Convert host time to seconds since boot
+    var hostTimeSeconds: Double {
+        var timebaseInfo = mach_timebase_info_data_t()
+        mach_timebase_info(&timebaseInfo)
+        let nanoseconds = hostTime * UInt64(timebaseInfo.numer) / UInt64(timebaseInfo.denom)
+        return Double(nanoseconds) / 1_000_000_000.0
+    }
+}
 
 // MARK: - Connection State
 
@@ -82,6 +100,9 @@ protocol GlassesStreamProvider: AnyObject {
     
     /// Publisher for video frames from the glasses camera
     var videoFramePublisher: AnyPublisher<CVPixelBuffer, Never> { get }
+    
+    /// Publisher for timestamped video frames (for synchronization with audio)
+    var timestampedVideoFramePublisher: AnyPublisher<TimestampedVideoFrame, Never> { get }
     
     /// Whether video is currently streaming
     var isVideoStreaming: Bool { get }

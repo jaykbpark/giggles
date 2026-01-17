@@ -1,6 +1,7 @@
 import AVFoundation
 import Combine
 import CoreGraphics
+import CoreMedia
 import CoreVideo
 import UIKit
 
@@ -23,6 +24,7 @@ final class MockGlassesProvider: GlassesStreamProvider {
     
     private let connectionStateSubject = CurrentValueSubject<GlassesConnectionState, Never>(.disconnected)
     private let videoFrameSubject = PassthroughSubject<CVPixelBuffer, Never>()
+    private let timestampedVideoFrameSubject = PassthroughSubject<TimestampedVideoFrame, Never>()
     private let audioBufferSubject = PassthroughSubject<AVAudioPCMBuffer, Never>()
     
     // MARK: - Connection
@@ -41,10 +43,15 @@ final class MockGlassesProvider: GlassesStreamProvider {
         videoFrameSubject.eraseToAnyPublisher()
     }
     
+    var timestampedVideoFramePublisher: AnyPublisher<TimestampedVideoFrame, Never> {
+        timestampedVideoFrameSubject.eraseToAnyPublisher()
+    }
+    
     private(set) var isVideoStreaming = false
     private var videoTimer: Timer?
     private var frameCount: UInt64 = 0
     private var startTime: Date?
+    private var videoStartHostTime: UInt64 = 0
     
     // MARK: - Audio
     
@@ -110,6 +117,7 @@ final class MockGlassesProvider: GlassesStreamProvider {
         isVideoStreaming = true
         frameCount = 0
         startTime = Date()
+        videoStartHostTime = mach_absolute_time()
         
         // Start video frame generation on main thread for Timer
         await MainActor.run {
@@ -199,7 +207,23 @@ final class MockGlassesProvider: GlassesStreamProvider {
         drawMockFrame(in: context)
         
         frameCount += 1
+        
+        // Send raw pixel buffer for backward compatibility
         videoFrameSubject.send(buffer)
+        
+        // Create and send timestamped frame for synchronization
+        let hostTime = mach_absolute_time()
+        let presentationTime = CMTime(
+            value: CMTimeValue(frameCount),
+            timescale: CMTimeScale(Config.videoFPS)
+        )
+        
+        let timestampedFrame = TimestampedVideoFrame(
+            pixelBuffer: buffer,
+            hostTime: hostTime,
+            presentationTime: presentationTime
+        )
+        timestampedVideoFrameSubject.send(timestampedFrame)
     }
     
     private func drawMockFrame(in context: CGContext) {

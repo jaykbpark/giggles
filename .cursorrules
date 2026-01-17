@@ -1,483 +1,110 @@
-# Cursor Rules - Clip iOS App (nw2025)
+# Cursor Rules - Clip (nw2025)
 
-> **Project:** Clip (iOS Companion App for Meta Ray-Ban Glasses)
-> **Platform:** iOS 26+ (SwiftUI with Liquid Glass)
-> **Design Philosophy:** Apple-native, modern iOS 26 Liquid Glass aesthetic
-> **Core Concept:** Invisible Interface for reviewing, searching, and reliving 30s video clips
+> **Project:** Clip (iOS companion app for Meta Ray-Ban glasses)  
+> **Platform:** iOS 26+ (SwiftUI + Liquid Glass)  
+> **UI Direction:** Warm minimal, timeline-first
 
-**📋 Development Progress:** See [`frontend/PROGRESS.md`](frontend/PROGRESS.md) for current sprint, completed work, and integration points.
+Development progress lives in [`frontend/PROGRESS.md`](frontend/PROGRESS.md).
 
 ---
 
-## ⚠️ MANDATORY: Development Workflow
+## Mandatory Workflow
 
-### Before Starting Development
-**ALWAYS pull latest from main and review recent changes for context:**
+### Before Starting
 ```bash
-# Pull latest changes
 cd /Users/jaypark/Documents/GitHub/nw2025 && git pull origin main
-
-# Read recent commit messages for context (last 10 commits)
 git log --oneline -10
-
-# For more detail on recent work, use:
-git log --pretty=format:"%h - %s (%cr by %an)" -10
 ```
 
-**After pulling, READ the commit messages** to understand:
-- What features were recently added
-- What files were changed
-- Any patterns or conventions being followed
-
 ### After Every Code Change
-**Build and deploy the app so the user can test immediately.**
+Build and deploy so the user can test.
 
-#### Simulator Build (Default)
+**Simulator:**
 ```bash
 cd /Users/jaypark/Documents/GitHub/nw2025/frontend && \
 xcodebuild -project nw2025.xcodeproj -scheme nw2025 \
-  -destination 'id=F67C7C32-2408-447C-9696-0479949DC5B3' \
-  -configuration Debug build && \
-xcrun simctl install booted ~/Library/Developer/Xcode/DerivedData/nw2025-giuernfepgvhmaaxchsxxgbkygdd/Build/Products/Debug-iphonesimulator/nw2025.app && \
-xcrun simctl launch booted me.park.jay.nw2025
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+  -configuration Debug build
 ```
 
-#### iPhone Build (When Device Connected)
+**iPhone (device connected):**
 ```bash
 cd /Users/jaypark/Documents/GitHub/nw2025/frontend && \
 xcodebuild -project nw2025.xcodeproj -scheme nw2025 \
   -destination 'id=00008140-001534E83647001C' \
-  -configuration Debug -allowProvisioningUpdates build && \
+  -configuration Debug -allowProvisioningUpdates build
+
 xcrun devicectl device install app --device 00008140-001534E83647001C \
-  ~/Library/Developer/Xcode/DerivedData/nw2025-giuernfepgvhmaaxchsxxgbkygdd/Build/Products/Debug-iphoneos/nw2025.app && \
+  ~/Library/Developer/Xcode/DerivedData/nw2025-*/Build/Products/Debug-iphoneos/nw2025.app
+
 xcrun devicectl device process launch --device 00008140-001534E83647001C me.park.jay.nw2025
 ```
 
-### After Big Feature is Complete
-**Once user confirms the feature works, commit and push to main with clean comments:**
+### After Big Features
+Commit only after user confirms it works.
 ```bash
-cd /Users/jaypark/Documents/GitHub/nw2025 && \
-git add -A && \
-git commit -m "<type>: <concise description>" && \
+git add -A
+git commit -m "<type>: <summary>"
 git push origin main
 ```
 
-**Commit Message Format:**
-- `Feat:` New feature (e.g., `Feat: Add fullscreen video playback`)
-- `Fix:` Bug fix (e.g., `Fix: Close button visibility on detail view`)
-- `UI:` Visual/styling changes (e.g., `UI: Redesign search overlay`)
-- `Refactor:` Code restructuring (e.g., `Refactor: Extract timeline components`)
-- `Chore:` Maintenance tasks (e.g., `Chore: Update cursor rules`)
-
-**Good commit examples:**
-```
-Feat: Add fullscreen video mode with controls overlay
-Fix: Improve X button contrast on gray backgrounds  
-UI: Redesign search with inline close button and suggestions
-Refactor: Split ClipDetailView into detail and fullscreen modes
-```
-
-**Bad commit examples:**
-```
-update stuff
-fix bug
-changes
-wip
-```
-
-### Workflow Summary
-1. **Pull** → `git pull origin main`
-2. **Develop** → Make code changes
-3. **Build** → Build and deploy to simulator/device
-4. **Test** → User confirms feature works
-5. **Commit & Push** → `git add -A && git commit -m "..." && git push origin main`
-
-**DO NOT consider a feature complete until the build succeeds and the app is running.**
+Commit types: `Feat`, `Fix`, `UI`, `Refactor`, `Chore`.
 
 ---
 
-## Apple Documentation Reference
+## Design Rules (Liquid Glass)
 
-**IMPORTANT:** Always reference Apple's official iOS 26 documentation when implementing UI:
+Use Apple Liquid Glass (`.glassEffect()`) for chrome and controls, not content.
 
-```
-/Applications/Xcode.app/Contents/PlugIns/IDEIntelligenceChat.framework/Versions/A/Resources/AdditionalDocumentation/
-```
+**Use glass for:**
+- Floating toolbars, pills, buttons, overlays
+- Interactive elements (`.glassEffect(.regular.interactive())`)
 
-Key files:
-- `SwiftUI-Implementing-Liquid-Glass-Design.md` - Use `.glassEffect()` modifier
-- `FoundationModels-Using-on-device-LLM-in-your-app.md` - On-device AI
-- `Swift-Concurrency-Updates.md` - Modern async/await patterns
+**Avoid glass for:**
+- Primary content blocks (transcripts, timeline cards)
 
----
-
-## Liquid Glass Design System (iOS 26)
-
-### Basic Implementation
-```swift
-// Basic glass effect
-Text("Hello").glassEffect()
-
-// Custom shape
-Text("Hello").glassEffect(in: .rect(cornerRadius: 16))
-
-// Interactive glass (for buttons/tappable elements)
-Button("Tap").glassEffect(.regular.interactive())
-
-// Glass button styles
-Button("Action") { }.buttonStyle(.glass)
-Button("Important") { }.buttonStyle(.glassProminent)
-
-// Multiple glass views (use container for morphing)
-GlassEffectContainer(spacing: 20) {
-    // views with .glassEffect()
-}
-```
-
-### Glass Effect Rules
-- Use `.glassEffect()` instead of `.ultraThinMaterial` for iOS 26
-- Navigation bars, toolbars, tab bars → automatic glass
-- Floating UI elements → `.glassEffect()`
-- Interactive buttons → `.glassEffect(.regular.interactive())`
-- **DO NOT use for content areas** - glass is for chrome/navigation only
-
-### Morphing Transitions
-```swift
-@Namespace private var namespace
-
-GlassEffectContainer(spacing: 40.0) {
-    HStack(spacing: 40.0) {
-        Image(systemName: "icon")
-            .glassEffect()
-            .glassEffectID("uniqueID", in: namespace)
-    }
-}
-```
+Refer to Apple docs:  
+`/Applications/Xcode.app/Contents/PlugIns/IDEIntelligenceChat.framework/Versions/A/Resources/AdditionalDocumentation/`
 
 ---
 
-## Swift 6.2 Concurrency
+## Product Structure
 
-### Default MainActor Isolation
-Swift 6.2 infers MainActor by default - no need to annotate everything with @MainActor.
-
-### Background Work with @concurrent
-```swift
-nonisolated struct PhotoProcessor {
-    @concurrent
-    func process(data: Data) async -> ProcessedPhoto? { ... }
-}
-
-// Call with await
-processedPhotos[item.id] = await PhotoProcessor().process(data: data)
-```
-
-### Isolated Conformances
-```swift
-extension StickerModel: @MainActor Exportable {
-    func export() {
-        photoProcessor.exportAsPNG()
-    }
-}
-```
-
----
-
-## Foundation Models (On-Device LLM)
-
-### Check Availability First
-```swift
-private var model = SystemLanguageModel.default
-
-switch model.availability {
-case .available:
-    // Show intelligence UI
-case .unavailable(.deviceNotEligible):
-    // Show alternative UI
-case .unavailable(.appleIntelligenceNotEnabled):
-    // Ask user to enable Apple Intelligence
-case .unavailable(.modelNotReady):
-    // Model downloading
-case .unavailable(let other):
-    // Unknown reason
-}
-```
-
-### Basic Usage
-```swift
-let session = LanguageModelSession(instructions: "You are a helpful assistant.")
-let response = try await session.respond(to: prompt)
-print(response.content)
-```
-
-### Guided Generation (Structured Output)
-```swift
-@Generable(description: "Profile information")
-struct Profile {
-    var name: String
-    @Guide(description: "Age of person", .range(0...120))
-    var age: Int
-}
-
-let response = try await session.respond(to: "Generate a profile", generating: Profile.self)
-print(response.content.name)
-```
-
----
-
-## Project Architecture
-
-### Split-State Pipeline
-1. **Capture (Edge)** - Save 30s video to Photo Library via PhotoKit
-2. **Siphon (Background)** - Extract audio, upload to backend
-3. **Intelligence (Cloud)** - Whisper → Gemini → MongoDB
-4. **Search Loop** - Semantic search returns localIdentifiers, frontend rehydrates
-
-### Design Tokens
-- **Colors:** Use semantic colors (AppColors.background, .surface, .textPrimary, etc.)
-- **Typography:** SF Pro (heroHeader 34pt bold, cardTitle 18pt semibold, body 16pt, metadata 14pt mono)
-- **Layout:** Padding 20pt, Card radius 16pt, Search pill 30pt
-
-### Project Structure
 ```
 ClipApp/
-├── App/
-│   ├── ClipApp.swift
-│   └── GlobalViewState.swift
-├── Core/
-│   ├── Navigation/RootView.swift
-│   ├── DesignSystem/ (Colors, Typography, Components)
-│   └── Managers/ (Haptic, Photo, Camera)
-├── Features/
-│   ├── Feed/ (HomeFeedView, ClipCardView, StatusHeader)
-│   └── Search/ (LiquidSearchOverlay, SearchResultsGrid)
-├── Services/ (APIService, MockData)
-└── Models/ (ClipMetadata, SearchResult)
+├── App/                 // ClipApp.swift, GlobalViewState.swift
+├── Core/                // Managers, Navigation, DesignSystem
+├── Features/Feed/       // TimelineView, MomentCard, ClipDetailView
+├── Models/              // ClipMetadata, SearchResult
+└── Services/            // APIService, MockData
 ```
 
 ---
 
-## Wake Word Detection ("Clip That")
+## Wake Word (Clip That)
 
-The app uses native iOS `SFSpeechRecognizer` for on-device wake word detection. When the user says "Clip That", it triggers the video clipping and returns the last 30 seconds of transcript.
+Location: `Core/Managers/WakeWordDetector.swift`
 
-### WakeWordDetector Usage
+Usage:
 ```swift
-// 1. Start listening with your audio format from Meta SDK
-wakeWordDetector.startListening(audioFormat: audioFormatFromMetaSDK)
-
-// 2. Feed audio buffers as they arrive from the stream
+wakeWordDetector.startListening(audioFormat: format)
 wakeWordDetector.processAudioBuffer(buffer)
-
-// 3. The onClipTriggered callback fires with the last 30 seconds of transcript
-wakeWordDetector.onClipTriggered = { transcript in
-    // transcript contains the last 30 seconds of speech (without "clip that")
-    // Send to backend, trigger video clipping, etc.
-    print("Transcript: \(transcript)")
-}
-
-// 4. Stop listening when done
-wakeWordDetector.stopListening()
-
-// Optional: Get current transcript manually
-let recentTranscript = wakeWordDetector.getRecentTranscript()
+wakeWordDetector.onClipTriggered = { transcript in ... }
 ```
-
-### Key Details
-- **Location:** `Core/Managers/WakeWordDetector.swift`
-- **On-device:** Uses `requiresOnDeviceRecognition = true` (no network needed)
-- **Transcript buffer:** Maintains rolling 30-second transcript buffer
-- **Session restart:** Auto-restarts every 50 seconds (iOS recognition limit is ~1 minute)
-- **Cooldown:** 2-second debounce to prevent duplicate triggers
-- **UI indicator:** `GlassesStatusCard(isListening:)` shows pulsing mic when active
-- **Published state:** `currentTranscript` shows live transcription
-
----
-
-## Key Implementation Notes
-
-1. **No TabView** - Search floats above content
-2. **Haptics:** playSuccess() → rigid double tap, playLight() → soft impact, playError() → heavy triple
-3. **Search:** Semantic search via backend, results rendered as 2-column grid with thumbnails
-4. **Status Header:** Green pulse dot + "RAY-BAN META • 82%" + aperture button
 
 ---
 
 ## Testing Strategy
 
-### Use Simulator for UI Work
-For UI tweaks, layout changes, and visual iteration, **always use the iOS Simulator** - it's faster:
-```bash
-# Quick simulator build
-cd frontend && xcodebuild -project nw2025.xcodeproj -scheme nw2025 \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
-  -configuration Debug build
-```
-
-Or just `⌘R` in Xcode with simulator selected.
-
-### Use Physical Device for:
-- Meta SDK / Ray-Ban glasses connection (Bluetooth)
-- Haptics testing (`HapticManager`)
-- Wake word detection with real microphone
-- Performance profiling
+Use simulator for UI work. Use device for:
+- Meta glasses integration
+- Haptics
+- Wake word mic testing
 
 ---
 
-## iOS Simulator Interaction (for AI/Automation)
+## Meta Wearables SDK
 
-### Taking Screenshots
-Use `xcrun simctl io` to capture simulator screenshots for visual verification:
-```bash
-# Take a screenshot of the running simulator
-xcrun simctl io "iPhone 17 Pro" screenshot /tmp/screenshot.png
+SPM URL: `https://github.com/facebook/meta-wearables-dat-ios`  
+Docs: `https://wearables.developer.meta.com/docs/develop`
 
-# Then read the image to inspect UI state
-# (use read_file tool on /tmp/screenshot.png)
-```
-
-### Launch and Install Apps
-```bash
-# Boot simulator
-xcrun simctl boot "iPhone 17 Pro"
-open -a Simulator
-
-# Install app to simulator
-xcrun simctl install "iPhone 17 Pro" ~/Library/Developer/Xcode/DerivedData/nw2025-*/Build/Products/Debug-iphonesimulator/nw2025.app
-
-# Launch app
-xcrun simctl launch "iPhone 17 Pro" me.park.jay.nw2025
-
-# Full build + install + launch + screenshot workflow
-cd frontend && xcodebuild -project nw2025.xcodeproj -scheme nw2025 \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
-  -configuration Debug build && \
-xcrun simctl install "iPhone 17 Pro" ~/Library/Developer/Xcode/DerivedData/nw2025-giuernfepgvhmaaxchsxxgbkygdd/Build/Products/Debug-iphonesimulator/nw2025.app && \
-xcrun simctl launch "iPhone 17 Pro" me.park.jay.nw2025 && \
-sleep 2 && \
-xcrun simctl io "iPhone 17 Pro" screenshot /tmp/app_screenshot.png
-```
-
-### Other Useful Commands
-```bash
-# List available simulators
-xcrun simctl list devices available
-
-# Terminate app
-xcrun simctl terminate "iPhone 17 Pro" me.park.jay.nw2025
-
-# Erase simulator (reset to clean state)
-xcrun simctl erase "iPhone 17 Pro"
-
-# Open URL in simulator
-xcrun simctl openurl "iPhone 17 Pro" "https://example.com"
-
-# Record video
-xcrun simctl io "iPhone 17 Pro" recordVideo /tmp/recording.mp4
-# (Press Ctrl+C to stop recording)
-```
-
-### Limitations
-- **No programmatic tapping:** `xcrun simctl` cannot simulate touch events
-- **AppleScript requires permissions:** System Events automation needs Accessibility permissions in System Settings
-- **cliclick:** Can be installed via `brew install cliclick` for mouse automation, but requires screen coordinates
-
----
-
-## Building and Deploying to iPhone
-
-### Quick Deploy Command
-To build and install directly to a connected iPhone from the command line:
-
-```bash
-cd frontend && xcodebuild -project nw2025.xcodeproj -scheme nw2025 -destination 'id=00008140-001534E83647001C' -configuration Debug -allowProvisioningUpdates build install
-```
-
-**Note:** Replace the device ID (`00008140-001534E83647001C`) with your iPhone's ID. To find your device ID:
-```bash
-xcrun xcodebuild -showdestinations -project frontend/nw2025.xcodeproj -scheme nw2025 2>&1 | grep "platform:iOS.*arch:arm64.*id:" | grep -v "Simulator"
-```
-
-### Actually Installing to Device
-The `xcodebuild install` only stages the app. To actually install to device, use:
-
-```bash
-xcrun devicectl device install app --device 00008140-001534E83647001C ~/Library/Developer/Xcode/DerivedData/nw2025-giuernfepgvhmaaxchsxxgbkygdd/Build/Intermediates.noindex/ArchiveIntermediates/nw2025/InstallationBuildProductsLocation/Applications/nw2025.app
-```
-
-### Code Signing Setup
-- **Development Team:** `8DX2TD97D2` (Jay Park - Personal Team)
-- **Bundle Identifier:** `me.park.jay.nw2025`
-- **Signing Style:** Automatic (configured in project.pbxproj)
-- The `-allowProvisioningUpdates` flag allows Xcode to automatically create/update provisioning profiles
-
-### Requirements
-- iPhone must have **Developer Mode enabled** (Settings → Privacy & Security → Developer Mode)
-- Apple ID must be signed into Xcode (Xcode → Settings → Accounts)
-- Free Apple ID works for personal development (apps expire after 7 days)
-- **First launch:** Trust the developer certificate (Settings → General → VPN & Device Management → Trust)
-
----
-
-## Meta Wearables Device Access Toolkit (DAT)
-
-**IMPORTANT:** Always reference this SDK documentation when developing features for Meta Ray-Ban glasses integration.
-
-### SDK Overview
-- Developer preview SDK for Meta AI glasses (Ray-Ban Meta)
-- Enables video streaming, photo capture, and audio access
-- General availability planned for 2026
-
-### Installation (Swift Package Manager)
-```swift
-// In Xcode: File > Add Package Dependencies
-// URL: https://github.com/facebook/meta-wearables-dat-ios
-```
-
-1. In Xcode, select **File** > **Add Package Dependencies...**
-2. Search for `https://github.com/facebook/meta-wearables-dat-ios`
-3. Select `meta-wearables-dat-ios`
-4. Set the version to one of the available versions
-5. Click **Add Package**
-6. Select the target to which you want to add the packages
-7. Click **Add Package**
-
-### Key Capabilities
-- **POV Camera:** Video streaming and photo capture from glasses
-- **Microphone:** Open-ear microphone audio input
-- **Audio Output:** Speakers for audio playback
-- **Sensors:** On-device sensor access
-
-### Analytics Opt-Out Configuration
-To disable Meta analytics collection, add to `Info.plist`:
-
-**Method 1: Xcode Info Tab**
-1. Select app target in Project navigator
-2. Go to **Info** tab → **Custom iOS Target Properties**
-3. Add `MWDAT` key (Dictionary)
-4. Add `Analytics` key under MWDAT (Dictionary)
-5. Add `OptOut` key under Analytics (Boolean) → set to `YES`
-
-**Method 2: Direct XML**
-```xml
-<key>MWDAT</key>
-<dict>
-    <key>Analytics</key>
-    <dict>
-        <key>OptOut</key>
-        <true/>
-    </dict>
-</dict>
-```
-
-### Documentation Links
-- **Blog:** https://developers.meta.com/blog/introducing-meta-wearables-device-access-toolkit/
-- **Docs:** https://wearables.developer.meta.com/docs/develop
-- **GitHub:** https://github.com/facebook/meta-wearables-dat-ios
-- **Sample Code:** `samples/CameraAccess` in the GitHub repo
-
-### Current Limitations (Developer Preview)
-- Voice commands/AI assistant integration **not yet available**
-- Publishing to public restricted to select partners only
-- Internal distribution within orgs/teams is allowed
-- Some features may change before general availability

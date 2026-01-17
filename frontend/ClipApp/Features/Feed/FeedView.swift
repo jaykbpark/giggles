@@ -154,24 +154,6 @@ struct ClipCard: View {
                 Image(systemName: "play.fill")
                     .font(.system(size: 32))
                     .foregroundStyle(.white.opacity(0.9))
-                
-                // Duration badge
-                VStack {
-                    Spacer()
-                    HStack {
-                        Spacer()
-                        Text(clip.formattedDuration)
-                            .font(.system(size: 12, weight: .bold, design: .monospaced))
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background {
-                                Capsule()
-                                    .fill(.black.opacity(0.6))
-                            }
-                            .padding(12)
-                    }
-                }
             }
             .matchedGeometryEffect(id: clip.id, in: namespace)
             

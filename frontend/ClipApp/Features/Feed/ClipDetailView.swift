@@ -65,6 +65,7 @@ struct ClipDetailView: View {
             selectedClip = nil
         }
     }
+    
 
     private var videoPlayerArea: some View {
         ZStack {

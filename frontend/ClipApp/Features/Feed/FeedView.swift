@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct FeedView: View {
+    @ObservedObject var viewState: GlobalViewState
     let clips: [ClipMetadata]
     let isLoading: Bool
     @Binding var selectedClip: ClipMetadata?
@@ -88,7 +89,11 @@ struct FeedView: View {
                     
                     LazyVStack(spacing: 16) {
                         ForEach(clips) { clip in
-                            ClipCard(clip: clip, namespace: namespace)
+                            ClipCard(
+                                clip: clip,
+                                namespace: namespace,
+                                onToggleStar: { viewState.toggleStar(for: clip.id) }
+                            )
                                 .onTapGesture {
                                     HapticManager.playLight()
                                     withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) {
@@ -133,6 +138,7 @@ struct FeedView: View {
 struct ClipCard: View {
     let clip: ClipMetadata
     var namespace: Namespace.ID
+    let onToggleStar: () -> Void
     
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -162,6 +168,20 @@ struct ClipCard: View {
                     .foregroundStyle(.white.opacity(0.9))
             }
             .matchedGeometryEffect(id: clip.id, in: namespace)
+            .overlay(alignment: .topTrailing) {
+                Button {
+                    HapticManager.playLight()
+                    onToggleStar()
+                } label: {
+                    Image(systemName: clip.isStarred ? "star.fill" : "star")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(clip.isStarred ? AppColors.accent : .white)
+                        .frame(width: 30, height: 30)
+                        .glassEffect(.regular.interactive(), in: .circle)
+                }
+                .padding(8)
+                .accessibilityLabel(clip.isStarred ? "Remove star" : "Star clip")
+            }
             
             // Content area
             VStack(alignment: .leading, spacing: 8) {
@@ -206,6 +226,10 @@ struct ClipCard: View {
                         }
                     }
                 }
+
+                if let context = clip.context {
+                    contextRow(context)
+                }
             }
             .padding(16)
         }
@@ -219,7 +243,26 @@ struct ClipCard: View {
                 .shadow(color: AppColors.cardShadow, radius: 14, y: 8)
         }
     }
+
+    @ViewBuilder
+    private func contextRow(_ context: ClipContext) -> some View {
+        HStack(spacing: 8) {
+            if let calendarTitle = context.calendarTitle {
+                Label(calendarTitle, systemImage: "calendar")
+            }
+            if let locationName = context.locationName {
+                Label(locationName, systemImage: "mappin.and.ellipse")
+            }
+            if let weatherSummary = context.weatherSummary {
+                Label(weatherSummary, systemImage: "cloud.sun")
+            }
+        }
+        .font(.system(size: 11, weight: .medium))
+        .foregroundStyle(AppColors.textSecondary)
+        .lineLimit(1)
+    }
 }
+
 
 // MARK: - Skeleton Card
 
@@ -274,6 +317,7 @@ private struct ScrollOffsetKey: PreferenceKey {
                 AppColors.warmBackground.ignoresSafeArea()
                 
                 FeedView(
+                    viewState: GlobalViewState(),
                     clips: MockData.clips,
                     isLoading: false,
                     selectedClip: .constant(nil),

@@ -27,6 +27,11 @@ enum SortOrder: String, CaseIterable {
     }
 }
 
+enum FeedTab: String, CaseIterable {
+    case all = "All"
+    case starred = "Starred"
+}
+
 @MainActor
 final class GlobalViewState: ObservableObject {
     @Published var viewMode: ViewMode = .grid
@@ -35,6 +40,7 @@ final class GlobalViewState: ObservableObject {
     @Published var selectedTopic: String?
     @Published var clips: [ClipMetadata] = MockData.clips
     @Published var isLoading: Bool = false
+    @Published var selectedFeedTab: FeedTab = .all
     
     // Filter & Sort
     @Published var sortOrder: SortOrder = .recent
@@ -64,7 +70,7 @@ final class GlobalViewState: ObservableObject {
                 !selectedTags.isDisjoint(with: Set(clip.topics))
             }
         }
-        
+
         // Apply sorting
         switch sortOrder {
         case .recent:
@@ -75,7 +81,18 @@ final class GlobalViewState: ObservableObject {
             result.sort { $0.duration > $1.duration }
         }
 
+        // Apply feed tab filter
+        if selectedFeedTab == .starred {
+            result = result.filter { $0.isStarred }
+        }
+
         return result
+    }
+
+    var starredClips: [ClipMetadata] {
+        clips
+            .filter { $0.isStarred }
+            .sorted { $0.capturedAt > $1.capturedAt }
     }
 
     var allTopics: [String] {
@@ -83,7 +100,7 @@ final class GlobalViewState: ObservableObject {
     }
     
     var hasActiveFilters: Bool {
-        !selectedTags.isEmpty || sortOrder != .recent
+        !selectedTags.isEmpty || sortOrder != .recent || !searchText.isEmpty || selectedFeedTab != .all
     }
 
     func toggleViewMode() {
@@ -105,5 +122,19 @@ final class GlobalViewState: ObservableObject {
         selectedTopic = nil
         selectedTags = []
         sortOrder = .recent
+        selectedFeedTab = .all
+    }
+
+    func toggleStar(for clipId: UUID) {
+        updateClip(clipId) { clip in
+            clip.isStarred.toggle()
+        }
+    }
+
+    private func updateClip(_ clipId: UUID, update: (inout ClipMetadata) -> Void) {
+        guard let index = clips.firstIndex(where: { $0.id == clipId }) else { return }
+        var clip = clips[index]
+        update(&clip)
+        clips[index] = clip
     }
 }

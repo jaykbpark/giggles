@@ -44,6 +44,7 @@ struct RootView: View {
                 
                 // Feed
                 FeedView(
+                    viewState: viewState,
                     clips: viewState.filteredClips,
                     isLoading: viewState.isLoading,
                     selectedClip: $selectedClip,
@@ -70,7 +71,12 @@ struct RootView: View {
 
             // Detail view overlay
             if let clip = selectedClip {
-                ClipDetailView(clip: clip, namespace: namespace, selectedClip: $selectedClip)
+                ClipDetailView(
+                    clip: clip,
+                    namespace: namespace,
+                    selectedClip: $selectedClip,
+                    viewState: viewState
+                )
                     .transition(.asymmetric(insertion: .identity, removal: .opacity))
                     .zIndex(100)
             }
@@ -282,13 +288,15 @@ struct RootView: View {
                     .frame(width: 56, height: 56)
 
                 if isRecording {
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(.white)
-                        .frame(width: 18, height: 18)
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 24, weight: .bold))
+                        .foregroundStyle(.white)
+                        .transition(.scale.combined(with: .opacity))
                 } else {
                     Circle()
                         .fill(.white)
                         .frame(width: 22, height: 22)
+                        .transition(.scale.combined(with: .opacity))
                 }
             }
         }

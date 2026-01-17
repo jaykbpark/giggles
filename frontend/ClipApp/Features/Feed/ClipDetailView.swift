@@ -5,10 +5,15 @@ struct ClipDetailView: View {
     let clip: ClipMetadata
     var namespace: Namespace.ID
     @Binding var selectedClip: ClipMetadata?
+    @ObservedObject var viewState: GlobalViewState
     
     @State private var isPlaying = true
     @State private var showControls = true
     @State private var controlsTimer: Timer?
+
+    private var currentClip: ClipMetadata {
+        viewState.clips.first(where: { $0.id == clip.id }) ?? clip
+    }
 
     var body: some View {
         ZStack {
@@ -133,9 +138,21 @@ struct ClipDetailView: View {
             // Top and bottom controls
             VStack {
                 // Top bar
-                HStack {
+                HStack(spacing: 10) {
                     Spacer()
-                    
+
+                    Button {
+                        HapticManager.playLight()
+                        viewState.toggleStar(for: clip.id)
+                    } label: {
+                        Image(systemName: currentClip.isStarred ? "star.fill" : "star")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(currentClip.isStarred ? AppColors.accent : .white)
+                            .frame(width: 40, height: 40)
+                            .glassEffect(.regular.interactive(), in: .circle)
+                    }
+                    .accessibilityLabel(currentClip.isStarred ? "Remove star" : "Star clip")
+
                     // Close button
                     Button(action: close) {
                         Image(systemName: "xmark")
@@ -155,7 +172,7 @@ struct ClipDetailView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     // Duration badge
                     HStack {
-                        Text(clip.formattedDuration)
+                        Text(currentClip.formattedDuration)
                             .font(.system(size: 13, weight: .semibold, design: .monospaced))
                             .foregroundStyle(.white.opacity(0.8))
                             .padding(.horizontal, 10)
@@ -166,12 +183,16 @@ struct ClipDetailView: View {
                     }
                     
                     // Title
-                    Text(clip.title)
+                    Text(currentClip.title)
                         .font(.system(size: 20, weight: .semibold))
                         .foregroundStyle(.white)
+
+                    if let context = currentClip.context {
+                        contextRow(context)
+                    }
                     
                     // Date
-                    Text(clip.formattedDate)
+                    Text(currentClip.formattedDate)
                         .font(.system(size: 14))
                         .foregroundStyle(.white.opacity(0.6))
                 }
@@ -181,6 +202,25 @@ struct ClipDetailView: View {
             }
         }
     }
+
+    @ViewBuilder
+    private func contextRow(_ context: ClipContext) -> some View {
+        HStack(spacing: 8) {
+            if let calendarTitle = context.calendarTitle {
+                Label(calendarTitle, systemImage: "calendar")
+            }
+            if let locationName = context.locationName {
+                Label(locationName, systemImage: "mappin.and.ellipse")
+            }
+            if let weatherSummary = context.weatherSummary {
+                Label(weatherSummary, systemImage: "cloud.sun")
+            }
+        }
+        .font(.system(size: 12, weight: .medium))
+        .foregroundStyle(.white.opacity(0.7))
+        .lineLimit(1)
+    }
+
 }
 
 // MARK: - Play Button Style
@@ -205,7 +245,8 @@ struct ClipDetailViewPreview: View {
         ClipDetailView(
             clip: MockData.clips[0],
             namespace: namespace,
-            selectedClip: $selectedClip
+            selectedClip: $selectedClip,
+            viewState: GlobalViewState()
         )
     }
 }

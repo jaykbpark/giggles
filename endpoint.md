@@ -6,9 +6,49 @@ Backend API contract for video upload, metadata retrieval, and search.
 
 ## Endpoints
 
-### 1. POST /api/video - Upload Video
+### 1. GET /api/videos - Get All Videos (Primary)
 
-Upload a new video clip with raw bytes.
+**This is the main endpoint the app uses on launch.** Returns metadata + transcript for all processed videos.
+
+**Query Parameters:**
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `limit` | integer | Max results (default: 50) |
+| `offset` | integer | Pagination offset (default: 0) |
+
+**Response:**
+
+```json
+{
+  "videos": [
+    {
+      "videoId": "PHAsset-XXXX-XXXX",
+      "title": "Coffee with Sarah",
+      "timestamp": "2026-01-17T10:30:00Z",
+      "duration": 58,
+      "tags": ["coffee", "friends", "conversation"],
+      "transcript": "Hey! It's been so long. How's the new job going? I heard you got promoted..."
+    },
+    {
+      "videoId": "PHAsset-YYYY-YYYY",
+      "title": "Hackathon Demo",
+      "timestamp": "2026-01-17T08:15:00Z",
+      "duration": 60,
+      "tags": ["coding", "hackathon", "demo"],
+      "transcript": "So what we built is an AI-powered clip search..."
+    }
+  ],
+  "total": 2,
+  "hasMore": false
+}
+```
+
+---
+
+### 2. POST /api/video - Upload Video
+
+Upload a new video clip with raw bytes for processing.
 
 **Request:**
 
@@ -41,9 +81,9 @@ Upload a new video clip with raw bytes.
 
 ---
 
-### 2. GET /api/video/:videoId - Get Video Metadata
+### 3. GET /api/video/:videoId - Get Single Video
 
-Retrieve metadata for a specific video.
+Retrieve full metadata + transcript for a specific video.
 
 **Path Parameters:**
 
@@ -58,15 +98,15 @@ Retrieve metadata for a specific video.
   "videoId": "PHAsset-XXXX-XXXX",
   "title": "Coffee with Sarah",
   "timestamp": "2026-01-17T10:30:00Z",
-  "transcript": "transcript here",
+  "duration": 58,
   "tags": ["coffee", "friends", "conversation"],
-  "duration": 30
+  "transcript": "Hey! It's been so long. How's the new job going? I heard you got promoted. That's amazing! We should definitely do dinner next week."
 }
 ```
 
 ---
 
-### 3. GET /api/search - Search Videos
+### 4. GET /api/search - Search Videos
 
 Search by natural text OR filter by tags (single endpoint).
 
@@ -95,7 +135,9 @@ GET /api/search?q=meeting&tags=["work"]
       "videoId": "PHAsset-XXXX-XXXX",
       "title": "Coffee with Sarah",
       "timestamp": "2026-01-17T10:30:00Z",
-      "tags": ["coffee", "friends"]
+      "duration": 58,
+      "tags": ["coffee", "friends"],
+      "transcript": "Hey! It's been so long..."
     }
   ],
   "total": 1

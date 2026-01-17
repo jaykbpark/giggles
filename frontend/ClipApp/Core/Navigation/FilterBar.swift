@@ -4,7 +4,17 @@ struct FilterBar: View {
     @ObservedObject var viewState: GlobalViewState
     
     var body: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: 10) {
+            HStack(spacing: 6) {
+                tabPill(.all)
+                tabPill(.starred, icon: "star.fill")
+            }
+
+            // Divider
+            Rectangle()
+                .fill(AppColors.timelineLine)
+                .frame(width: 1, height: 18)
+
             // Sort picker (fixed)
             Menu {
                 ForEach(SortOrder.allCases, id: \.self) { order in
@@ -32,13 +42,11 @@ struct FilterBar: View {
                         .fill(viewState.sortOrder != .recent ? AppColors.accent.opacity(0.12) : AppColors.warmSurface)
                 }
             }
-            .padding(.leading, 20)
             
             // Divider
             Rectangle()
                 .fill(AppColors.timelineLine)
                 .frame(width: 1, height: 18)
-                .padding(.horizontal, 10)
             
             // Tag chips (scrollable)
             ScrollView(.horizontal, showsIndicators: false) {
@@ -71,10 +79,47 @@ struct FilterBar: View {
                         .transition(.scale.combined(with: .opacity))
                     }
                 }
-                .padding(.trailing, 20)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(.vertical, 6)
+        .padding(.horizontal, 20)
+    }
+
+    private func tabPill(_ tab: FeedTab, icon: String? = nil) -> some View {
+        let isSelected = viewState.selectedFeedTab == tab
+        return Button {
+            HapticManager.playLight()
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                viewState.selectedFeedTab = tab
+            }
+        } label: {
+            HStack(spacing: 6) {
+                if let icon {
+                    Image(systemName: icon)
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(isSelected ? AppColors.accent : AppColors.textSecondary)
+                }
+
+                Text(tab.rawValue)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(isSelected ? AppColors.textPrimary : AppColors.textSecondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.9)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .fixedSize(horizontal: true, vertical: false)
+            .background {
+                Capsule()
+                    .fill(isSelected ? AppColors.warmSurface : AppColors.warmSurface.opacity(0.6))
+                    .overlay {
+                        Capsule()
+                            .stroke(AppColors.timelineLine.opacity(0.6), lineWidth: 1)
+                    }
+            }
+        }
+        .buttonStyle(.plain)
     }
 }
 

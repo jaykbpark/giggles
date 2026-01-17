@@ -3,11 +3,13 @@ import Foundation
 struct ClipMetadata: Identifiable, Codable, Hashable, Sendable {
     let id: UUID
     let localIdentifier: String
-    let title: String
+    var title: String
     let transcript: String
     let topics: [String]
     let capturedAt: Date
     let duration: TimeInterval
+    var isStarred: Bool = false
+    var context: ClipContext? = nil
 
     var formattedDuration: String {
         let minutes = Int(duration) / 60
@@ -46,4 +48,10 @@ struct ClipMetadata: Identifiable, Codable, Hashable, Sendable {
             return formatter.string(from: capturedAt)
         }
     }
+}
+
+struct ClipContext: Codable, Hashable, Sendable {
+    let calendarTitle: String?
+    let locationName: String?
+    let weatherSummary: String?
 }

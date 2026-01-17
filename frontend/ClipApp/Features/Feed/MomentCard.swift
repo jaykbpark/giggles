@@ -86,6 +86,16 @@ struct MomentCard: View {
                     }
                 }
             }
+            .overlay(alignment: .topTrailing) {
+                if clip.isStarred {
+                    Image(systemName: "star.fill")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(AppColors.accent)
+                        .padding(6)
+                        .background(.black.opacity(0.35), in: Circle())
+                        .padding(6)
+                }
+            }
             
             // Date pill + Time
             HStack(spacing: 8) {
@@ -132,8 +142,30 @@ struct MomentCard: View {
                     }
                 }
             }
+
+            if let context = clip.context {
+                contextRow(context)
+            }
         }
         .padding(10)
+    }
+
+    @ViewBuilder
+    private func contextRow(_ context: ClipContext) -> some View {
+        HStack(spacing: 8) {
+            if let calendarTitle = context.calendarTitle {
+                Label(calendarTitle, systemImage: "calendar")
+            }
+            if let locationName = context.locationName {
+                Label(locationName, systemImage: "mappin.and.ellipse")
+            }
+            if let weatherSummary = context.weatherSummary {
+                Label(weatherSummary, systemImage: "cloud.sun")
+            }
+        }
+        .font(.system(size: 11, weight: .medium))
+        .foregroundStyle(AppColors.textSecondary)
+        .lineLimit(1)
     }
 }
 

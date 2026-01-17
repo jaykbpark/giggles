@@ -8,12 +8,20 @@ struct LaunchView: View {
     @State private var dotScale: CGFloat = 0
     @State private var ringScale: CGFloat = 0.5
     @State private var ringOpacity: Double = 0
+    @State private var backgroundShift = false
     
     var body: some View {
         ZStack {
             // Warm background
-            AppColors.warmBackground
-                .ignoresSafeArea()
+            LinearGradient(
+                colors: [
+                    AppColors.warmBackground,
+                    AppColors.warmSurface
+                ],
+                startPoint: backgroundShift ? .topLeading : .top,
+                endPoint: backgroundShift ? .bottomTrailing : .bottom
+            )
+            .ignoresSafeArea()
             
             VStack(spacing: 20) {
                 // Animated logo mark
@@ -43,6 +51,9 @@ struct LaunchView: View {
         }
         .onAppear {
             startAnimation()
+            withAnimation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true)) {
+                backgroundShift = true
+            }
         }
     }
     
@@ -77,6 +88,7 @@ struct LaunchView: View {
             }
             
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                HapticManager.playLight()
                 isComplete = true
             }
         }

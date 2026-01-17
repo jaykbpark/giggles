@@ -6,14 +6,8 @@ struct FeedView: View {
     @Binding var selectedClip: ClipMetadata?
     var namespace: Namespace.ID
     
-    private var groupedClips: [(String, [ClipMetadata])] {
-        let grouped = Dictionary(grouping: clips) { $0.dateGroupKey }
-        return grouped.sorted { lhs, rhs in
-            let lhsDate = clips.first { $0.dateGroupKey == lhs.key }?.capturedAt ?? Date.distantPast
-            let rhsDate = clips.first { $0.dateGroupKey == rhs.key }?.capturedAt ?? Date.distantPast
-            return lhsDate > rhsDate
-        }
-    }
+    @State private var showScrollTop = false
+    @State private var emptyFloat = false
     
     var body: some View {
         if isLoading {
@@ -49,11 +43,14 @@ struct FeedView: View {
                 Circle()
                     .fill(AppColors.warmSurface)
                     .frame(width: 120, height: 120)
+                    .shadow(color: AppColors.cardShadow, radius: 12, y: 6)
                 
                 Image(systemName: "video.badge.waveform")
                     .font(.system(size: 44, weight: .light))
                     .foregroundStyle(AppColors.textSecondary.opacity(0.5))
             }
+            .offset(y: emptyFloat ? -6 : 6)
+            .animation(.easeInOut(duration: 2.4).repeatForever(autoreverses: true), value: emptyFloat)
             
             VStack(spacing: 8) {
                 Text("No clips yet")
@@ -71,54 +68,63 @@ struct FeedView: View {
             Spacer()
         }
         .padding(40)
+        .onAppear {
+            emptyFloat = true
+        }
     }
     
     // MARK: - Feed Content
     
     private var feedContent: some View {
-        ScrollView {
-            LazyVStack(spacing: 18) {
-                ForEach(groupedClips, id: \.0) { dateGroup, groupClips in
-                    sectionHeader(dateGroup)
-
-                    ForEach(groupClips) { clip in
-                        ClipCard(clip: clip, namespace: namespace)
-                            .onTapGesture {
-                                HapticManager.playLight()
-                                withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) {
-                                    selectedClip = clip
-                                }
-                            }
-                            .padding(.horizontal, 20)
+        ScrollViewReader { proxy in
+            ZStack(alignment: .bottomLeading) {
+                ScrollView {
+                    GeometryReader { geo in
+                        Color.clear
+                            .preference(key: ScrollOffsetKey.self, value: geo.frame(in: .named("feedScroll")).minY)
                     }
+                    .frame(height: 0)
+                    .id("top")
+                    
+                    LazyVStack(spacing: 16) {
+                        ForEach(clips) { clip in
+                            ClipCard(clip: clip, namespace: namespace)
+                                .onTapGesture {
+                                    HapticManager.playLight()
+                                    withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) {
+                                        selectedClip = clip
+                                    }
+                                }
+                                .padding(.horizontal, 20)
+                        }
+                    }
+                    .padding(.top, 12)
+                    .padding(.bottom, 120) // Space for record button
+                }
+                .coordinateSpace(name: "feedScroll")
+                .scrollIndicators(.hidden)
+                .onPreferenceChange(ScrollOffsetKey.self) { value in
+                    showScrollTop = value < -280
+                }
+                
+                if showScrollTop {
+                    Button {
+                        withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+                            proxy.scrollTo("top", anchor: .top)
+                        }
+                    } label: {
+                        Image(systemName: "arrow.up")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(AppColors.textPrimary)
+                            .frame(width: 40, height: 40)
+                            .glassEffect(.regular.interactive(), in: .circle)
+                    }
+                    .padding(.leading, 20)
+                    .padding(.bottom, 28)
+                    .transition(.scale.combined(with: .opacity))
                 }
             }
-            .padding(.top, 4)
-            .padding(.bottom, 120) // Space for record button
         }
-        .scrollIndicators(.hidden)
-    }
-    
-    // MARK: - Section Header
-    
-    private func sectionHeader(_ title: String) -> some View {
-        HStack(spacing: 12) {
-            Rectangle()
-                .fill(AppColors.timelineLine.opacity(0.8))
-                .frame(height: 1)
-            
-            Text(title.uppercased())
-                .font(.system(size: 11, weight: .bold))
-                .foregroundStyle(AppColors.textSecondary)
-                .tracking(0.8)
-            
-            Rectangle()
-                .fill(AppColors.timelineLine.opacity(0.8))
-                .frame(height: 1)
-        }
-        .padding(.horizontal, 20)
-        .padding(.top, 16)
-        .padding(.bottom, 6)
     }
 }
 
@@ -159,32 +165,47 @@ struct ClipCard: View {
             
             // Content area
             VStack(alignment: .leading, spacing: 8) {
+                // Date pill + Time
+                HStack(spacing: 8) {
+                    Text(clip.dateGroupKey.uppercased())
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(AppColors.textSecondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background {
+                            Capsule()
+                                .fill(AppColors.warmBackground)
+                        }
+                    
+                    Text(clip.formattedTime)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(AppColors.accent)
+                    
+                    Spacer()
+                }
+                
                 // Title
                 Text(clip.title)
                     .font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(AppColors.textPrimary)
                     .lineLimit(2)
                 
-                // Metadata row
-                HStack(spacing: 12) {
-                    // Time
-                    Label(clip.formattedTime, systemImage: "clock")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(AppColors.textSecondary)
-                    
-                    // Topics
-                    if let firstTopic = clip.topics.first {
-                        Text("•")
-                            .foregroundStyle(AppColors.textSecondary)
-                        
-                        Text(firstTopic)
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(AppColors.accent)
+                // Topics
+                if !clip.topics.isEmpty {
+                    HStack(spacing: 6) {
+                        ForEach(clip.topics.prefix(2), id: \.self) { topic in
+                            Text(topic)
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(AppColors.textSecondary)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background {
+                                    Capsule()
+                                        .stroke(AppColors.timelineLine.opacity(0.6), lineWidth: 1)
+                                }
+                        }
                     }
-                    
-                    Spacer()
                 }
-                .padding(.top, 4)
             }
             .padding(16)
         }
@@ -195,7 +216,7 @@ struct ClipCard: View {
                     RoundedRectangle(cornerRadius: 20, style: .continuous)
                         .stroke(AppColors.timelineLine.opacity(0.4), lineWidth: 1)
                 }
-                .shadow(color: AppColors.cardShadow, radius: 12, y: 6)
+                .shadow(color: AppColors.cardShadow, radius: 14, y: 8)
         }
     }
 }
@@ -203,8 +224,6 @@ struct ClipCard: View {
 // MARK: - Skeleton Card
 
 struct SkeletonClipCard: View {
-    @State private var isAnimating = false
-    
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -233,11 +252,14 @@ struct SkeletonClipCard: View {
             RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .fill(AppColors.warmSurface)
         }
-        .opacity(isAnimating ? 0.6 : 1.0)
-        .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: isAnimating)
-        .onAppear {
-            isAnimating = true
-        }
+        .shimmering()
+    }
+}
+
+private struct ScrollOffsetKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
     }
 }
 

@@ -68,6 +68,7 @@ struct FilterBar: View {
                                 .foregroundStyle(AppColors.textSecondary.opacity(0.6))
                         }
                         .padding(.leading, 4)
+                        .transition(.scale.combined(with: .opacity))
                     }
                 }
                 .padding(.trailing, 20)
@@ -93,10 +94,19 @@ struct TagChip: View {
                 .padding(.vertical, 6)
                 .background {
                     Capsule()
-                        .fill(isSelected ? AppColors.accent : AppColors.warmSurface)
+                        .fill(isSelected ? AnyShapeStyle(AppGradients.accent) : AnyShapeStyle(AppColors.warmSurface))
+                        .overlay {
+                            if !isSelected {
+                                Capsule()
+                                    .stroke(AppColors.timelineLine.opacity(0.6), lineWidth: 1)
+                            }
+                        }
                 }
+                .scaleEffect(isSelected ? 1.03 : 1)
+                .animation(.spring(response: 0.3, dampingFraction: 0.75), value: isSelected)
         }
         .buttonStyle(.plain)
+        .accessibilityLabel("Filter by \(tag)")
     }
 }
 

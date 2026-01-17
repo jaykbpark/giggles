@@ -8,8 +8,11 @@ struct RootView: View {
     @StateObject private var glassesManager = MetaGlassesManager.shared
     @State private var selectedClip: ClipMetadata?
     @State private var showSearch = false
+    @State private var showSearchSuggestions = false
     @State private var isRecording = false
     @State private var showRecordConfirmation = false
+    @State private var recordPulse = false
+    @State private var recordProgress: Double = 0
     @State private var cancellables = Set<AnyCancellable>()
     @Namespace private var namespace
 
@@ -48,6 +51,8 @@ struct RootView: View {
                 )
             }
             .opacity(selectedClip != nil ? 0 : 1)
+            .blur(radius: showSearch ? 6 : 0)
+            .animation(.easeOut(duration: 0.25), value: showSearch)
             
             // Floating record button
             if selectedClip == nil && !showSearch {
@@ -60,6 +65,7 @@ struct RootView: View {
                             .padding(.bottom, 30)
                     }
                 }
+                .transition(.opacity)
             }
 
             // Detail view overlay
@@ -85,6 +91,18 @@ struct RootView: View {
         }
         .task {
             await setupWakeWordDetection()
+        }
+        .onChange(of: showSearch) { _, newValue in
+            if newValue {
+                showSearchSuggestions = false
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                        showSearchSuggestions = true
+                    }
+                }
+            } else {
+                showSearchSuggestions = false
+            }
         }
     }
     
@@ -180,6 +198,7 @@ struct RootView: View {
                         .foregroundStyle(AppColors.textSecondary)
                 }
             }
+            .accessibilityLabel("Search clips")
         }
         .padding(.horizontal, 20)
         .padding(.top, 12)
@@ -199,6 +218,23 @@ struct RootView: View {
             triggerRecording()
         } label: {
             ZStack {
+                if isRecording {
+                    Circle()
+                        .stroke(AppColors.accent.opacity(0.2), lineWidth: 1)
+                        .frame(width: 88, height: 88)
+                        .scaleEffect(recordPulse ? 1.05 : 0.9)
+                        .opacity(recordPulse ? 0.1 : 0.5)
+                }
+
+                Circle()
+                    .trim(from: 0, to: recordProgress)
+                    .stroke(
+                        AppColors.accent.opacity(0.6),
+                        style: StrokeStyle(lineWidth: 2, lineCap: .round)
+                    )
+                    .rotationEffect(.degrees(-90))
+                    .frame(width: 80, height: 80)
+
                 // Glass halo
                 Circle()
                     .fill(.clear)
@@ -227,13 +263,29 @@ struct RootView: View {
         }
         .buttonStyle(RecordButtonStyle())
         .shadow(color: AppColors.accent.opacity(0.25), radius: 16, y: 10)
+        .onLongPressGesture(minimumDuration: 0, pressing: { isPressing in
+            if isPressing {
+                HapticManager.playLight()
+            }
+        }, perform: {})
+        .accessibilityLabel("Record clip")
     }
     
     private func triggerRecording() {
         HapticManager.playSuccess()
-        
+        recordProgress = 0
+        recordPulse = false
+
         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
             isRecording = true
+        }
+
+        withAnimation(.linear(duration: 1.0)) {
+            recordProgress = 1
+        }
+
+        withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) {
+            recordPulse = true
         }
         
         // Simulate recording for 1 second then show confirmation
@@ -242,6 +294,8 @@ struct RootView: View {
                 isRecording = false
                 showRecordConfirmation = true
             }
+            recordPulse = false
+            recordProgress = 0
             
             // Auto-dismiss confirmation
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
@@ -253,6 +307,10 @@ struct RootView: View {
     }
     
     // MARK: - Search Overlay
+    
+    private var searchSuggestions: [String] {
+        ["that funny moment", "when we talked about AI", "coffee meetup", "the demo yesterday", "travel plans"]
+    }
     
     private var searchOverlay: some View {
         ZStack {
@@ -326,7 +384,7 @@ struct RootView: View {
                             .padding(.top, 28)
                         
                         FlowLayout(spacing: 10) {
-                            ForEach(["that funny moment", "when we talked about AI", "coffee meetup", "the demo yesterday", "travel plans"], id: \.self) { suggestion in
+                            ForEach(Array(searchSuggestions.enumerated()), id: \.element) { index, suggestion in
                                 Button {
                                     viewState.searchText = suggestion
                                 } label: {
@@ -336,6 +394,13 @@ struct RootView: View {
                                         .padding(.horizontal, 16)
                                         .padding(.vertical, 10)
                                         .glassEffect(.regular.interactive(), in: .capsule)
+                                        .opacity(showSearchSuggestions ? 1 : 0)
+                                        .offset(y: showSearchSuggestions ? 0 : 6)
+                                        .animation(
+                                            .spring(response: 0.4, dampingFraction: 0.85)
+                                                .delay(Double(index) * 0.03),
+                                            value: showSearchSuggestions
+                                        )
                                 }
                             }
                         }
@@ -574,6 +639,7 @@ struct ClipConfirmation: View {
     @State private var checkScale: CGFloat = 0
     @State private var ringScale: CGFloat = 0.8
     @State private var ringOpacity: Double = 0
+    @State private var checkProgress: CGFloat = 0
 
     var body: some View {
         VStack(spacing: 20) {
@@ -592,9 +658,10 @@ struct ClipConfirmation: View {
                     .glassEffect(in: .circle)
 
                 // Checkmark
-                Image(systemName: "checkmark")
-                    .font(.system(size: 30, weight: .bold))
-                    .foregroundStyle(AppColors.accent)
+                CheckmarkShape()
+                    .trim(from: 0, to: checkProgress)
+                    .stroke(AppColors.accent, style: StrokeStyle(lineWidth: 4, lineCap: .round, lineJoin: .round))
+                    .frame(width: 30, height: 22)
                     .scaleEffect(checkScale)
             }
 
@@ -618,7 +685,23 @@ struct ClipConfirmation: View {
             withAnimation(.spring(response: 0.4, dampingFraction: 0.6).delay(0.1)) {
                 checkScale = 1
             }
+            withAnimation(.easeOut(duration: 0.35).delay(0.12)) {
+                checkProgress = 1
+            }
         }
+    }
+}
+
+struct CheckmarkShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let start = CGPoint(x: rect.minX, y: rect.midY)
+        let mid = CGPoint(x: rect.midX * 0.75, y: rect.maxY)
+        let end = CGPoint(x: rect.maxX, y: rect.minY)
+        path.move(to: start)
+        path.addLine(to: mid)
+        path.addLine(to: end)
+        return path
     }
 }
 

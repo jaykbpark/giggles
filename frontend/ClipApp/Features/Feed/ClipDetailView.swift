@@ -128,6 +128,7 @@ struct ClipDetailView: View {
                 }
             }
             .buttonStyle(PlayButtonStyle())
+            .accessibilityLabel(isPlaying ? "Pause clip" : "Play clip")
             
             // Top and bottom controls
             VStack {
@@ -143,6 +144,7 @@ struct ClipDetailView: View {
                             .frame(width: 40, height: 40)
                             .glassEffect(.regular.interactive(), in: .circle)
                     }
+                    .accessibilityLabel("Close clip")
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 60)

@@ -34,6 +34,9 @@
 		4EC031832F16700000552603 /* MetaSDKProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031842F16700000552603 /* MetaSDKProvider.swift */; };
 		4EC031852F16700000552603 /* MockGlassesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031862F16700000552603 /* MockGlassesProvider.swift */; };
 		4EC031872F16700000552603 /* GlassesStreamProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031882F16700000552603 /* GlassesStreamProvider.swift */; };
+		EDE0E54B2F1C414600788AE2 /* MWDATCamera in Frameworks */ = {isa = PBXBuildFile; productRef = EDE0E54A2F1C414600788AE2 /* MWDATCamera */; };
+		EDE0E54D2F1C414600788AE2 /* MWDATCore in Frameworks */ = {isa = PBXBuildFile; productRef = EDE0E54C2F1C414600788AE2 /* MWDATCore */; };
+		EDE0E54F2F1C414600788AE2 /* MWDATMockDevice in Frameworks */ = {isa = PBXBuildFile; productRef = EDE0E54E2F1C414600788AE2 /* MWDATMockDevice */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -73,6 +76,9 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				EDE0E54B2F1C414600788AE2 /* MWDATCamera in Frameworks */,
+				EDE0E54F2F1C414600788AE2 /* MWDATMockDevice in Frameworks */,
+				EDE0E54D2F1C414600788AE2 /* MWDATCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -235,6 +241,9 @@
 			);
 			name = nw2025;
 			packageProductDependencies = (
+				EDE0E54A2F1C414600788AE2 /* MWDATCamera */,
+				EDE0E54C2F1C414600788AE2 /* MWDATCore */,
+				EDE0E54E2F1C414600788AE2 /* MWDATMockDevice */,
 			);
 			productName = nw2025;
 			productReference = 4EC030E82F161BD600552603 /* nw2025.app */;
@@ -264,6 +273,9 @@
 			);
 			mainGroup = 4EC030DF2F161BD600552603;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				EDE0E5492F1C414600788AE2 /* XCRemoteSwiftPackageReference "meta-wearables-dat-ios" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 4EC030E92F161BD600552603 /* Products */;
 			projectDirPath = "";
@@ -452,8 +464,8 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ClipApp/Info.plist;
-				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Clip uses speech recognition to detect \"Clip That\" voice commands to save moments from your glasses.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Clip needs microphone access to capture audio from your Ray-Ban Meta glasses.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Clip uses speech recognition to detect \"Clip That\" voice commands to save moments from your glasses.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -487,8 +499,8 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ClipApp/Info.plist;
-				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Clip uses speech recognition to detect \"Clip That\" voice commands to save moments from your glasses.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Clip needs microphone access to capture audio from your Ray-Ban Meta glasses.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Clip uses speech recognition to detect \"Clip That\" voice commands to save moments from your glasses.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -533,6 +545,35 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		EDE0E5492F1C414600788AE2 /* XCRemoteSwiftPackageReference "meta-wearables-dat-ios" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/facebook/meta-wearables-dat-ios";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.3.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		EDE0E54A2F1C414600788AE2 /* MWDATCamera */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = EDE0E5492F1C414600788AE2 /* XCRemoteSwiftPackageReference "meta-wearables-dat-ios" */;
+			productName = MWDATCamera;
+		};
+		EDE0E54C2F1C414600788AE2 /* MWDATCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = EDE0E5492F1C414600788AE2 /* XCRemoteSwiftPackageReference "meta-wearables-dat-ios" */;
+			productName = MWDATCore;
+		};
+		EDE0E54E2F1C414600788AE2 /* MWDATMockDevice */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = EDE0E5492F1C414600788AE2 /* XCRemoteSwiftPackageReference "meta-wearables-dat-ios" */;
+			productName = MWDATMockDevice;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 4EC030E02F161BD600552603 /* Project object */;
 }

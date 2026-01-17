@@ -10,15 +10,6 @@ struct TimelineView: View {
     
     @State private var timelineAppeared = false
     
-    private var groupedClips: [(String, [ClipMetadata])] {
-        let grouped = Dictionary(grouping: clips) { $0.dateGroupKey }
-        return grouped.sorted { lhs, rhs in
-            let lhsDate = clips.first { $0.dateGroupKey == lhs.key }?.capturedAt ?? Date.distantPast
-            let rhsDate = clips.first { $0.dateGroupKey == rhs.key }?.capturedAt ?? Date.distantPast
-            return lhsDate > rhsDate
-        }
-    }
-    
     var body: some View {
         if isLoading {
             loadingState
@@ -104,26 +95,18 @@ struct TimelineView: View {
                 
                 // Content
                 LazyVStack(spacing: 0) {
-                    ForEach(Array(groupedClips.enumerated()), id: \.1.0) { sectionIndex, group in
-                        let (dateGroup, groupClips) = group
+                    ForEach(Array(clips.enumerated()), id: \.element.id) { index, clip in
+                        let isLeft = index % 2 == 0
                         
-                        // Section header (non-sticky)
-                        sectionHeader(dateGroup)
-                        
-                        ForEach(Array(groupClips.enumerated()), id: \.element.id) { index, clip in
-                            let globalIndex = calculateGlobalIndex(sectionIndex: sectionIndex, itemIndex: index)
-                            let isLeft = globalIndex % 2 == 0
-                            
-                            TimelineMoment(
-                                clip: clip,
-                                isLeft: isLeft,
-                                animationDelay: Double(globalIndex) * 0.08,
-                                namespace: namespace
-                            ) {
-                                HapticManager.playLight()
-                                withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
-                                    selectedClip = clip
-                                }
+                        TimelineMoment(
+                            clip: clip,
+                            isLeft: isLeft,
+                            animationDelay: Double(index) * 0.08,
+                            namespace: namespace
+                        ) {
+                            HapticManager.playLight()
+                            withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+                                selectedClip = clip
                             }
                         }
                     }
@@ -153,31 +136,6 @@ struct TimelineView: View {
         }
     }
     
-    // MARK: - Section Header
-    
-    private func sectionHeader(_ title: String) -> some View {
-        HStack {
-            Spacer()
-            
-            Text(title)
-                .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(AppColors.textSecondary)
-                .tracking(0.6)
-            
-            Spacer()
-        }
-        .padding(.vertical, 20)
-    }
-    
-    // MARK: - Helpers
-    
-    private func calculateGlobalIndex(sectionIndex: Int, itemIndex: Int) -> Int {
-        var globalIndex = 0
-        for i in 0..<sectionIndex {
-            globalIndex += groupedClips[i].1.count
-        }
-        return globalIndex + itemIndex
-    }
 }
 
 // MARK: - Timeline Moment

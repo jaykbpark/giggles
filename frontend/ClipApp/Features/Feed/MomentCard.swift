@@ -78,10 +78,22 @@ struct MomentCard: View {
                 }
             }
             
-            // Time
-            Text(clip.formattedTime)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(AppColors.accent)
+            // Date pill + Time
+            HStack(spacing: 8) {
+                Text(clip.dateGroupKey)
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(AppColors.textSecondary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background {
+                        Capsule()
+                            .fill(AppColors.warmBackground)
+                    }
+                
+                Text(clip.formattedTime)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(AppColors.accent)
+            }
 
             // Title
             Text(clip.title)

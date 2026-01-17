@@ -19,13 +19,14 @@
 		4EC0315A2F16242C00552603 /* MockData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031502F16242C00552603 /* MockData.swift */; };
 		4EC0315B2F16242C00552603 /* PhotoManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031422F16242C00552603 /* PhotoManager.swift */; };
 		4EC0315C2F16242C00552603 /* SearchResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC0314D2F16242C00552603 /* SearchResult.swift */; };
-		4EC0315D2F16242C00552603 /* ClipsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031492F16242C00552603 /* ClipsListView.swift */; };
 		4EC0315E2F16242C00552603 /* TopicPill.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC0313B2F16242C00552603 /* TopicPill.swift */; };
 		4EC0315F2F16242C00552603 /* ClipMetadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC0314C2F16242C00552603 /* ClipMetadata.swift */; };
-		4EC031602F16242C00552603 /* ClipsGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031482F16242C00552603 /* ClipsGridView.swift */; };
 		4EC031612F16242C00552603 /* GlobalViewState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031382F16242C00552603 /* GlobalViewState.swift */; };
 		4EC031622F16242C00552603 /* ClipDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031472F16242C00552603 /* ClipDetailView.swift */; };
 		4EC031632F16242C00552603 /* SkeletonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC0313A2F16242C00552603 /* SkeletonView.swift */; };
+		4EC031692F16400000552603 /* LaunchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031702F16400000552603 /* LaunchView.swift */; };
+		4EC0316A2F16400000552603 /* TimelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031712F16400000552603 /* TimelineView.swift */; };
+		4EC0316B2F16400000552603 /* MomentCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031722F16400000552603 /* MomentCard.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -50,6 +51,9 @@
 		4EC031652F16252C00552603 /* Gradients.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Gradients.swift; sourceTree = "<group>"; };
 		4EC031662F16300000552603 /* WakeWordDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WakeWordDetector.swift; sourceTree = "<group>"; };
 		4EC031682F16300000552603 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		4EC031702F16400000552603 /* LaunchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchView.swift; sourceTree = "<group>"; };
+		4EC031712F16400000552603 /* TimelineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineView.swift; sourceTree = "<group>"; };
+		4EC031722F16400000552603 /* MomentCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MomentCard.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -123,6 +127,7 @@
 			isa = PBXGroup;
 			children = (
 				4EC031442F16242C00552603 /* RootView.swift */,
+				4EC031702F16400000552603 /* LaunchView.swift */,
 			);
 			path = Navigation;
 			sourceTree = "<group>";
@@ -141,8 +146,8 @@
 			isa = PBXGroup;
 			children = (
 				4EC031472F16242C00552603 /* ClipDetailView.swift */,
-				4EC031482F16242C00552603 /* ClipsGridView.swift */,
-				4EC031492F16242C00552603 /* ClipsListView.swift */,
+				4EC031712F16400000552603 /* TimelineView.swift */,
+				4EC031722F16400000552603 /* MomentCard.swift */,
 			);
 			path = Feed;
 			sourceTree = "<group>";
@@ -268,14 +273,15 @@
 				4EC0315A2F16242C00552603 /* MockData.swift in Sources */,
 				4EC0315B2F16242C00552603 /* PhotoManager.swift in Sources */,
 				4EC0315C2F16242C00552603 /* SearchResult.swift in Sources */,
-				4EC0315D2F16242C00552603 /* ClipsListView.swift in Sources */,
 				4EC0315E2F16242C00552603 /* TopicPill.swift in Sources */,
 				4EC0315F2F16242C00552603 /* ClipMetadata.swift in Sources */,
-				4EC031602F16242C00552603 /* ClipsGridView.swift in Sources */,
 				4EC031612F16242C00552603 /* GlobalViewState.swift in Sources */,
 				4EC031622F16242C00552603 /* ClipDetailView.swift in Sources */,
 				4EC031632F16242C00552603 /* SkeletonView.swift in Sources */,
 				4EC031672F16300000552603 /* WakeWordDetector.swift in Sources */,
+				4EC031692F16400000552603 /* LaunchView.swift in Sources */,
+				4EC0316A2F16400000552603 /* TimelineView.swift in Sources */,
+				4EC0316B2F16400000552603 /* MomentCard.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -223,7 +223,7 @@ For UI tweaks, layout changes, and visual iteration, **always use the iOS Simula
 ```bash
 # Quick simulator build
 cd frontend && xcodebuild -project nw2025.xcodeproj -scheme nw2025 \
-  -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
   -configuration Debug build
 ```
 

@@ -8,193 +8,191 @@ struct ClipDetailView: View {
     
     @State private var isPlaying = false
     @State private var appearAnimation = false
-    @State private var showControls = true
-    @State private var controlsTimer: Timer?
 
     var body: some View {
-        GeometryReader { geometry in
-            ZStack {
-                // Fullscreen black background
-                Color.black
-                    .ignoresSafeArea()
-                
-                // Video player area - fullscreen
-                videoPlayerArea
-                    .frame(width: geometry.size.width, height: geometry.size.height)
-                    .matchedGeometryEffect(id: clip.id, in: namespace)
-                    .ignoresSafeArea()
-                    .onTapGesture {
-                        toggleControls()
+        ZStack(alignment: .top) {
+            // Background
+            AppColors.warmBackground
+                .ignoresSafeArea()
+                .opacity(appearAnimation ? 1 : 0)
+
+            // Scrollable Content
+            ScrollView {
+                VStack(spacing: 0) {
+                    // Video player area
+                    videoPlayerArea
+                        .frame(height: UIScreen.main.bounds.width * 9/16)
+                        .frame(maxHeight: 400)
+                        .clipShape(RoundedRectangle(cornerRadius: appearAnimation ? 24 : 4, style: .continuous))
+                        .matchedGeometryEffect(id: clip.id, in: namespace)
+                        .shadow(color: .black.opacity(0.1), radius: 20, y: 10)
+                        .padding(.horizontal, 20)
+                        .padding(.top, 60)
+
+                    // Content Area
+                    VStack(alignment: .leading, spacing: 32) {
+                        headerSection
+                        transcriptSection
+                        topicsSection
                     }
-                
-                // Overlay controls (fade in/out)
-                if showControls {
-                    controlsOverlay
-                        .transition(.opacity)
+                    .padding(24)
+                    .padding(.top, 8)
+                    .opacity(appearAnimation ? 1 : 0)
+                    .offset(y: appearAnimation ? 0 : 40)
                 }
+                .padding(.bottom, 40)
             }
+            .scrollIndicators(.hidden)
+
+            // Close Button
+            HStack {
+                Spacer()
+                Button {
+                    close()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 36, height: 36)
+                        .background {
+                            Circle()
+                                .fill(.black.opacity(0.5))
+                                .overlay {
+                                    Circle()
+                                        .strokeBorder(.white.opacity(0.2), lineWidth: 1)
+                                }
+                        }
+                        .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
+                }
+                .opacity(appearAnimation ? 1 : 0)
+            }
+            .padding(.top, 16)
+            .padding(.horizontal, 20)
         }
-        .statusBarHidden(true)
         .onAppear {
-            withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
                 appearAnimation = true
-                isPlaying = true
-            }
-            startControlsTimer()
-        }
-        .onDisappear {
-            controlsTimer?.invalidate()
-        }
-    }
-    
-    private func toggleControls() {
-        withAnimation(.easeInOut(duration: 0.25)) {
-            showControls.toggle()
-        }
-        if showControls {
-            startControlsTimer()
-        }
-    }
-    
-    private func startControlsTimer() {
-        controlsTimer?.invalidate()
-        controlsTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: false) { _ in
-            withAnimation(.easeInOut(duration: 0.25)) {
-                showControls = false
             }
         }
     }
 
     private func close() {
-        HapticManager.playLight()
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
             appearAnimation = false
-            selectedClip = nil
+        }
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+                selectedClip = nil
+            }
         }
     }
 
     private var videoPlayerArea: some View {
         ZStack {
-            // Background gradient (fallback/placeholder for actual video)
-            LinearGradient(
-                colors: [Color(.systemGray5), Color(.systemGray6)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            
-            // Placeholder content - in real app, use AVPlayer here
-            VStack(spacing: 20) {
-                Image(systemName: "video.fill")
-                    .font(.system(size: 60))
-                    .foregroundStyle(.secondary)
-                
-                Text(clip.title)
-                    .font(.headline)
-                    .foregroundStyle(.secondary)
-            }
-        }
-    }
-    
-    private var controlsOverlay: some View {
-        ZStack {
-            // Gradient overlays for better control visibility
-            VStack {
-                // Top gradient
-                LinearGradient(
-                    colors: [.black.opacity(0.6), .clear],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .frame(height: 120)
-                
-                Spacer()
-                
-                // Bottom gradient
-                LinearGradient(
-                    colors: [.clear, .black.opacity(0.6)],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .frame(height: 200)
-            }
-            .ignoresSafeArea()
-            
-            VStack {
-                // Top bar with close button
-                HStack {
-                    Spacer()
-                    
-                    Button(action: close) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 16, weight: .bold))
-                            .foregroundStyle(.white)
-                            .padding(12)
-                            .background(
-                                Circle()
-                                    .fill(.black.opacity(0.5))
-                                    .overlay(
-                                        Circle()
-                                            .strokeBorder(.white.opacity(0.3), lineWidth: 1)
-                                    )
-                            )
-                            .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
-                    }
-                }
-                .padding(.horizontal, 20)
-                .padding(.top, 60)
-                
-                Spacer()
-                
-                // Center play/pause button
+            // Background
+            AppColors.warmSurface
+
+            // Play button
+            VStack(spacing: 12) {
                 Button {
                     HapticManager.playLight()
                     isPlaying.toggle()
-                    startControlsTimer()
                 } label: {
                     ZStack {
                         Circle()
-                            .fill(.ultraThinMaterial)
-                            .frame(width: 80, height: 80)
-                        
+                            .fill(AppColors.warmBackground)
+                            .frame(width: 72, height: 72)
+                            .shadow(color: AppColors.cardShadow, radius: 12, y: 4)
+
                         Image(systemName: isPlaying ? "pause.fill" : "play.fill")
-                            .font(.system(size: 32, weight: .semibold))
-                            .foregroundStyle(.white)
-                            .offset(x: isPlaying ? 0 : 3)
+                            .font(.system(size: 24, weight: .semibold))
+                            .foregroundStyle(AppColors.textPrimary)
+                            .offset(x: isPlaying ? 0 : 2)
                     }
                 }
                 .buttonStyle(PlayButtonStyle())
-                
-                Spacer()
-                
-                // Bottom info area
-                VStack(alignment: .leading, spacing: 12) {
-                    Text(clip.title)
-                        .font(.title3)
-                        .fontWeight(.bold)
-                        .foregroundStyle(.white)
-                    
-                    HStack(spacing: 16) {
-                        Label(clip.formattedDate, systemImage: "calendar")
-                        
-                        if !clip.topics.isEmpty {
-                            Label(clip.topics.first ?? "", systemImage: "tag")
-                        }
-                    }
-                    .font(.subheadline)
-                    .foregroundStyle(.white.opacity(0.8))
-                    
-                    // Transcript preview
-                    if !clip.transcript.isEmpty {
-                        Text(clip.transcript)
-                            .font(.caption)
-                            .foregroundStyle(.white.opacity(0.6))
-                            .lineLimit(2)
-                            .padding(.top, 4)
-                    }
+
+                if !isPlaying {
+                    Text("Tap to play")
+                        .font(.system(size: 13))
+                        .foregroundStyle(AppColors.textSecondary)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
+
+    private var headerSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            // Time
+            Text(clip.formattedTime)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(AppColors.accent)
+            
+            // Title/Date
+            Text(clip.dateGroupKey)
+                .font(.system(size: 28, weight: .bold))
+                .foregroundStyle(AppColors.textPrimary)
+
+            HStack(spacing: 16) {
+                Label(clip.formattedDuration, systemImage: "clock")
+                Label(clip.relativeDate, systemImage: "calendar")
+            }
+            .font(.system(size: 14))
+            .foregroundStyle(AppColors.textSecondary)
+        }
+    }
+
+    private var transcriptSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Text("Transcript")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(AppColors.textSecondary)
+
+                Spacer()
+
+                Button {
+                    UIPasteboard.general.string = clip.transcript
+                    HapticManager.playSuccess()
+                } label: {
+                    Image(systemName: "doc.on.doc")
+                        .font(.system(size: 14))
+                        .foregroundStyle(AppColors.textSecondary)
+                }
+            }
+
+            Text(clip.transcript)
+                .font(.system(size: 16))
+                .foregroundStyle(AppColors.textPrimary)
+                .lineSpacing(6)
                 .padding(20)
-                .padding(.bottom, 30)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background {
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(AppColors.warmSurface)
+                }
+        }
+    }
+
+    private var topicsSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Topics")
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(AppColors.textSecondary)
+
+            FlowLayout(spacing: 8) {
+                ForEach(clip.topics, id: \.self) { topic in
+                    Text(topic)
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(AppColors.textPrimary)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background {
+                            Capsule()
+                                .fill(AppColors.warmSurface)
+                        }
+                }
             }
         }
     }
@@ -205,13 +203,12 @@ struct ClipDetailView: View {
 struct PlayButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.9 : 1)
-            .opacity(configuration.isPressed ? 0.8 : 1)
-            .animation(.spring(response: 0.2, dampingFraction: 0.6), value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed ? 0.92 : 1)
+            .animation(.spring(response: 0.25, dampingFraction: 0.6), value: configuration.isPressed)
     }
 }
 
-// MARK: - Flow Layout for Topics
+// MARK: - Flow Layout
 
 struct FlowLayout: Layout {
     var spacing: CGFloat = 8
@@ -254,6 +251,8 @@ struct FlowLayout: Layout {
         return (CGSize(width: maxWidth, height: currentY + lineHeight), positions)
     }
 }
+
+// MARK: - Preview
 
 struct ClipDetailViewPreview: View {
     @Namespace private var namespace

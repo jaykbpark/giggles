@@ -10,15 +10,6 @@ struct TimelineView: View {
     
     @State private var timelineAppeared = false
     
-    private var groupedClips: [(String, [ClipMetadata])] {
-        let grouped = Dictionary(grouping: clips) { $0.dateGroupKey }
-        return grouped.sorted { lhs, rhs in
-            let lhsDate = clips.first { $0.dateGroupKey == lhs.key }?.capturedAt ?? Date.distantPast
-            let rhsDate = clips.first { $0.dateGroupKey == rhs.key }?.capturedAt ?? Date.distantPast
-            return lhsDate > rhsDate
-        }
-    }
-    
     var body: some View {
         if isLoading {
             loadingState

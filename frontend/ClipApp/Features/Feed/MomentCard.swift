@@ -25,10 +25,10 @@ struct MomentCard: View {
                             RoundedRectangle(cornerRadius: 20, style: .continuous)
                                 .stroke(AppColors.timelineLine.opacity(0.4), lineWidth: 1)
                         }
-                        .shadow(color: AppColors.cardShadow, radius: 12, y: 6)
                 }
                 .opacity(isAppeared ? 1 : 0)
                 .offset(x: isAppeared ? 0 : (isLeft ? -20 : 20))
+                .rotationEffect(isAppeared ? .degrees(0) : .degrees(isLeft ? -1 : 1))
                 .animation(.spring(response: 0.5, dampingFraction: 0.8).delay(animationDelay), value: isAppeared)
             
             if isLeft {
@@ -38,6 +38,7 @@ struct MomentCard: View {
         .onAppear {
             isAppeared = true
         }
+        .accessibilityLabel("\(clip.title), \(clip.formattedTime)")
     }
     
     private var cardContent: some View {
@@ -53,6 +54,14 @@ struct MomentCard: View {
                         )
                     )
                     .frame(height: 120)
+                    .overlay {
+                        LinearGradient(
+                            colors: [.clear, Color.black.opacity(0.25)],
+                            startPoint: .center,
+                            endPoint: .bottom
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    }
                 
                 // Play icon
                 Image(systemName: "play.fill")
@@ -133,8 +142,13 @@ struct MomentCard: View {
 struct MomentCardButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.96 : 1.0)
-            .animation(.spring(response: 0.25, dampingFraction: 0.7), value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
+            .shadow(
+                color: AppColors.cardShadow,
+                radius: configuration.isPressed ? 6 : 14,
+                y: configuration.isPressed ? 3 : 8
+            )
+            .animation(.spring(response: 0.25, dampingFraction: 0.75), value: configuration.isPressed)
     }
 }
 

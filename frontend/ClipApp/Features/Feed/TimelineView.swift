@@ -9,6 +9,7 @@ struct TimelineView: View {
     var namespace: Namespace.ID
     
     @State private var timelineAppeared = false
+    @State private var emptyFloat = false
     
     var body: some View {
         if isLoading {
@@ -62,11 +63,14 @@ struct TimelineView: View {
                 Circle()
                     .fill(AppColors.warmSurface)
                     .frame(width: 120, height: 120)
+                    .shadow(color: AppColors.cardShadow, radius: 12, y: 6)
                 
                 Image(systemName: "waveform")
                     .font(.system(size: 44, weight: .light))
                     .foregroundStyle(.secondary)
             }
+            .offset(y: emptyFloat ? -6 : 6)
+            .animation(.easeInOut(duration: 2.4).repeatForever(autoreverses: true), value: emptyFloat)
             
             VStack(spacing: 10) {
                 Text("No moments yet")
@@ -83,6 +87,9 @@ struct TimelineView: View {
             Spacer()
         }
         .padding(40)
+        .onAppear {
+            emptyFloat = true
+        }
     }
     
     // MARK: - Timeline Content
@@ -123,7 +130,16 @@ struct TimelineView: View {
     private var timelineLine: some View {
         GeometryReader { geo in
             Rectangle()
-                .fill(AppColors.timelineLine)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            AppColors.timelineLine.opacity(0.2),
+                            AppColors.timelineLine
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
                 .frame(width: 2)
                 .frame(maxHeight: .infinity)
                 .position(x: geo.size.width / 2, y: geo.size.height / 2)
@@ -231,7 +247,7 @@ struct ShimmerModifier: ViewModifier {
                 .mask(content)
             }
             .onAppear {
-                withAnimation(.linear(duration: 1.5).repeatForever(autoreverses: false)) {
+                withAnimation(.linear(duration: 2.0).repeatForever(autoreverses: false)) {
                     phase = 1
                 }
             }

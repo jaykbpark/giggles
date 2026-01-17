@@ -646,7 +646,7 @@ struct SpectacularConfirmation: View {
                 Text("Captured")
                     .font(.system(size: 22, weight: .bold, design: .rounded))
 
-                Text("60 seconds saved")
+                Text("30 seconds saved")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }

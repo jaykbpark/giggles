@@ -73,7 +73,7 @@ The `WakeWordDetector` is complete and ready to receive audio. Next steps:
 
 | Feature | Owner | Status | Notes |
 |---------|-------|--------|-------|
-| Video capture/clipping | Video Team | In Progress | Handles 60s video buffer |
+| Video capture/clipping | Video Team | In Progress | Handles 30s video buffer |
 | Wake word detection | Jay | ✅ Done | Returns 30s transcript |
 | Meta SDK audio stream | TBD | Not Started | Need to hook up to WakeWordDetector |
 | Backend transcript API | TBD | Not Started | Endpoint: `/api/process` |

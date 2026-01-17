@@ -8,202 +8,208 @@ struct ClipDetailView: View {
     
     @State private var isPlaying = false
     @State private var appearAnimation = false
+    @State private var showControls = true
+    @State private var controlsTimer: Timer?
 
     var body: some View {
-        ZStack(alignment: .top) {
-            // 1. Ambiance/Aura Background
-            auraBackground
-                .ignoresSafeArea()
-                .opacity(appearAnimation ? 1 : 0)
-
-            // 2. Scrollable Content
-            ScrollView {
-                VStack(spacing: 0) {
-                    // Spacer for the video player area (it floats above)
-                    Color.clear
-                        .frame(height: UIScreen.main.bounds.width * 16/9) // Match video aspect ratio
-                        .frame(maxHeight: 500)
-
-                    // Content Area
-                    VStack(alignment: .leading, spacing: 24) {
-                        headerSection
-                        transcriptSection
-                        topicsSection
+        GeometryReader { geometry in
+            ZStack {
+                // Fullscreen black background
+                Color.black
+                    .ignoresSafeArea()
+                
+                // Video player area - fullscreen
+                videoPlayerArea
+                    .frame(width: geometry.size.width, height: geometry.size.height)
+                    .matchedGeometryEffect(id: clip.id, in: namespace)
+                    .ignoresSafeArea()
+                    .onTapGesture {
+                        toggleControls()
                     }
-                    .padding(20)
-                    .background(
-                        Rectangle()
-                            .fill(Color(.systemBackground))
-                            .mask(
-                                LinearGradient(stops: [
-                                    .init(color: .clear, location: 0),
-                                    .init(color: .black, location: 0.05)
-                                ], startPoint: .top, endPoint: .bottom)
-                            )
-                    )
-                    .offset(y: appearAnimation ? 0 : 200)
+                
+                // Overlay controls (fade in/out)
+                if showControls {
+                    controlsOverlay
+                        .transition(.opacity)
                 }
-            }
-            .scrollIndicators(.hidden)
-
-            // 3. Morphing Video Player (Floating)
-            videoPlayerArea
-                .frame(height: UIScreen.main.bounds.width * 16/9)
-                .frame(maxHeight: 500)
-                .clipShape(RoundedRectangle(cornerRadius: appearAnimation ? 32 : 4, style: .continuous))
-                .matchedGeometryEffect(id: clip.id, in: namespace)
-                .shadow(color: .black.opacity(0.3), radius: 30, y: 10)
-                .ignoresSafeArea(.container, edges: .top)
-
-            // 4. Controls / Close Button
-            HStack {
-                Spacer()
-                Button {
-                    close()
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundStyle(.white)
-                        .padding(10)
-                        .background(.ultraThinMaterial)
-                        .clipShape(Circle())
-                }
-                .padding(.top, 50) // Safe area approximation
-                .padding(.trailing, 20)
-                .opacity(appearAnimation ? 1 : 0)
             }
         }
+        .statusBarHidden(true)
         .onAppear {
-            withAnimation(.spring(response: 0.6, dampingFraction: 0.7)) {
+            withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
                 appearAnimation = true
                 isPlaying = true
+            }
+            startControlsTimer()
+        }
+        .onDisappear {
+            controlsTimer?.invalidate()
+        }
+    }
+    
+    private func toggleControls() {
+        withAnimation(.easeInOut(duration: 0.25)) {
+            showControls.toggle()
+        }
+        if showControls {
+            startControlsTimer()
+        }
+    }
+    
+    private func startControlsTimer() {
+        controlsTimer?.invalidate()
+        controlsTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: false) { _ in
+            withAnimation(.easeInOut(duration: 0.25)) {
+                showControls = false
             }
         }
     }
 
     private func close() {
-        withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+        HapticManager.playLight()
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
             appearAnimation = false
             selectedClip = nil
         }
     }
 
-    private var auraBackground: some View {
-        ZStack {
-            Color(.systemBackground)
-            
-            // Abstract aura blob
-            Circle()
-                .fill(AppAccents.primary.opacity(0.3))
-                .frame(width: 300, height: 300)
-                .blur(radius: 100)
-                .offset(x: -100, y: -200)
-            
-            Circle()
-                .fill(Color.blue.opacity(0.2))
-                .frame(width: 250, height: 250)
-                .blur(radius: 80)
-                .offset(x: 100, y: -100)
-        }
-    }
-
     private var videoPlayerArea: some View {
         ZStack {
-            // Background gradient (fallback)
+            // Background gradient (fallback/placeholder for actual video)
             LinearGradient(
                 colors: [Color(.systemGray5), Color(.systemGray6)],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
-
-            // Play button overlay with glass effect
-            VStack(spacing: 16) {
+            
+            // Placeholder content - in real app, use AVPlayer here
+            VStack(spacing: 20) {
+                Image(systemName: "video.fill")
+                    .font(.system(size: 60))
+                    .foregroundStyle(.secondary)
+                
+                Text(clip.title)
+                    .font(.headline)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+    
+    private var controlsOverlay: some View {
+        ZStack {
+            // Gradient overlays for better control visibility
+            VStack {
+                // Top gradient
+                LinearGradient(
+                    colors: [.black.opacity(0.6), .clear],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(height: 120)
+                
+                Spacer()
+                
+                // Bottom gradient
+                LinearGradient(
+                    colors: [.clear, .black.opacity(0.6)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(height: 200)
+            }
+            .ignoresSafeArea()
+            
+            VStack {
+                // Top bar with close button
+                HStack {
+                    Button(action: close) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .padding(12)
+                            .background(.ultraThinMaterial)
+                            .clipShape(Circle())
+                    }
+                    
+                    Spacer()
+                    
+                    // Duration badge
+                    Text(clip.formattedDuration)
+                        .font(.system(size: 14, weight: .medium, design: .monospaced))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(.ultraThinMaterial)
+                        .clipShape(Capsule())
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 60)
+                
+                Spacer()
+                
+                // Center play/pause button
                 Button {
                     HapticManager.playLight()
                     isPlaying.toggle()
+                    startControlsTimer()
                 } label: {
                     ZStack {
                         Circle()
                             .fill(.ultraThinMaterial)
                             .frame(width: 80, height: 80)
-                            .glassEffect(in: .circle)
-                            .shadow(color: .black.opacity(0.15), radius: 12, y: 6)
-
+                        
                         Image(systemName: isPlaying ? "pause.fill" : "play.fill")
-                            .font(.system(size: 32))
-                            .foregroundStyle(.primary)
+                            .font(.system(size: 32, weight: .semibold))
+                            .foregroundStyle(.white)
                             .offset(x: isPlaying ? 0 : 3)
                     }
                 }
-                .buttonStyle(ShutterButtonStyle())
-
-                if !isPlaying {
-                    Text("Tap to play")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-        }
-    }
-
-    private var headerSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(clip.title)
-                .font(.title2)
-                .fontWeight(.bold)
-
-            HStack(spacing: 16) {
-                Label(clip.formattedDuration, systemImage: "clock")
-                Label(clip.formattedDate, systemImage: "calendar")
-            }
-            .font(.subheadline)
-            .foregroundStyle(.secondary)
-        }
-    }
-
-    private var transcriptSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Label("Transcript", systemImage: "text.quote")
-                    .font(.headline)
-
+                .buttonStyle(PlayButtonStyle())
+                
                 Spacer()
-
-                Button {
-                    UIPasteboard.general.string = clip.transcript
-                    HapticManager.playSuccess()
-                } label: {
-                    Image(systemName: "doc.on.doc")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                
+                // Bottom info area
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(clip.title)
+                        .font(.title3)
+                        .fontWeight(.bold)
+                        .foregroundStyle(.white)
+                    
+                    HStack(spacing: 16) {
+                        Label(clip.formattedDate, systemImage: "calendar")
+                        
+                        if !clip.topics.isEmpty {
+                            Label(clip.topics.first ?? "", systemImage: "tag")
+                        }
+                    }
+                    .font(.subheadline)
+                    .foregroundStyle(.white.opacity(0.8))
+                    
+                    // Transcript preview
+                    if !clip.transcript.isEmpty {
+                        Text(clip.transcript)
+                            .font(.caption)
+                            .foregroundStyle(.white.opacity(0.6))
+                            .lineLimit(2)
+                            .padding(.top, 4)
+                    }
                 }
-            }
-
-            Text(clip.transcript)
-                .font(.body)
-                .foregroundStyle(.secondary)
-                .lineSpacing(6)
-                .padding(16)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background {
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(.ultraThinMaterial)
-                        .glassEffect(in: .rect(cornerRadius: 16))
-                }
+                .padding(20)
+                .padding(.bottom, 30)
+            }
         }
     }
+}
 
-    private var topicsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Label("Topics", systemImage: "tag")
-                .font(.headline)
+// MARK: - Play Button Style
 
-            FlowLayout(spacing: 8) {
-                ForEach(clip.topics, id: \.self) { topic in
-                    TopicPill(topic: topic)
-                }
-            }
-        }
+struct PlayButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.9 : 1)
+            .opacity(configuration.isPressed ? 0.8 : 1)
+            .animation(.spring(response: 0.2, dampingFraction: 0.6), value: configuration.isPressed)
     }
 }
 

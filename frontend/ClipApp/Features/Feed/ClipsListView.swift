@@ -89,7 +89,7 @@ struct ClipsListView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 20)
             .padding(.vertical, 12)
-            .background(Color(.systemBackground))
+            .background(.ultraThinMaterial)
     }
 }
 

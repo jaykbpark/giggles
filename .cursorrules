@@ -3,7 +3,7 @@
 > **Project:** Clip (iOS Companion App for Meta Ray-Ban Glasses)
 > **Platform:** iOS 26+ (SwiftUI with Liquid Glass)
 > **Design Philosophy:** Apple-native, modern iOS 26 Liquid Glass aesthetic
-> **Core Concept:** Invisible Interface for reviewing, searching, and reliving 60s video clips
+> **Core Concept:** Invisible Interface for reviewing, searching, and reliving 30s video clips
 
 **📋 Development Progress:** See [`frontend/PROGRESS.md`](frontend/PROGRESS.md) for current sprint, completed work, and integration points.
 
@@ -141,7 +141,7 @@ print(response.content.name)
 ## Project Architecture
 
 ### Split-State Pipeline
-1. **Capture (Edge)** - Save 60s video to Photo Library via PhotoKit
+1. **Capture (Edge)** - Save 30s video to Photo Library via PhotoKit
 2. **Siphon (Background)** - Extract audio, upload to backend
 3. **Intelligence (Cloud)** - Whisper → Gemini → MongoDB
 4. **Search Loop** - Semantic search returns localIdentifiers, frontend rehydrates
@@ -230,6 +230,13 @@ cd frontend && xcodebuild -project nw2025.xcodeproj -scheme nw2025 -destination 
 xcrun xcodebuild -showdestinations -project frontend/nw2025.xcodeproj -scheme nw2025 2>&1 | grep "platform:iOS.*arch:arm64.*id:" | grep -v "Simulator"
 ```
 
+### Actually Installing to Device
+The `xcodebuild install` only stages the app. To actually install to device, use:
+
+```bash
+xcrun devicectl device install app --device 00008140-001534E83647001C ~/Library/Developer/Xcode/DerivedData/nw2025-giuernfepgvhmaaxchsxxgbkygdd/Build/Intermediates.noindex/ArchiveIntermediates/nw2025/InstallationBuildProductsLocation/Applications/nw2025.app
+```
+
 ### Code Signing Setup
 - **Development Team:** `8DX2TD97D2` (Jay Park - Personal Team)
 - **Bundle Identifier:** `me.park.jay.nw2025`
@@ -240,6 +247,7 @@ xcrun xcodebuild -showdestinations -project frontend/nw2025.xcodeproj -scheme nw
 - iPhone must have **Developer Mode enabled** (Settings → Privacy & Security → Developer Mode)
 - Apple ID must be signed into Xcode (Xcode → Settings → Accounts)
 - Free Apple ID works for personal development (apps expire after 7 days)
+- **First launch:** Trust the developer certificate (Settings → General → VPN & Device Management → Trust)
 
 ---
 

@@ -29,6 +29,7 @@ final class MetaSDKProvider: GlassesStreamProvider {
     
     private let connectionStateSubject = CurrentValueSubject<GlassesConnectionState, Never>(.disconnected)
     private let videoFrameSubject = PassthroughSubject<CVPixelBuffer, Never>()
+    private let timestampedVideoFrameSubject = PassthroughSubject<TimestampedVideoFrame, Never>()
     private let audioBufferSubject = PassthroughSubject<AVAudioPCMBuffer, Never>()
     
     // MARK: - Connection
@@ -45,6 +46,10 @@ final class MetaSDKProvider: GlassesStreamProvider {
     
     nonisolated var videoFramePublisher: AnyPublisher<CVPixelBuffer, Never> {
         videoFrameSubject.eraseToAnyPublisher()
+    }
+    
+    nonisolated var timestampedVideoFramePublisher: AnyPublisher<TimestampedVideoFrame, Never> {
+        timestampedVideoFrameSubject.eraseToAnyPublisher()
     }
     
     private(set) var isVideoStreaming = false
@@ -338,7 +343,19 @@ final class MetaSDKProvider: GlassesStreamProvider {
             return
         }
         
+        // Send raw pixel buffer for backward compatibility
         videoFrameSubject.send(pixelBuffer)
+        
+        // Extract timing information and send timestamped frame
+        let presentationTime = CMSampleBufferGetPresentationTimeStamp(frame.sampleBuffer)
+        let hostTime = mach_absolute_time()
+        
+        let timestampedFrame = TimestampedVideoFrame(
+            pixelBuffer: pixelBuffer,
+            hostTime: hostTime,
+            presentationTime: presentationTime
+        )
+        timestampedVideoFrameSubject.send(timestampedFrame)
     }
     
     private func handleStreamStateChange(_ state: StreamSessionState) {

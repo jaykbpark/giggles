@@ -4,8 +4,8 @@ import Combine
 
 struct RootView: View {
     @StateObject private var viewState = GlobalViewState()
-    @StateObject private var wakeWordDetector = WakeWordDetector()
     @StateObject private var glassesManager = MetaGlassesManager.shared
+    @StateObject private var captureCoordinator = ClipCaptureCoordinator.shared
     @State private var selectedClip: ClipMetadata?
     @State private var showSearch = false
     @State private var showSearchSuggestions = false
@@ -29,7 +29,7 @@ struct RootView: View {
                 
                 // Glasses Status Card
                 GlassesStatusCard(
-                    isListening: wakeWordDetector.isListening,
+                    isListening: captureCoordinator.isCapturing,
                     connectionState: glassesManager.connectionState,
                     batteryLevel: glassesManager.batteryLevel,
                     deviceName: glassesManager.deviceName,
@@ -90,7 +90,7 @@ struct RootView: View {
             }
         }
         .task {
-            await setupWakeWordDetection()
+            await setupCaptureCoordinator()
         }
         .onChange(of: showSearch) { _, newValue in
             if newValue {
@@ -106,46 +106,49 @@ struct RootView: View {
         }
     }
     
-    // MARK: - Wake Word Detection Setup
+    // MARK: - Capture Coordinator Setup
     
-    private func setupWakeWordDetection() async {
-        // Request speech recognition authorization
-        await wakeWordDetector.requestAuthorization()
-        
-        // Set up callback when "Clip That" is detected - receives last 30s of transcript
-        wakeWordDetector.onClipTriggered = { [self] transcript in
-            captureClip(transcript: transcript)
+    private func setupCaptureCoordinator() async {
+        // Set up callback when a clip is exported
+        captureCoordinator.onClipExported = { [self] url in
+            Task { @MainActor in
+                captureClip(exportedURL: url)
+            }
         }
         
-        // Connect to Meta glasses and start audio stream
+        captureCoordinator.onExportError = { error in
+            print("❌ Clip export failed: \(error.localizedDescription)")
+        }
+        
+        // Connect to Meta glasses
         do {
             try await glassesManager.connect()
-            try await glassesManager.startAudioStream()
-            
-            // Get audio format from glasses and start wake word listening
-            if let format = glassesManager.audioFormat {
-                wakeWordDetector.startListening(audioFormat: format)
-                
-                // Wire glasses audio buffers to wake word detector
-                glassesManager.audioBufferPublisher
-                    .receive(on: DispatchQueue.main)
-                    .sink { [weak wakeWordDetector] buffer in
-                        wakeWordDetector?.processAudioBuffer(buffer)
-                    }
-                    .store(in: &cancellables)
-                
-                print("🎧 Wake word detection started with glasses audio")
-            }
+            print("🕶️ Connected to glasses")
         } catch {
             print("⚠️ Failed to connect to glasses: \(error.localizedDescription)")
-            // The app will still work, just without wake word detection
+            // Continue anyway - audio capture still works via Bluetooth
+        }
+        
+        // Start the capture coordinator (video + audio + wake word detection)
+        do {
+            try await captureCoordinator.startCapture()
+            print("🎬 Capture coordinator started")
+        } catch {
+            print("⚠️ Failed to start capture: \(error.localizedDescription)")
         }
     }
     
-    private func captureClip(transcript: String = "") {
+    private func captureClip(exportedURL: URL? = nil, transcript: String = "") {
         HapticManager.playSuccess()
         withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
             showRecordConfirmation = true
+        }
+        
+        // Handle exported clip
+        if let url = exportedURL {
+            Task {
+                await handleExportedClip(url: url)
+            }
         }
         
         // Send transcript to backend
@@ -160,6 +163,18 @@ struct RootView: View {
             withAnimation(.spring(response: 0.3)) {
                 showRecordConfirmation = false
             }
+        }
+    }
+    
+    private func handleExportedClip(url: URL) async {
+        // TODO: Save to photo library or upload to backend
+        print("📼 Clip exported to: \(url.path)")
+        
+        // For now, just log the file size
+        if let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
+           let fileSize = attributes[.size] as? Int64 {
+            let sizeInMB = Double(fileSize) / (1024 * 1024)
+            print("📼 Clip size: \(String(format: "%.2f", sizeInMB)) MB")
         }
     }
     

@@ -54,6 +54,11 @@ final class MetaGlassesManager: ObservableObject {
         provider.videoFramePublisher
     }
     
+    /// Publisher for timestamped video frames (for synchronization with audio)
+    var timestampedVideoFramePublisher: AnyPublisher<TimestampedVideoFrame, Never> {
+        provider.timestampedVideoFramePublisher
+    }
+    
     /// Publisher for audio buffers (for speech recognition)
     var audioBufferPublisher: AnyPublisher<AVAudioPCMBuffer, Never> {
         provider.audioBufferPublisher

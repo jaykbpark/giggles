@@ -10,6 +10,8 @@
 		4EC031732F16500000552603 /* FeedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031742F16500000552603 /* FeedView.swift */; };
 		4EC031672F16300000552603 /* WakeWordDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031662F16300000552603 /* WakeWordDetector.swift */; };
 		4EC031642F16252C00552603 /* Gradients.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031652F16252C00552603 /* Gradients.swift */; };
+		4EC031902F17800000552603 /* TitleGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031912F17800000552603 /* TitleGenerator.swift */; };
+		4EC031922F17800000552603 /* FilterBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031932F17800000552603 /* FilterBar.swift */; };
 		4EC031532F16242C00552603 /* Colors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC0313D2F16242C00552603 /* Colors.swift */; };
 		4EC031542F16242C00552603 /* APIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC0314F2F16242C00552603 /* APIService.swift */; };
 		4EC031552F16242C00552603 /* ClipApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031372F16242C00552603 /* ClipApp.swift */; };
@@ -69,6 +71,8 @@
 		4EC031842F16700000552603 /* MetaSDKProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetaSDKProvider.swift; sourceTree = "<group>"; };
 		4EC031862F16700000552603 /* MockGlassesProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockGlassesProvider.swift; sourceTree = "<group>"; };
 		4EC031882F16700000552603 /* GlassesStreamProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassesStreamProvider.swift; sourceTree = "<group>"; };
+		4EC031912F17800000552603 /* TitleGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TitleGenerator.swift; sourceTree = "<group>"; };
+		4EC031932F17800000552603 /* FilterBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilterBar.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -158,6 +162,7 @@
 			children = (
 				4EC031442F16242C00552603 /* RootView.swift */,
 				4EC031752F16400000552603 /* LaunchView.swift */,
+				4EC031932F17800000552603 /* FilterBar.swift */,
 			);
 			path = Navigation;
 			sourceTree = "<group>";
@@ -207,6 +212,7 @@
 			children = (
 				4EC0314F2F16242C00552603 /* APIService.swift */,
 				4EC031502F16242C00552603 /* MockData.swift */,
+				4EC031912F17800000552603 /* TitleGenerator.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -328,6 +334,8 @@
 				4EC031832F16700000552603 /* MetaSDKProvider.swift in Sources */,
 				4EC031852F16700000552603 /* MockGlassesProvider.swift in Sources */,
 				4EC031872F16700000552603 /* GlassesStreamProvider.swift in Sources */,
+				4EC031902F17800000552603 /* TitleGenerator.swift in Sources */,
+				4EC031922F17800000552603 /* FilterBar.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

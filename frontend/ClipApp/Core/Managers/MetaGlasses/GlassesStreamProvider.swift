@@ -36,6 +36,7 @@ enum GlassesError: Error, Equatable, Sendable {
     case permissionDenied
     case deviceNotFound
     case sdkNotAvailable
+    case audioNotSupported
     
     var localizedDescription: String {
         switch self {
@@ -51,6 +52,8 @@ enum GlassesError: Error, Equatable, Sendable {
             return "No glasses found"
         case .sdkNotAvailable:
             return "Meta SDK not available"
+        case .audioNotSupported:
+            return "Audio streaming not yet supported by Meta SDK"
         }
     }
 }

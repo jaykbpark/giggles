@@ -12,11 +12,22 @@
 	<string>Clip uses Bluetooth to connect to your Ray-Ban Meta glasses.</string>
 	<key>MWDAT</key>
 	<dict>
+		<key>MetaAppID</key>
+		<string>1599598524565922</string>
 		<key>Analytics</key>
 		<dict>
 			<key>OptOut</key>
 			<true/>
 		</dict>
 	</dict>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>clip1599598524565922</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

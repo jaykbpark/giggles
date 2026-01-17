@@ -104,26 +104,18 @@ struct TimelineView: View {
                 
                 // Content
                 LazyVStack(spacing: 0) {
-                    ForEach(Array(groupedClips.enumerated()), id: \.1.0) { sectionIndex, group in
-                        let (dateGroup, groupClips) = group
+                    ForEach(Array(clips.enumerated()), id: \.element.id) { index, clip in
+                        let isLeft = index % 2 == 0
                         
-                        // Section header (non-sticky)
-                        sectionHeader(dateGroup)
-                        
-                        ForEach(Array(groupClips.enumerated()), id: \.element.id) { index, clip in
-                            let globalIndex = calculateGlobalIndex(sectionIndex: sectionIndex, itemIndex: index)
-                            let isLeft = globalIndex % 2 == 0
-                            
-                            TimelineMoment(
-                                clip: clip,
-                                isLeft: isLeft,
-                                animationDelay: Double(globalIndex) * 0.08,
-                                namespace: namespace
-                            ) {
-                                HapticManager.playLight()
-                                withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
-                                    selectedClip = clip
-                                }
+                        TimelineMoment(
+                            clip: clip,
+                            isLeft: isLeft,
+                            animationDelay: Double(index) * 0.08,
+                            namespace: namespace
+                        ) {
+                            HapticManager.playLight()
+                            withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+                                selectedClip = clip
                             }
                         }
                     }

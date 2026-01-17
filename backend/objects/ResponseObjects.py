@@ -5,7 +5,7 @@ class ResponseTagsObject(BaseModel):
         self.tags = tags
 
 class ResponseVideoObject(BaseModel):
-    def __init__(self, vidId, transcript, tags):
-        self.vidId = vidId
-        self.transcript = transcript
-        self.tags = tags
+    success: bool
+    videoId: str
+    tags: list[str]
+    transcript: str

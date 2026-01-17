@@ -5,12 +5,14 @@ from objects.ResponseObjects import ResponseTagsObject, ResponseVideoObject
 
 app = FastAPI()
 
+# upload video
+@app.post("/api/video")
+async def create_video(video: RequestVideoObject):
+    print("CREATED VIDEO")
+    return video
+
+# get video metadata
 @app.get("/videos")
 def get_videos():
     print("GOT VIDEOS")
     return # DB 
-
-@app.post("/videos")
-async def create_video(video: RequestVideoObject):
-    print("CREATED VIDEO")
-    return video

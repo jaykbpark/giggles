@@ -5,10 +5,10 @@ class RequestSearchObject(BaseModel):
     input: str
 
 class RequestVideoObject(BaseModel):
-    vidData: bytes
-    vidId: str
-    vidTitle: str
+    videoId: str
+    title: str
     timestamp: str
+    videoData: bytes
 
 # we're transcript + tags generation
 '''

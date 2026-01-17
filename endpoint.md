@@ -17,8 +17,7 @@ Upload a new video clip with raw bytes.
   "videoId": "PHAsset-XXXX-XXXX",
   "title": "Coffee with Sarah",
   "timestamp": "2026-01-17T10:30:00Z",
-  "videoData": "<base64 encoded bytes>",
-  "audioData": "<base64 encoded bytes>"
+  "videoData": "<base64 encoded bytes>"
 }
 ```
 
@@ -28,7 +27,6 @@ Upload a new video clip with raw bytes.
 | `title` | string | Yes | User-provided or auto-generated title |
 | `timestamp` | ISO 8601 | Yes | When the clip was captured |
 | `videoData` | base64 | Yes | Raw video bytes |
-| `audioData` | base64 | No | Raw audio bytes (optional if embedded in video) |
 
 **Response:**
 
@@ -60,6 +58,7 @@ Retrieve metadata for a specific video.
   "videoId": "PHAsset-XXXX-XXXX",
   "title": "Coffee with Sarah",
   "timestamp": "2026-01-17T10:30:00Z",
+  "transcript": "transcript here",
   "tags": ["coffee", "friends", "conversation"],
   "duration": 30
 }

@@ -26,7 +26,23 @@ Progress and sprint notes live in `frontend/PROGRESS.md`.
 
 2. **Build + run after every code change**
 
-   **Simulator (default):**
+   > **⚠️ IMPORTANT: Before building, ASK the user if they want Mock Mode ON or OFF.**
+   > - **Mock Mode ON:** Use when no physical Meta glasses are connected
+   > - **Mock Mode OFF:** Use when physical Meta Ray-Ban glasses are paired
+   > - If user hasn't specified, **ask before proceeding with the build**
+
+   **Simulator with Mock Mode (recommended for simulator):**
+   ```bash
+   cd /Users/jaypark/Documents/GitHub/nw2025/frontend && \
+   xcodebuild -project nw2025.xcodeproj -scheme nw2025 \
+     -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
+     -configuration Debug build && \
+   xcrun simctl boot "iPhone 17 Pro" || true && \
+   xcrun simctl install "iPhone 17 Pro" ~/Library/Developer/Xcode/DerivedData/nw2025-*/Build/Products/Debug-iphonesimulator/nw2025.app && \
+   xcrun simctl launch --env USE_MOCK_GLASSES=1 "iPhone 17 Pro" me.park.jay.nw2025
+   ```
+
+   **Simulator without Mock Mode (real SDK):**
    ```bash
    cd /Users/jaypark/Documents/GitHub/nw2025/frontend && \
    xcodebuild -project nw2025.xcodeproj -scheme nw2025 \
@@ -37,7 +53,19 @@ Progress and sprint notes live in `frontend/PROGRESS.md`.
    xcrun simctl launch "iPhone 17 Pro" me.park.jay.nw2025
    ```
 
-   **Device (connected):**
+   **Device with Mock Mode:**
+   ```bash
+   cd /Users/jaypark/Documents/GitHub/nw2025/frontend && \
+   xcodebuild -project nw2025.xcodeproj -scheme nw2025 \
+     -destination 'id=00008140-001534E83647001C' \
+     -configuration Debug -allowProvisioningUpdates build && \
+   xcrun devicectl device install app --device 00008140-001534E83647001C \
+     ~/Library/Developer/Xcode/DerivedData/nw2025-*/Build/Products/Debug-iphoneos/nw2025.app && \
+   xcrun devicectl device process launch --device 00008140-001534E83647001C \
+     --environment USE_MOCK_GLASSES=1 me.park.jay.nw2025
+   ```
+
+   **Device without Mock Mode (real glasses connected):**
    ```bash
    cd /Users/jaypark/Documents/GitHub/nw2025/frontend && \
    xcodebuild -project nw2025.xcodeproj -scheme nw2025 \
@@ -138,6 +166,26 @@ Notes:
 
 SPM URL: `https://github.com/facebook/meta-wearables-dat-ios`  
 Docs: `https://wearables.developer.meta.com/docs/develop`
+
+### Mock Mode for Glasses
+
+The app supports a mock glasses provider for development without physical hardware.
+
+- **Environment Variable:** `USE_MOCK_GLASSES=1` (passed at launch time)
+- **When to use Mock Mode:**
+  - Running on simulator (no glasses support)
+  - Device testing without paired glasses
+  - UI/UX development and iteration
+- **When to use Real SDK:**
+  - Testing actual glasses integration
+  - Device with paired Meta Ray-Ban glasses
+
+**Key Files:**
+- `Core/Managers/MetaGlasses/MetaGlassesManager.swift` - Unified interface
+- `Core/Managers/MetaGlasses/MockGlassesProvider.swift` - Synthetic video/audio
+- `Core/Managers/MetaGlasses/MetaSDKProvider.swift` - Real SDK wrapper
+
+Console output when mock mode is active: `🕶️ MetaGlassesManager: Using MOCK provider`
 
 ---
 

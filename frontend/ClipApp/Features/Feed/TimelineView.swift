@@ -136,31 +136,6 @@ struct TimelineView: View {
         }
     }
     
-    // MARK: - Section Header
-    
-    private func sectionHeader(_ title: String) -> some View {
-        HStack {
-            Spacer()
-            
-            Text(title)
-                .font(.system(size: 12, weight: .bold))
-                .foregroundStyle(AppColors.textSecondary)
-                .tracking(0.6)
-            
-            Spacer()
-        }
-        .padding(.vertical, 20)
-    }
-    
-    // MARK: - Helpers
-    
-    private func calculateGlobalIndex(sectionIndex: Int, itemIndex: Int) -> Int {
-        var globalIndex = 0
-        for i in 0..<sectionIndex {
-            globalIndex += groupedClips[i].1.count
-        }
-        return globalIndex + itemIndex
-    }
 }
 
 // MARK: - Timeline Moment

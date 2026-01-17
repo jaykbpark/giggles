@@ -9,11 +9,30 @@
 
 ---
 
-## ⚠️ MANDATORY: Build After Every Feature
+## ⚠️ MANDATORY: Development Workflow
 
-**After completing ANY feature or code change, you MUST build and deploy the app so the user can test immediately.**
+### Before Starting Development
+**ALWAYS pull latest from main and review recent changes for context:**
+```bash
+# Pull latest changes
+cd /Users/jaypark/Documents/GitHub/nw2025 && git pull origin main
 
-### Simulator Build (Default)
+# Read recent commit messages for context (last 10 commits)
+git log --oneline -10
+
+# For more detail on recent work, use:
+git log --pretty=format:"%h - %s (%cr by %an)" -10
+```
+
+**After pulling, READ the commit messages** to understand:
+- What features were recently added
+- What files were changed
+- Any patterns or conventions being followed
+
+### After Every Code Change
+**Build and deploy the app so the user can test immediately.**
+
+#### Simulator Build (Default)
 ```bash
 cd /Users/jaypark/Documents/GitHub/nw2025/frontend && \
 xcodebuild -project nw2025.xcodeproj -scheme nw2025 \
@@ -23,7 +42,7 @@ xcrun simctl install booted ~/Library/Developer/Xcode/DerivedData/nw2025-giuernf
 xcrun simctl launch booted me.park.jay.nw2025
 ```
 
-### iPhone Build (When Device Connected)
+#### iPhone Build (When Device Connected)
 ```bash
 cd /Users/jaypark/Documents/GitHub/nw2025/frontend && \
 xcodebuild -project nw2025.xcodeproj -scheme nw2025 \
@@ -33,6 +52,45 @@ xcrun devicectl device install app --device 00008140-001534E83647001C \
   ~/Library/Developer/Xcode/DerivedData/nw2025-giuernfepgvhmaaxchsxxgbkygdd/Build/Products/Debug-iphoneos/nw2025.app && \
 xcrun devicectl device process launch --device 00008140-001534E83647001C me.park.jay.nw2025
 ```
+
+### After Big Feature is Complete
+**Once user confirms the feature works, commit and push to main with clean comments:**
+```bash
+cd /Users/jaypark/Documents/GitHub/nw2025 && \
+git add -A && \
+git commit -m "<type>: <concise description>" && \
+git push origin main
+```
+
+**Commit Message Format:**
+- `Feat:` New feature (e.g., `Feat: Add fullscreen video playback`)
+- `Fix:` Bug fix (e.g., `Fix: Close button visibility on detail view`)
+- `UI:` Visual/styling changes (e.g., `UI: Redesign search overlay`)
+- `Refactor:` Code restructuring (e.g., `Refactor: Extract timeline components`)
+- `Chore:` Maintenance tasks (e.g., `Chore: Update cursor rules`)
+
+**Good commit examples:**
+```
+Feat: Add fullscreen video mode with controls overlay
+Fix: Improve X button contrast on gray backgrounds  
+UI: Redesign search with inline close button and suggestions
+Refactor: Split ClipDetailView into detail and fullscreen modes
+```
+
+**Bad commit examples:**
+```
+update stuff
+fix bug
+changes
+wip
+```
+
+### Workflow Summary
+1. **Pull** → `git pull origin main`
+2. **Develop** → Make code changes
+3. **Build** → Build and deploy to simulator/device
+4. **Test** → User confirms feature works
+5. **Commit & Push** → `git add -A && git commit -m "..." && git push origin main`
 
 **DO NOT consider a feature complete until the build succeeds and the app is running.**
 

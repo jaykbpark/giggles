@@ -43,8 +43,6 @@
 		4EC031422F16242C00552603 /* PhotoManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoManager.swift; sourceTree = "<group>"; };
 		4EC031442F16242C00552603 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		4EC031472F16242C00552603 /* ClipDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipDetailView.swift; sourceTree = "<group>"; };
-		4EC031482F16242C00552603 /* ClipsGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipsGridView.swift; sourceTree = "<group>"; };
-		4EC031492F16242C00552603 /* ClipsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipsListView.swift; sourceTree = "<group>"; };
 		4EC0314C2F16242C00552603 /* ClipMetadata.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipMetadata.swift; sourceTree = "<group>"; };
 		4EC0314D2F16242C00552603 /* SearchResult.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchResult.swift; sourceTree = "<group>"; };
 		4EC0314F2F16242C00552603 /* APIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIService.swift; sourceTree = "<group>"; };

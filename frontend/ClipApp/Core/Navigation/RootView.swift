@@ -7,7 +7,6 @@ struct RootView: View {
     @State private var isRecording = false
     @State private var showRecordConfirmation = false
     @Namespace private var namespace
-    @Namespace private var glassNamespace
 
     var body: some View {
         ZStack {
@@ -20,8 +19,8 @@ struct RootView: View {
                 // Header
                 headerBar
                 
-                // Timeline
-                TimelineView(
+                // Feed
+                FeedView(
                     clips: viewState.filteredClips,
                     isLoading: viewState.isLoading,
                     selectedClip: $selectedClip,
@@ -30,11 +29,16 @@ struct RootView: View {
             }
             .opacity(selectedClip != nil ? 0 : 1)
             
-            // Floating glass toolbar at bottom
+            // Floating record button
             if selectedClip == nil && !showSearch {
                 VStack {
                     Spacer()
-                    glassToolbar
+                    HStack {
+                        Spacer()
+                        recordButton
+                            .padding(.trailing, 24)
+                            .padding(.bottom, 30)
+                    }
                 }
             }
 
@@ -91,57 +95,30 @@ struct RootView: View {
         .padding(.bottom, 4)
     }
     
-    // MARK: - Glass Toolbar
+    // MARK: - Record Button
     
-    private var glassToolbar: some View {
-        HStack(spacing: 20) {
-            // Recent clips button
-            Button {
-                HapticManager.playLight()
-            } label: {
-                Image(systemName: "clock.arrow.circlepath")
-                    .font(.system(size: 18, weight: .medium))
-                    .foregroundStyle(AppColors.textSecondary)
-                    .frame(width: 48, height: 48)
-            }
-            
-            // Record button (prominent)
-            Button {
-                triggerRecording()
-            } label: {
-                ZStack {
+    private var recordButton: some View {
+        Button {
+            triggerRecording()
+        } label: {
+            ZStack {
+                Circle()
+                    .fill(AppColors.accent)
+                    .frame(width: 64, height: 64)
+                
+                if isRecording {
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(.white)
+                        .frame(width: 20, height: 20)
+                } else {
                     Circle()
-                        .fill(AppColors.accent)
-                        .frame(width: 56, height: 56)
-                    
-                    if isRecording {
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(.white)
-                            .frame(width: 18, height: 18)
-                    } else {
-                        Circle()
-                            .fill(.white)
-                            .frame(width: 22, height: 22)
-                    }
+                        .fill(.white)
+                        .frame(width: 24, height: 24)
                 }
             }
-            .buttonStyle(RecordButtonStyle())
-            .shadow(color: AppColors.accent.opacity(0.4), radius: 16, y: 8)
-            
-            // Settings/profile button
-            Button {
-                HapticManager.playLight()
-            } label: {
-                Image(systemName: "person.crop.circle")
-                    .font(.system(size: 18, weight: .medium))
-                    .foregroundStyle(AppColors.textSecondary)
-                    .frame(width: 48, height: 48)
-            }
         }
-        .padding(.horizontal, 24)
-        .padding(.vertical, 12)
-        .glassEffect(in: .capsule)
-        .padding(.bottom, 30)
+        .buttonStyle(RecordButtonStyle())
+        .shadow(color: AppColors.accent.opacity(0.35), radius: 12, y: 6)
     }
     
     private func triggerRecording() {

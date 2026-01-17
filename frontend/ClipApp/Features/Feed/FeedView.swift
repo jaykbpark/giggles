@@ -6,15 +6,6 @@ struct FeedView: View {
     @Binding var selectedClip: ClipMetadata?
     var namespace: Namespace.ID
     
-    private var groupedClips: [(String, [ClipMetadata])] {
-        let grouped = Dictionary(grouping: clips) { $0.dateGroupKey }
-        return grouped.sorted { lhs, rhs in
-            let lhsDate = clips.first { $0.dateGroupKey == lhs.key }?.capturedAt ?? Date.distantPast
-            let rhsDate = clips.first { $0.dateGroupKey == rhs.key }?.capturedAt ?? Date.distantPast
-            return lhsDate > rhsDate
-        }
-    }
-    
     var body: some View {
         if isLoading {
             loadingState
@@ -77,48 +68,22 @@ struct FeedView: View {
     
     private var feedContent: some View {
         ScrollView {
-            LazyVStack(spacing: 18) {
-                ForEach(groupedClips, id: \.0) { dateGroup, groupClips in
-                    sectionHeader(dateGroup)
-
-                    ForEach(groupClips) { clip in
-                        ClipCard(clip: clip, namespace: namespace)
-                            .onTapGesture {
-                                HapticManager.playLight()
-                                withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) {
-                                    selectedClip = clip
-                                }
+            LazyVStack(spacing: 16) {
+                ForEach(clips) { clip in
+                    ClipCard(clip: clip, namespace: namespace)
+                        .onTapGesture {
+                            HapticManager.playLight()
+                            withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) {
+                                selectedClip = clip
                             }
-                            .padding(.horizontal, 20)
-                    }
+                        }
+                        .padding(.horizontal, 20)
                 }
             }
-            .padding(.top, 4)
+            .padding(.top, 12)
             .padding(.bottom, 120) // Space for record button
         }
         .scrollIndicators(.hidden)
-    }
-    
-    // MARK: - Section Header
-    
-    private func sectionHeader(_ title: String) -> some View {
-        HStack(spacing: 12) {
-            Rectangle()
-                .fill(AppColors.timelineLine.opacity(0.8))
-                .frame(height: 1)
-            
-            Text(title.uppercased())
-                .font(.system(size: 11, weight: .bold))
-                .foregroundStyle(AppColors.textSecondary)
-                .tracking(0.8)
-            
-            Rectangle()
-                .fill(AppColors.timelineLine.opacity(0.8))
-                .frame(height: 1)
-        }
-        .padding(.horizontal, 20)
-        .padding(.top, 16)
-        .padding(.bottom, 6)
     }
 }
 
@@ -159,32 +124,47 @@ struct ClipCard: View {
             
             // Content area
             VStack(alignment: .leading, spacing: 8) {
+                // Date pill + Time row
+                HStack(spacing: 8) {
+                    Text(clip.dateGroupKey.uppercased())
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(AppColors.textSecondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background {
+                            Capsule()
+                                .fill(AppColors.warmBackground)
+                        }
+                    
+                    Text(clip.formattedTime)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(AppColors.accent)
+                    
+                    Spacer()
+                }
+                
                 // Title
                 Text(clip.title)
                     .font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(AppColors.textPrimary)
                     .lineLimit(2)
                 
-                // Metadata row
-                HStack(spacing: 12) {
-                    // Time
-                    Label(clip.formattedTime, systemImage: "clock")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(AppColors.textSecondary)
-                    
-                    // Topics
-                    if let firstTopic = clip.topics.first {
-                        Text("•")
-                            .foregroundStyle(AppColors.textSecondary)
-                        
-                        Text(firstTopic)
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(AppColors.accent)
+                // Topics row
+                if !clip.topics.isEmpty {
+                    HStack(spacing: 6) {
+                        ForEach(clip.topics.prefix(3), id: \.self) { topic in
+                            Text(topic)
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(AppColors.textSecondary)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background {
+                                    Capsule()
+                                        .stroke(AppColors.timelineLine.opacity(0.6), lineWidth: 1)
+                                }
+                        }
                     }
-                    
-                    Spacer()
                 }
-                .padding(.top, 4)
             }
             .padding(16)
         }

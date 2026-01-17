@@ -21,6 +21,12 @@ struct ClipMetadata: Identifiable, Codable, Hashable, Sendable {
         formatter.timeStyle = .short
         return formatter.string(from: capturedAt)
     }
+    
+    var formattedTime: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "h:mm a"
+        return formatter.string(from: capturedAt)
+    }
 
     var relativeDate: String {
         let formatter = RelativeDateTimeFormatter()

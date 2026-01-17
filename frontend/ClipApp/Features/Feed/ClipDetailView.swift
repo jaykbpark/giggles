@@ -122,25 +122,23 @@ struct ClipDetailView: View {
             VStack {
                 // Top bar with close button
                 HStack {
-                    Button(action: close) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 18, weight: .semibold))
-                            .foregroundStyle(.white)
-                            .padding(12)
-                            .background(.ultraThinMaterial)
-                            .clipShape(Circle())
-                    }
-                    
                     Spacer()
                     
-                    // Duration badge
-                    Text(clip.formattedDuration)
-                        .font(.system(size: 14, weight: .medium, design: .monospaced))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(.ultraThinMaterial)
-                        .clipShape(Capsule())
+                    Button(action: close) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(.white)
+                            .padding(12)
+                            .background(
+                                Circle()
+                                    .fill(.black.opacity(0.5))
+                                    .overlay(
+                                        Circle()
+                                            .strokeBorder(.white.opacity(0.3), lineWidth: 1)
+                                    )
+                            )
+                            .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
+                    }
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 60)

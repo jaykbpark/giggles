@@ -216,6 +216,27 @@ let recentTranscript = wakeWordDetector.getRecentTranscript()
 
 ---
 
+## Testing Strategy
+
+### Use Simulator for UI Work
+For UI tweaks, layout changes, and visual iteration, **always use the iOS Simulator** - it's faster:
+```bash
+# Quick simulator build
+cd frontend && xcodebuild -project nw2025.xcodeproj -scheme nw2025 \
+  -destination 'platform=iOS Simulator,name=iPhone 16 Pro' \
+  -configuration Debug build
+```
+
+Or just `⌘R` in Xcode with simulator selected.
+
+### Use Physical Device for:
+- Meta SDK / Ray-Ban glasses connection (Bluetooth)
+- Haptics testing (`HapticManager`)
+- Wake word detection with real microphone
+- Performance profiling
+
+---
+
 ## Building and Deploying to iPhone
 
 ### Quick Deploy Command

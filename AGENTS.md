@@ -17,11 +17,12 @@ Progress and sprint notes live in `frontend/PROGRESS.md`.
 
 ## Development Workflow (Required)
 
-1. **Sync first**
+1. **Pull first, always**
    ```bash
    cd /Users/jaypark/Documents/GitHub/nw2025 && git pull origin main
    git log --oneline -10
    ```
+   After pulling, **explicitly say** you pulled and are on `main`.
 
 2. **Build after changes**
 
@@ -54,6 +55,9 @@ Progress and sprint notes live in `frontend/PROGRESS.md`.
    ```
 
 Commit types: `Feat`, `Fix`, `UI`, `Refactor`, `Chore`.
+
+4. **Clear push messaging (always)**
+   After pushing, **explicitly say** what was pushed (branch + commit hash/summary).
 
 ---
 

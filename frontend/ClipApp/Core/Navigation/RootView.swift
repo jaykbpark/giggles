@@ -230,7 +230,7 @@ struct RootView: View {
     private var searchOverlay: some View {
         ZStack {
             // Dimmed background
-            Color.black.opacity(0.3)
+            Color.black.opacity(0.75)
                 .ignoresSafeArea()
                 .onTapGesture {
                     dismissSearch()
@@ -240,12 +240,13 @@ struct RootView: View {
                 // Search field with glass
                 HStack(spacing: 12) {
                     HStack(spacing: 10) {
-                        Image(systemName: "magnifyingglass")
+                        Image(systemName: "sparkle.magnifyingglass")
                             .font(.system(size: 16, weight: .medium))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.white.opacity(0.7))
                         
-                        TextField("Search your moments...", text: $viewState.searchText)
+                        TextField("Describe what you're looking for...", text: $viewState.searchText)
                             .font(.system(size: 16))
+                            .foregroundStyle(.white)
                             .autocorrectionDisabled()
                         
                         if !viewState.searchText.isEmpty {
@@ -254,13 +255,14 @@ struct RootView: View {
                             } label: {
                                 Image(systemName: "xmark.circle.fill")
                                     .font(.system(size: 16))
-                                    .foregroundStyle(.tertiary)
+                                    .foregroundStyle(.white.opacity(0.5))
                             }
                         }
                     }
                     .padding(.horizontal, 14)
                     .padding(.vertical, 12)
-                    .glassEffect(in: .rect(cornerRadius: 16))
+                    .background(Color.white.opacity(0.15))
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
                     
                     // Close button
                     Button {
@@ -268,32 +270,45 @@ struct RootView: View {
                     } label: {
                         Image(systemName: "xmark")
                             .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.white.opacity(0.7))
                             .frame(width: 36, height: 36)
-                            .glassEffect(.regular.interactive())
+                            .background(Color.white.opacity(0.15))
+                            .clipShape(Circle())
                     }
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 60)
                 
+                // Semantic search hint
+                HStack(spacing: 6) {
+                    Image(systemName: "wand.and.stars")
+                        .font(.system(size: 11, weight: .medium))
+                    Text("AI-powered semantic search")
+                        .font(.system(size: 11, weight: .medium))
+                }
+                .foregroundStyle(.white.opacity(0.5))
+                .padding(.top, 10)
+                
                 // Suggestions with glass pills
                 if viewState.searchText.isEmpty {
                     VStack(alignment: .leading, spacing: 16) {
-                        Text("SUGGESTIONS")
+                        Text("TRY SEARCHING")
                             .font(.system(size: 11, weight: .bold))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(.white.opacity(0.5))
                             .padding(.top, 28)
                         
                         FlowLayout(spacing: 10) {
-                            ForEach(["coffee", "meeting", "idea", "travel", "dinner"], id: \.self) { suggestion in
+                            ForEach(["that funny moment", "when we talked about AI", "coffee meetup", "the demo yesterday", "travel plans"], id: \.self) { suggestion in
                                 Button {
                                     viewState.searchText = suggestion
                                 } label: {
                                     Text(suggestion)
                                         .font(.system(size: 14, weight: .medium))
+                                        .foregroundStyle(.white)
                                         .padding(.horizontal, 16)
                                         .padding(.vertical, 10)
-                                        .glassEffect(.regular.interactive(), in: .capsule)
+                                        .background(Color.white.opacity(0.15))
+                                        .clipShape(Capsule())
                                 }
                             }
                         }

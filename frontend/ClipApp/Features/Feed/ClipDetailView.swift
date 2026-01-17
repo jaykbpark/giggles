@@ -108,6 +108,26 @@ struct ClipDetailView: View {
             }
             .ignoresSafeArea()
             
+            // Center play/pause button - absolutely centered
+            Button {
+                HapticManager.playLight()
+                isPlaying.toggle()
+                startControlsTimer()
+            } label: {
+                ZStack {
+                    Circle()
+                        .fill(.white.opacity(0.15))
+                        .frame(width: 80, height: 80)
+                    
+                    Image(systemName: isPlaying ? "pause.fill" : "play.fill")
+                        .font(.system(size: 32, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .offset(x: isPlaying ? 0 : 3)
+                }
+            }
+            .buttonStyle(PlayButtonStyle())
+            
+            // Top and bottom controls
             VStack {
                 // Top bar
                 HStack {
@@ -127,27 +147,6 @@ struct ClipDetailView: View {
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 60)
-                
-                Spacer()
-                
-                // Center play/pause button
-                Button {
-                    HapticManager.playLight()
-                    isPlaying.toggle()
-                    startControlsTimer()
-                } label: {
-                    ZStack {
-                        Circle()
-                            .fill(.white.opacity(0.15))
-                            .frame(width: 80, height: 80)
-                        
-                        Image(systemName: isPlaying ? "pause.fill" : "play.fill")
-                            .font(.system(size: 32, weight: .semibold))
-                            .foregroundStyle(.white)
-                            .offset(x: isPlaying ? 0 : 3)
-                    }
-                }
-                .buttonStyle(PlayButtonStyle())
                 
                 Spacer()
                 
@@ -197,49 +196,6 @@ struct PlayButtonStyle: ButtonStyle {
     }
 }
 
-// MARK: - Flow Layout
-
-struct FlowLayout: Layout {
-    var spacing: CGFloat = 8
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let result = layout(proposal: proposal, subviews: subviews)
-        return result.size
-    }
-
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        let result = layout(proposal: proposal, subviews: subviews)
-        for (index, subview) in subviews.enumerated() {
-            subview.place(at: CGPoint(x: bounds.minX + result.positions[index].x,
-                                       y: bounds.minY + result.positions[index].y),
-                          proposal: .unspecified)
-        }
-    }
-
-    private func layout(proposal: ProposedViewSize, subviews: Subviews) -> (size: CGSize, positions: [CGPoint]) {
-        let maxWidth = proposal.width ?? .infinity
-        var positions: [CGPoint] = []
-        var currentX: CGFloat = 0
-        var currentY: CGFloat = 0
-        var lineHeight: CGFloat = 0
-
-        for subview in subviews {
-            let size = subview.sizeThatFits(.unspecified)
-
-            if currentX + size.width > maxWidth && currentX > 0 {
-                currentX = 0
-                currentY += lineHeight + spacing
-                lineHeight = 0
-            }
-
-            positions.append(CGPoint(x: currentX, y: currentY))
-            lineHeight = max(lineHeight, size.height)
-            currentX += size.width + spacing
-        }
-
-        return (CGSize(width: maxWidth, height: currentY + lineHeight), positions)
-    }
-}
 
 // MARK: - Preview
 

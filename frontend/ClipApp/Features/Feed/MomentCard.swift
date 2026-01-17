@@ -74,6 +74,12 @@ struct MomentCard: View {
             Text(clip.formattedTime)
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(AppColors.accent)
+
+            // Title
+            Text(clip.title)
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(AppColors.textPrimary)
+                .lineLimit(2)
             
             // Topics (if any)
             if !clip.topics.isEmpty {

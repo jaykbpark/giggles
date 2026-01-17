@@ -10,10 +10,6 @@
 		4EC031732F16500000552603 /* FeedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031742F16500000552603 /* FeedView.swift */; };
 		4EC031672F16300000552603 /* WakeWordDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031662F16300000552603 /* WakeWordDetector.swift */; };
 		4EC031642F16252C00552603 /* Gradients.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031652F16252C00552603 /* Gradients.swift */; };
-		4EC031692F16400000552603 /* GlassesStreamProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC0316A2F16400000552603 /* GlassesStreamProvider.swift */; };
-		4EC0316B2F16400000552603 /* MockGlassesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC0316C2F16400000552603 /* MockGlassesProvider.swift */; };
-		4EC0316D2F16400000552603 /* MetaSDKProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC0316E2F16400000552603 /* MetaSDKProvider.swift */; };
-		4EC0316F2F16400000552603 /* MetaGlassesManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031702F16400000552603 /* MetaGlassesManager.swift */; };
 		4EC031532F16242C00552603 /* Colors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC0313D2F16242C00552603 /* Colors.swift */; };
 		4EC031542F16242C00552603 /* APIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC0314F2F16242C00552603 /* APIService.swift */; };
 		4EC031552F16242C00552603 /* ClipApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031372F16242C00552603 /* ClipApp.swift */; };
@@ -30,8 +26,14 @@
 		4EC031622F16242C00552603 /* ClipDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031472F16242C00552603 /* ClipDetailView.swift */; };
 		4EC031632F16242C00552603 /* SkeletonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC0313A2F16242C00552603 /* SkeletonView.swift */; };
 		4EC031762F16400000552603 /* LaunchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031752F16400000552603 /* LaunchView.swift */; };
-		4EC031772F16400000552603 /* TimelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031712F16400000552603 /* TimelineView.swift */; };
-		4EC031782F16400000552603 /* MomentCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031722F16400000552603 /* MomentCard.swift */; };
+		4EC031792F16400000552603 /* TimelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC0317A2F16400000552603 /* TimelineView.swift */; };
+		4EC0317B2F16400000552603 /* MomentCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC0317C2F16400000552603 /* MomentCard.swift */; };
+		4EC0317D2F16600000552603 /* ClipsGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC0317E2F16600000552603 /* ClipsGridView.swift */; };
+		4EC0317F2F16600000552603 /* ClipsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031802F16600000552603 /* ClipsListView.swift */; };
+		4EC031812F16700000552603 /* MetaGlassesManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031822F16700000552603 /* MetaGlassesManager.swift */; };
+		4EC031832F16700000552603 /* MetaSDKProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031842F16700000552603 /* MetaSDKProvider.swift */; };
+		4EC031852F16700000552603 /* MockGlassesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031862F16700000552603 /* MockGlassesProvider.swift */; };
+		4EC031872F16700000552603 /* GlassesStreamProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031882F16700000552603 /* GlassesStreamProvider.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -54,14 +56,16 @@
 		4EC031652F16252C00552603 /* Gradients.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Gradients.swift; sourceTree = "<group>"; };
 		4EC031662F16300000552603 /* WakeWordDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WakeWordDetector.swift; sourceTree = "<group>"; };
 		4EC031682F16300000552603 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		4EC0316A2F16400000552603 /* GlassesStreamProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassesStreamProvider.swift; sourceTree = "<group>"; };
-		4EC0316C2F16400000552603 /* MockGlassesProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockGlassesProvider.swift; sourceTree = "<group>"; };
-		4EC0316E2F16400000552603 /* MetaSDKProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetaSDKProvider.swift; sourceTree = "<group>"; };
-		4EC031702F16400000552603 /* MetaGlassesManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetaGlassesManager.swift; sourceTree = "<group>"; };
 		4EC031752F16400000552603 /* LaunchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchView.swift; sourceTree = "<group>"; };
-		4EC031712F16400000552603 /* TimelineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineView.swift; sourceTree = "<group>"; };
-		4EC031722F16400000552603 /* MomentCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MomentCard.swift; sourceTree = "<group>"; };
+		4EC0317A2F16400000552603 /* TimelineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineView.swift; sourceTree = "<group>"; };
+		4EC0317C2F16400000552603 /* MomentCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MomentCard.swift; sourceTree = "<group>"; };
 		4EC031742F16500000552603 /* FeedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedView.swift; sourceTree = "<group>"; };
+		4EC0317E2F16600000552603 /* ClipsGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipsGridView.swift; sourceTree = "<group>"; };
+		4EC031802F16600000552603 /* ClipsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipsListView.swift; sourceTree = "<group>"; };
+		4EC031822F16700000552603 /* MetaGlassesManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetaGlassesManager.swift; sourceTree = "<group>"; };
+		4EC031842F16700000552603 /* MetaSDKProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetaSDKProvider.swift; sourceTree = "<group>"; };
+		4EC031862F16700000552603 /* MockGlassesProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockGlassesProvider.swift; sourceTree = "<group>"; };
+		4EC031882F16700000552603 /* GlassesStreamProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassesStreamProvider.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -123,7 +127,7 @@
 		4EC031432F16242C00552603 /* Managers */ = {
 			isa = PBXGroup;
 			children = (
-				4EC031712F16400000552603 /* MetaGlasses */,
+				4EC031892F16700000552603 /* MetaGlasses */,
 				4EC031402F16242C00552603 /* CameraManager.swift */,
 				4EC031412F16242C00552603 /* HapticManager.swift */,
 				4EC031422F16242C00552603 /* PhotoManager.swift */,
@@ -132,13 +136,13 @@
 			path = Managers;
 			sourceTree = "<group>";
 		};
-		4EC031712F16400000552603 /* MetaGlasses */ = {
+		4EC031892F16700000552603 /* MetaGlasses */ = {
 			isa = PBXGroup;
 			children = (
-				4EC0316A2F16400000552603 /* GlassesStreamProvider.swift */,
-				4EC031702F16400000552603 /* MetaGlassesManager.swift */,
-				4EC0316C2F16400000552603 /* MockGlassesProvider.swift */,
-				4EC0316E2F16400000552603 /* MetaSDKProvider.swift */,
+				4EC031882F16700000552603 /* GlassesStreamProvider.swift */,
+				4EC031822F16700000552603 /* MetaGlassesManager.swift */,
+				4EC031842F16700000552603 /* MetaSDKProvider.swift */,
+				4EC031862F16700000552603 /* MockGlassesProvider.swift */,
 			);
 			path = MetaGlasses;
 			sourceTree = "<group>";
@@ -166,9 +170,11 @@
 			isa = PBXGroup;
 			children = (
 				4EC031472F16242C00552603 /* ClipDetailView.swift */,
-				4EC031712F16400000552603 /* TimelineView.swift */,
-				4EC031722F16400000552603 /* MomentCard.swift */,
+				4EC0317E2F16600000552603 /* ClipsGridView.swift */,
+				4EC031802F16600000552603 /* ClipsListView.swift */,
 				4EC031742F16500000552603 /* FeedView.swift */,
+				4EC0317C2F16400000552603 /* MomentCard.swift */,
+				4EC0317A2F16400000552603 /* TimelineView.swift */,
 			);
 			path = Feed;
 			sourceTree = "<group>";
@@ -300,14 +306,16 @@
 				4EC031622F16242C00552603 /* ClipDetailView.swift in Sources */,
 				4EC031632F16242C00552603 /* SkeletonView.swift in Sources */,
 				4EC031672F16300000552603 /* WakeWordDetector.swift in Sources */,
-				4EC031692F16400000552603 /* GlassesStreamProvider.swift in Sources */,
-				4EC0316B2F16400000552603 /* MockGlassesProvider.swift in Sources */,
-				4EC0316D2F16400000552603 /* MetaSDKProvider.swift in Sources */,
-				4EC0316F2F16400000552603 /* MetaGlassesManager.swift in Sources */,
 				4EC031762F16400000552603 /* LaunchView.swift in Sources */,
-				4EC031772F16400000552603 /* TimelineView.swift in Sources */,
-				4EC031782F16400000552603 /* MomentCard.swift in Sources */,
+				4EC031792F16400000552603 /* TimelineView.swift in Sources */,
+				4EC0317B2F16400000552603 /* MomentCard.swift in Sources */,
 				4EC031732F16500000552603 /* FeedView.swift in Sources */,
+				4EC0317D2F16600000552603 /* ClipsGridView.swift in Sources */,
+				4EC0317F2F16600000552603 /* ClipsListView.swift in Sources */,
+				4EC031812F16700000552603 /* MetaGlassesManager.swift in Sources */,
+				4EC031832F16700000552603 /* MetaSDKProvider.swift in Sources */,
+				4EC031852F16700000552603 /* MockGlassesProvider.swift in Sources */,
+				4EC031872F16700000552603 /* GlassesStreamProvider.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

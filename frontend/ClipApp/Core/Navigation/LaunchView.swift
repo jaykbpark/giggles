@@ -1,24 +1,13 @@
 import SwiftUI
 
-// MARK: - Launch Animation Phases
-
-enum LaunchPhase: CaseIterable {
-    case initial      // Warm background only
-    case wordmark     // Logo fades in
-    case transition   // Logo moves up
-    case complete     // Hand off to main view
-}
-
-// MARK: - Launch View
-
 struct LaunchView: View {
     @Binding var isComplete: Bool
     
-    @State private var phase: LaunchPhase = .initial
-    @State private var wordmarkOpacity: Double = 0
-    @State private var wordmarkScale: CGFloat = 0.95
-    @State private var wordmarkOffset: CGFloat = 0
-    @State private var showTimeline: Bool = false
+    @State private var logoOpacity: Double = 0
+    @State private var logoScale: CGFloat = 0.8
+    @State private var dotScale: CGFloat = 0
+    @State private var ringScale: CGFloat = 0.5
+    @State private var ringOpacity: Double = 0
     
     var body: some View {
         ZStack {
@@ -26,21 +15,31 @@ struct LaunchView: View {
             AppColors.warmBackground
                 .ignoresSafeArea()
             
-            // Wordmark
-            VStack(spacing: 4) {
-                Text("clip")
-                    .font(.system(size: 42, weight: .bold, design: .default))
-                    .tracking(-1)
-                    .foregroundStyle(AppColors.textPrimary)
+            VStack(spacing: 20) {
+                // Animated logo mark
+                ZStack {
+                    // Expanding ring
+                    Circle()
+                        .stroke(AppColors.accent.opacity(0.3), lineWidth: 2)
+                        .frame(width: 80, height: 80)
+                        .scaleEffect(ringScale)
+                        .opacity(ringOpacity)
+                    
+                    // Center dot
+                    Circle()
+                        .fill(AppColors.accent)
+                        .frame(width: 16, height: 16)
+                        .scaleEffect(dotScale)
+                }
+                .frame(width: 80, height: 80)
                 
-                Text("your moments")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(AppColors.textSecondary)
-                    .opacity(phase == .wordmark ? 1 : 0)
+                // Wordmark
+                Text("clip")
+                    .font(.system(size: 36, weight: .bold))
+                    .foregroundStyle(AppColors.textPrimary)
             }
-            .scaleEffect(wordmarkScale)
-            .opacity(wordmarkOpacity)
-            .offset(y: wordmarkOffset)
+            .opacity(logoOpacity)
+            .scaleEffect(logoScale)
         }
         .onAppear {
             startAnimation()
@@ -48,40 +47,41 @@ struct LaunchView: View {
     }
     
     private func startAnimation() {
-        // Phase 1: Initial pause (0.2s)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-            // Phase 2: Wordmark fades in (0.3-0.8s)
-            withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
-                phase = .wordmark
-                wordmarkOpacity = 1
-                wordmarkScale = 1.0
-            }
+        // Fade in logo
+        withAnimation(.easeOut(duration: 0.4)) {
+            logoOpacity = 1
+            logoScale = 1
         }
         
-        // Phase 3: Wordmark moves up, prepare for transition (0.8-1.3s)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-            withAnimation(.spring(response: 0.6, dampingFraction: 0.85)) {
-                phase = .transition
-                wordmarkOffset = -60
-            }
+        // Pop in dot
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.6).delay(0.2)) {
+            dotScale = 1
         }
         
-        // Phase 4: Complete - hand off to main view (1.5s)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                phase = .complete
-                wordmarkOpacity = 0
+        // Expand ring
+        withAnimation(.easeOut(duration: 0.6).delay(0.3)) {
+            ringScale = 1.2
+            ringOpacity = 1
+        }
+        
+        // Fade out ring
+        withAnimation(.easeIn(duration: 0.3).delay(0.7)) {
+            ringOpacity = 0
+        }
+        
+        // Complete after animation
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+            withAnimation(.easeOut(duration: 0.25)) {
+                logoOpacity = 0
+                logoScale = 1.05
             }
             
-            // Small delay before completing
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
                 isComplete = true
             }
         }
     }
 }
-
-// MARK: - Preview
 
 #Preview {
     LaunchView(isComplete: .constant(false))

@@ -16,7 +16,7 @@ struct RootView: View {
     var body: some View {
         ZStack {
             // Background
-            AppColors.warmBackground
+            AppGradients.warmAmbient
                 .ignoresSafeArea()
             
             // Main content
@@ -153,6 +153,7 @@ struct RootView: View {
             // Wordmark
             Text("clip")
                 .font(.system(size: 28, weight: .bold))
+                .tracking(-0.6)
                 .foregroundStyle(AppColors.textPrimary)
             
             Spacer()
@@ -164,16 +165,27 @@ struct RootView: View {
                     showSearch = true
                 }
             } label: {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundStyle(AppColors.textSecondary)
-                    .frame(width: 40, height: 40)
-                    .glassEffect(.regular.interactive())
+                ZStack {
+                    Circle()
+                        .fill(.clear)
+                        .frame(width: 36, height: 36)
+                        .glassEffect(.regular.interactive(), in: .circle)
+
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundStyle(AppColors.textSecondary)
+                }
             }
         }
         .padding(.horizontal, 20)
-        .padding(.top, 8)
-        .padding(.bottom, 4)
+        .padding(.top, 12)
+        .padding(.bottom, 8)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(AppColors.timelineLine.opacity(0.4))
+                .frame(height: 1)
+                .padding(.horizontal, 20)
+        }
     }
     
     // MARK: - Record Button
@@ -183,23 +195,34 @@ struct RootView: View {
             triggerRecording()
         } label: {
             ZStack {
+                // Glass halo
                 Circle()
-                    .fill(AppColors.accent)
-                    .frame(width: 64, height: 64)
-                
+                    .fill(.clear)
+                    .frame(width: 72, height: 72)
+                    .glassEffect(.regular.interactive(), in: .circle)
+
+                Circle()
+                    .stroke(AppColors.accent.opacity(0.25), lineWidth: 1)
+                    .frame(width: 72, height: 72)
+
+                // Accent core
+                Circle()
+                    .fill(AppGradients.accent)
+                    .frame(width: 56, height: 56)
+
                 if isRecording {
                     RoundedRectangle(cornerRadius: 4)
                         .fill(.white)
-                        .frame(width: 20, height: 20)
+                        .frame(width: 18, height: 18)
                 } else {
                     Circle()
                         .fill(.white)
-                        .frame(width: 24, height: 24)
+                        .frame(width: 22, height: 22)
                 }
             }
         }
         .buttonStyle(RecordButtonStyle())
-        .shadow(color: AppColors.accent.opacity(0.35), radius: 12, y: 6)
+        .shadow(color: AppColors.accent.opacity(0.25), radius: 16, y: 10)
     }
     
     private func triggerRecording() {
@@ -229,24 +252,28 @@ struct RootView: View {
     
     private var searchOverlay: some View {
         ZStack {
-            // Dimmed background
-            Color.black.opacity(0.75)
+            // Soft dimmed background
+            AppColors.warmBackground
+                .opacity(0.96)
                 .ignoresSafeArea()
+                .overlay {
+                    Color.black.opacity(0.08).ignoresSafeArea()
+                }
                 .onTapGesture {
                     dismissSearch()
                 }
             
             VStack(spacing: 0) {
-                // Search field with glass
+                // Search field
                 HStack(spacing: 12) {
                     HStack(spacing: 10) {
-                        Image(systemName: "sparkle.magnifyingglass")
+                        Image(systemName: "magnifyingglass")
                             .font(.system(size: 16, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.7))
+                            .foregroundStyle(AppColors.textSecondary)
                         
-                        TextField("Describe what you're looking for...", text: $viewState.searchText)
+                        TextField("Search your moments...", text: $viewState.searchText)
                             .font(.system(size: 16))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(AppColors.textPrimary)
                             .autocorrectionDisabled()
                         
                         if !viewState.searchText.isEmpty {
@@ -255,14 +282,17 @@ struct RootView: View {
                             } label: {
                                 Image(systemName: "xmark.circle.fill")
                                     .font(.system(size: 16))
-                                    .foregroundStyle(.white.opacity(0.5))
+                                    .foregroundStyle(AppColors.textSecondary.opacity(0.7))
                             }
                         }
                     }
-                    .padding(.horizontal, 14)
+                    .padding(.horizontal, 16)
                     .padding(.vertical, 12)
-                    .background(Color.white.opacity(0.15))
-                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                    .glassEffect(in: .rect(cornerRadius: 18))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .stroke(AppColors.timelineLine.opacity(0.4), lineWidth: 1)
+                    }
                     
                     // Close button
                     Button {
@@ -270,31 +300,25 @@ struct RootView: View {
                     } label: {
                         Image(systemName: "xmark")
                             .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.7))
+                            .foregroundStyle(AppColors.textSecondary)
                             .frame(width: 36, height: 36)
-                            .background(Color.white.opacity(0.15))
-                            .clipShape(Circle())
+                            .glassEffect(.regular.interactive(), in: .circle)
                     }
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 60)
                 
-                // Semantic search hint
-                HStack(spacing: 6) {
-                    Image(systemName: "wand.and.stars")
-                        .font(.system(size: 11, weight: .medium))
-                    Text("AI-powered semantic search")
-                        .font(.system(size: 11, weight: .medium))
-                }
-                .foregroundStyle(.white.opacity(0.5))
-                .padding(.top, 10)
+                Text("Search is semantic. Try describing the moment.")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(AppColors.textSecondary)
+                    .padding(.top, 10)
                 
                 // Suggestions with glass pills
                 if viewState.searchText.isEmpty {
                     VStack(alignment: .leading, spacing: 16) {
                         Text("TRY SEARCHING")
                             .font(.system(size: 11, weight: .bold))
-                            .foregroundStyle(.white.opacity(0.5))
+                            .foregroundStyle(AppColors.textSecondary)
                             .padding(.top, 28)
                         
                         FlowLayout(spacing: 10) {
@@ -304,11 +328,10 @@ struct RootView: View {
                                 } label: {
                                     Text(suggestion)
                                         .font(.system(size: 14, weight: .medium))
-                                        .foregroundStyle(.white)
+                                        .foregroundStyle(AppColors.textPrimary)
                                         .padding(.horizontal, 16)
                                         .padding(.vertical, 10)
-                                        .background(Color.white.opacity(0.15))
-                                        .clipShape(Capsule())
+                                        .glassEffect(.regular.interactive(), in: .capsule)
                                 }
                             }
                         }
@@ -340,7 +363,7 @@ struct GlassesStatusCard: View {
     
     private var statusColor: Color {
         switch connectionState {
-        case .connected: return .green
+        case .connected: return AppColors.connected
         case .connecting: return .orange
         case .disconnected: return .gray
         case .error: return .red
@@ -364,15 +387,15 @@ struct GlassesStatusCard: View {
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
                     Text("RAY-BAN META")
-                        .font(.system(size: 13, weight: .bold, design: .rounded))
-                        .tracking(0.5)
+                        .font(.system(size: 12, weight: .semibold))
+                        .tracking(0.8)
                     
                     if isMockMode {
                         Text("MOCK")
-                            .font(.system(size: 9, weight: .bold, design: .rounded))
+                            .font(.system(size: 9, weight: .bold))
                             .padding(.horizontal, 4)
                             .padding(.vertical, 2)
-                            .background(Color.orange.opacity(0.2))
+                            .background(Color.orange.opacity(0.15))
                             .foregroundStyle(.orange)
                             .clipShape(Capsule())
                     }
@@ -405,6 +428,10 @@ struct GlassesStatusCard: View {
         .padding(.vertical, 14)
         .padding(.horizontal, 16)
         .glassEffect(in: .rect(cornerRadius: 18))
+        .overlay {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(AppColors.timelineLine.opacity(0.5), lineWidth: 1)
+        }
     }
 }
 

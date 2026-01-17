@@ -51,9 +51,12 @@ struct TimelineView: View {
     
     private var skeletonCard: some View {
         RoundedRectangle(cornerRadius: 20, style: .continuous)
-            .fill(.clear)
+            .fill(AppColors.warmSurface)
             .frame(maxWidth: 280, minHeight: 100)
-            .glassEffect(in: .rect(cornerRadius: 20))
+            .overlay {
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .stroke(AppColors.timelineLine.opacity(0.4), lineWidth: 1)
+            }
             .shimmering()
     }
     
@@ -63,12 +66,11 @@ struct TimelineView: View {
         VStack(spacing: 28) {
             Spacer()
             
-            // Glass illustration container
+            // Illustration container
             ZStack {
                 Circle()
-                    .fill(.clear)
+                    .fill(AppColors.warmSurface)
                     .frame(width: 120, height: 120)
-                    .glassEffect(in: .circle)
                 
                 Image(systemName: "waveform")
                     .font(.system(size: 44, weight: .light))
@@ -160,7 +162,7 @@ struct TimelineView: View {
             Text(title)
                 .font(.system(size: 12, weight: .bold))
                 .foregroundStyle(AppColors.textSecondary)
-                .tracking(0.5)
+                .tracking(0.6)
             
             Spacer()
         }
@@ -228,16 +230,15 @@ struct TimelineMoment: View {
     
     private var timelineNode: some View {
         ZStack {
-            // Glass outer ring
+            // Outer ring
             Circle()
-                .fill(.clear)
-                .frame(width: 20, height: 20)
-                .glassEffect(in: .circle)
+                .stroke(AppColors.timelineLine.opacity(0.8), lineWidth: 1)
+                .frame(width: 18, height: 18)
             
             // Accent center dot
             Circle()
                 .fill(AppColors.accent)
-                .frame(width: 8, height: 8)
+                .frame(width: 7, height: 7)
                 .opacity(isAppeared ? 1 : 0)
                 .scaleEffect(isAppeared ? 1 : 0)
                 .animation(.spring(response: 0.4, dampingFraction: 0.6).delay(animationDelay + 0.1), value: isAppeared)

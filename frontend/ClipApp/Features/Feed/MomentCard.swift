@@ -18,7 +18,15 @@ struct MomentCard: View {
             // Card content with glass
             cardContent
                 .frame(maxWidth: 260)
-                .glassEffect(in: .rect(cornerRadius: 20))
+                .background {
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .fill(AppColors.warmSurface)
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                                .stroke(AppColors.timelineLine.opacity(0.4), lineWidth: 1)
+                        }
+                        .shadow(color: AppColors.cardShadow, radius: 12, y: 6)
+                }
                 .opacity(isAppeared ? 1 : 0)
                 .offset(x: isAppeared ? 0 : (isLeft ? -20 : 20))
                 .animation(.spring(response: 0.5, dampingFraction: 0.8).delay(animationDelay), value: isAppeared)
@@ -92,7 +100,7 @@ struct MomentCard: View {
                             .padding(.vertical, 4)
                             .background {
                                 Capsule()
-                                    .stroke(.quaternary, lineWidth: 1)
+                                    .stroke(AppColors.timelineLine.opacity(0.6), lineWidth: 1)
                             }
                     }
                     

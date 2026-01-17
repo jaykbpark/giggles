@@ -77,25 +77,23 @@ struct FeedView: View {
     
     private var feedContent: some View {
         ScrollView {
-            LazyVStack(spacing: 0, pinnedViews: .sectionHeaders) {
+            LazyVStack(spacing: 18) {
                 ForEach(groupedClips, id: \.0) { dateGroup, groupClips in
-                    Section {
-                        ForEach(groupClips) { clip in
-                            ClipCard(clip: clip, namespace: namespace)
-                                .onTapGesture {
-                                    HapticManager.playLight()
-                                    withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) {
-                                        selectedClip = clip
-                                    }
+                    sectionHeader(dateGroup)
+
+                    ForEach(groupClips) { clip in
+                        ClipCard(clip: clip, namespace: namespace)
+                            .onTapGesture {
+                                HapticManager.playLight()
+                                withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) {
+                                    selectedClip = clip
                                 }
-                                .padding(.horizontal, 20)
-                                .padding(.vertical, 8)
-                        }
-                    } header: {
-                        sectionHeader(dateGroup)
+                            }
+                            .padding(.horizontal, 20)
                     }
                 }
             }
+            .padding(.top, 4)
             .padding(.bottom, 120) // Space for record button
         }
         .scrollIndicators(.hidden)
@@ -104,13 +102,23 @@ struct FeedView: View {
     // MARK: - Section Header
     
     private func sectionHeader(_ title: String) -> some View {
-        Text(title.uppercased())
-            .font(.system(size: 13, weight: .bold))
-            .foregroundStyle(AppColors.textSecondary)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 20)
-            .padding(.vertical, 12)
-            .background(AppColors.warmBackground)
+        HStack(spacing: 12) {
+            Rectangle()
+                .fill(AppColors.timelineLine.opacity(0.8))
+                .frame(height: 1)
+            
+            Text(title.uppercased())
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(AppColors.textSecondary)
+                .tracking(0.8)
+            
+            Rectangle()
+                .fill(AppColors.timelineLine.opacity(0.8))
+                .frame(height: 1)
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 16)
+        .padding(.bottom, 6)
     }
 }
 
@@ -133,6 +141,14 @@ struct ClipCard: View {
                         )
                     )
                     .aspectRatio(16/9, contentMode: .fit)
+                    .overlay {
+                        LinearGradient(
+                            colors: [.clear, Color.black.opacity(0.35)],
+                            startPoint: .center,
+                            endPoint: .bottom
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    }
                 
                 // Play icon
                 Image(systemName: "play.fill")
@@ -193,6 +209,10 @@ struct ClipCard: View {
         .background {
             RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .fill(AppColors.warmSurface)
+                .overlay {
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .stroke(AppColors.timelineLine.opacity(0.4), lineWidth: 1)
+                }
                 .shadow(color: AppColors.cardShadow, radius: 12, y: 6)
         }
     }

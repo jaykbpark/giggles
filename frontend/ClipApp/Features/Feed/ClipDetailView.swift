@@ -116,8 +116,9 @@ struct ClipDetailView: View {
             } label: {
                 ZStack {
                     Circle()
-                        .fill(.white.opacity(0.15))
+                        .fill(.clear)
                         .frame(width: 80, height: 80)
+                        .glassEffect(.regular.interactive(), in: .circle)
                     
                     Image(systemName: isPlaying ? "pause.fill" : "play.fill")
                         .font(.system(size: 32, weight: .semibold))
@@ -139,10 +140,7 @@ struct ClipDetailView: View {
                             .font(.system(size: 16, weight: .bold))
                             .foregroundStyle(.white)
                             .frame(width: 40, height: 40)
-                            .background(
-                                Circle()
-                                    .fill(.white.opacity(0.15))
-                            )
+                            .glassEffect(.regular.interactive(), in: .circle)
                     }
                 }
                 .padding(.horizontal, 20)
@@ -159,10 +157,7 @@ struct ClipDetailView: View {
                             .foregroundStyle(.white.opacity(0.8))
                             .padding(.horizontal, 10)
                             .padding(.vertical, 5)
-                            .background(
-                                Capsule()
-                                    .fill(.white.opacity(0.15))
-                            )
+                            .glassEffect(in: .capsule)
                         
                         Spacer()
                     }

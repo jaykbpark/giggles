@@ -24,14 +24,17 @@ Progress and sprint notes live in `frontend/PROGRESS.md`.
    ```
    After pulling, **explicitly say** you pulled and are on `main`.
 
-2. **Build after changes**
+2. **Build + run after every code change**
 
-   **Simulator:**
+   **Simulator (default):**
    ```bash
    cd /Users/jaypark/Documents/GitHub/nw2025/frontend && \
    xcodebuild -project nw2025.xcodeproj -scheme nw2025 \
      -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
-     -configuration Debug build
+     -configuration Debug build && \
+   xcrun simctl boot "iPhone 17 Pro" || true && \
+   xcrun simctl install "iPhone 17 Pro" ~/Library/Developer/Xcode/DerivedData/nw2025-*/Build/Products/Debug-iphonesimulator/nw2025.app && \
+   xcrun simctl launch "iPhone 17 Pro" me.park.jay.nw2025
    ```
 
    **Device (connected):**
@@ -39,13 +42,13 @@ Progress and sprint notes live in `frontend/PROGRESS.md`.
    cd /Users/jaypark/Documents/GitHub/nw2025/frontend && \
    xcodebuild -project nw2025.xcodeproj -scheme nw2025 \
      -destination 'id=00008140-001534E83647001C' \
-     -configuration Debug -allowProvisioningUpdates build
-
+     -configuration Debug -allowProvisioningUpdates build && \
    xcrun devicectl device install app --device 00008140-001534E83647001C \
-     ~/Library/Developer/Xcode/DerivedData/nw2025-*/Build/Products/Debug-iphoneos/nw2025.app
-
+     ~/Library/Developer/Xcode/DerivedData/nw2025-*/Build/Products/Debug-iphoneos/nw2025.app && \
    xcrun devicectl device process launch --device 00008140-001534E83647001C me.park.jay.nw2025
    ```
+
+   If build/run fails, **stop and report the error**.
 
 3. **Commit only after user validation**
    ```bash

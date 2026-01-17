@@ -8,40 +8,42 @@ Development progress lives in [`frontend/PROGRESS.md`](frontend/PROGRESS.md).
 
 ---
 
-## Mandatory Workflow
+## Non-Negotiable Workflow
 
-### Before Starting
+### 1) Pull first, always
 ```bash
 cd /Users/jaypark/Documents/GitHub/nw2025 && git pull origin main
 git log --oneline -10
 ```
+After pulling, **explicitly say**: "Pulled latest and on `main`."
 
-### After Every Code Change
-Build and deploy so the user can test.
+### 2) Build + run after any code change
 
-**Simulator:**
+**Simulator (default):**
 ```bash
 cd /Users/jaypark/Documents/GitHub/nw2025/frontend && \
 xcodebuild -project nw2025.xcodeproj -scheme nw2025 \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
-  -configuration Debug build
+  -configuration Debug build && \
+xcrun simctl boot "iPhone 17 Pro" || true && \
+xcrun simctl install "iPhone 17 Pro" ~/Library/Developer/Xcode/DerivedData/nw2025-*/Build/Products/Debug-iphonesimulator/nw2025.app && \
+xcrun simctl launch "iPhone 17 Pro" me.park.jay.nw2025
 ```
 
-**iPhone (device connected):**
+**Device (when connected):**
 ```bash
 cd /Users/jaypark/Documents/GitHub/nw2025/frontend && \
 xcodebuild -project nw2025.xcodeproj -scheme nw2025 \
   -destination 'id=00008140-001534E83647001C' \
-  -configuration Debug -allowProvisioningUpdates build
-
+  -configuration Debug -allowProvisioningUpdates build && \
 xcrun devicectl device install app --device 00008140-001534E83647001C \
-  ~/Library/Developer/Xcode/DerivedData/nw2025-*/Build/Products/Debug-iphoneos/nw2025.app
-
+  ~/Library/Developer/Xcode/DerivedData/nw2025-*/Build/Products/Debug-iphoneos/nw2025.app && \
 xcrun devicectl device process launch --device 00008140-001534E83647001C me.park.jay.nw2025
 ```
 
-### After Big Features
-Commit only after user confirms it works.
+If build/run fails, **stop and report the error**.
+
+### 3) Commit/push only after user confirms it works
 ```bash
 git add -A
 git commit -m "<type>: <summary>"
@@ -50,25 +52,22 @@ git push origin main
 
 Commit types: `Feat`, `Fix`, `UI`, `Refactor`, `Chore`.
 
+After pushing, **explicitly say**: branch + commit hash + summary.
+
 ---
 
 ## Design Rules (Liquid Glass)
 
-Use Apple Liquid Glass (`.glassEffect()`) for chrome and controls, not content.
+- Use `.glassEffect()` for chrome and controls.
+- Use `.glassEffect(.regular.interactive())` for tappable elements.
+- Avoid glass on primary content blocks (transcripts, timeline cards).
 
-**Use glass for:**
-- Floating toolbars, pills, buttons, overlays
-- Interactive elements (`.glassEffect(.regular.interactive())`)
-
-**Avoid glass for:**
-- Primary content blocks (transcripts, timeline cards)
-
-Refer to Apple docs:  
+Docs:  
 `/Applications/Xcode.app/Contents/PlugIns/IDEIntelligenceChat.framework/Versions/A/Resources/AdditionalDocumentation/`
 
 ---
 
-## Product Structure
+## Product Structure (Reference)
 
 ```
 ClipApp/
@@ -85,21 +84,11 @@ ClipApp/
 
 Location: `Core/Managers/WakeWordDetector.swift`
 
-Usage:
 ```swift
 wakeWordDetector.startListening(audioFormat: format)
 wakeWordDetector.processAudioBuffer(buffer)
 wakeWordDetector.onClipTriggered = { transcript in ... }
 ```
-
----
-
-## Testing Strategy
-
-Use simulator for UI work. Use device for:
-- Meta glasses integration
-- Haptics
-- Wake word mic testing
 
 ---
 

@@ -35,6 +35,10 @@ struct RootView: View {
                 .padding(.horizontal, 20)
                 .padding(.bottom, 8)
                 
+                // Filter Bar
+                FilterBar(viewState: viewState)
+                    .padding(.bottom, 4)
+                
                 // Feed
                 FeedView(
                     clips: viewState.filteredClips,

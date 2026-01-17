@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		4EC031672F16300000552603 /* WakeWordDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031662F16300000552603 /* WakeWordDetector.swift */; };
 		4EC031642F16252C00552603 /* Gradients.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031652F16252C00552603 /* Gradients.swift */; };
 		4EC031532F16242C00552603 /* Colors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC0313D2F16242C00552603 /* Colors.swift */; };
 		4EC031542F16242C00552603 /* APIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC0314F2F16242C00552603 /* APIService.swift */; };
@@ -47,6 +48,8 @@
 		4EC0314F2F16242C00552603 /* APIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIService.swift; sourceTree = "<group>"; };
 		4EC031502F16242C00552603 /* MockData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockData.swift; sourceTree = "<group>"; };
 		4EC031652F16252C00552603 /* Gradients.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Gradients.swift; sourceTree = "<group>"; };
+		4EC031662F16300000552603 /* WakeWordDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WakeWordDetector.swift; sourceTree = "<group>"; };
+		4EC031682F16300000552603 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -111,6 +114,7 @@
 				4EC031402F16242C00552603 /* CameraManager.swift */,
 				4EC031412F16242C00552603 /* HapticManager.swift */,
 				4EC031422F16242C00552603 /* PhotoManager.swift */,
+				4EC031662F16300000552603 /* WakeWordDetector.swift */,
 			);
 			path = Managers;
 			sourceTree = "<group>";
@@ -177,6 +181,7 @@
 				4EC0314B2F16242C00552603 /* Features */,
 				4EC0314E2F16242C00552603 /* Models */,
 				4EC031512F16242C00552603 /* Services */,
+				4EC031682F16300000552603 /* Info.plist */,
 			);
 			path = ClipApp;
 			sourceTree = "<group>";
@@ -270,6 +275,7 @@
 				4EC031612F16242C00552603 /* GlobalViewState.swift in Sources */,
 				4EC031622F16242C00552603 /* ClipDetailView.swift in Sources */,
 				4EC031632F16242C00552603 /* SkeletonView.swift in Sources */,
+				4EC031672F16300000552603 /* WakeWordDetector.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -404,6 +410,9 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ClipApp/Info.plist;
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Clip uses speech recognition to detect \"Clip That\" voice commands to save moments from your glasses.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Clip needs microphone access to capture audio from your Ray-Ban Meta glasses.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -435,6 +444,9 @@
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ClipApp/Info.plist;
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Clip uses speech recognition to detect \"Clip That\" voice commands to save moments from your glasses.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Clip needs microphone access to capture audio from your Ray-Ban Meta glasses.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

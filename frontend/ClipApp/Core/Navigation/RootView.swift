@@ -1,7 +1,9 @@
 import SwiftUI
+import AVFoundation
 
 struct RootView: View {
     @StateObject private var viewState = GlobalViewState()
+    @StateObject private var wakeWordDetector = WakeWordDetector()
     @State private var selectedClip: ClipMetadata?
     @State private var showClipConfirmation = false
     @State private var isSearchFocused = false
@@ -16,7 +18,7 @@ struct RootView: View {
                         VStack(spacing: 0) {
                             // Header - animates away when searching
                             if !isSearchFocused {
-                                GlassesStatusCard()
+                                GlassesStatusCard(isListening: wakeWordDetector.isListening)
                                     .padding(.horizontal, 20)
                                     .padding(.top, 8)
                                     .transition(.move(edge: .top).combined(with: .opacity))
@@ -75,6 +77,25 @@ struct RootView: View {
                     }
             }
         }
+        .task {
+            await setupWakeWordDetection()
+        }
+    }
+    
+    // MARK: - Wake Word Detection Setup
+    
+    private func setupWakeWordDetection() async {
+        // Request speech recognition authorization
+        await wakeWordDetector.requestAuthorization()
+        
+        // Set up callback when "Clip That" is detected
+        wakeWordDetector.onClipTriggered = { [self] in
+            captureClip()
+        }
+        
+        // Note: Call startListening when you have the audio format from Meta SDK
+        // Example: wakeWordDetector.startListening(audioFormat: audioFormatFromMetaSDK)
+        // Then feed audio buffers: wakeWordDetector.processAudioBuffer(buffer)
     }
 
     @ViewBuilder
@@ -143,6 +164,8 @@ struct RootView: View {
 // MARK: - Glasses Status Card (Spectacular Header)
 
 struct GlassesStatusCard: View {
+    var isListening: Bool = false
+    
     var body: some View {
         HStack(spacing: 14) {
             // Left: Stylized glasses icon
@@ -168,6 +191,11 @@ struct GlassesStatusCard: View {
             }
 
             Spacer()
+            
+            // Listening indicator (pulsing mic)
+            if isListening {
+                ListeningIndicator()
+            }
 
             // Right: Battery with visual indicator
             GlassesBatteryView(level: 82)
@@ -179,6 +207,41 @@ struct GlassesStatusCard: View {
                 .fill(.ultraThinMaterial)
                 .glassEffect(in: .rect(cornerRadius: 18))
                 .shadow(color: .black.opacity(0.06), radius: 12, y: 4)
+        }
+    }
+}
+
+// MARK: - Listening Indicator
+
+struct ListeningIndicator: View {
+    @State private var isPulsing = false
+    
+    var body: some View {
+        ZStack {
+            // Outer pulse ring
+            Circle()
+                .stroke(AppAccents.primary.opacity(0.3), lineWidth: 2)
+                .frame(width: 32, height: 32)
+                .scaleEffect(isPulsing ? 1.3 : 1.0)
+                .opacity(isPulsing ? 0 : 0.6)
+            
+            // Inner circle
+            Circle()
+                .fill(AppAccents.primary.opacity(0.15))
+                .frame(width: 28, height: 28)
+            
+            // Mic icon
+            Image(systemName: "mic.fill")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(AppAccents.primary)
+        }
+        .onAppear {
+            withAnimation(
+                .easeInOut(duration: 1.2)
+                .repeatForever(autoreverses: false)
+            ) {
+                isPulsing = true
+            }
         }
     }
 }

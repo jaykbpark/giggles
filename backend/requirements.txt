@@ -1,0 +1,4 @@
+pymilvus
+pymilvus[milvus_lite]
+pydantic
+fastapi

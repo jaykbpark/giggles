@@ -214,6 +214,33 @@ let recentTranscript = wakeWordDetector.getRecentTranscript()
 
 ---
 
+## Building and Deploying to iPhone
+
+### Quick Deploy Command
+To build and install directly to a connected iPhone from the command line:
+
+```bash
+cd frontend && xcodebuild -project nw2025.xcodeproj -scheme nw2025 -destination 'id=00008140-001534E83647001C' -configuration Debug -allowProvisioningUpdates build install
+```
+
+**Note:** Replace the device ID (`00008140-001534E83647001C`) with your iPhone's ID. To find your device ID:
+```bash
+xcrun xcodebuild -showdestinations -project frontend/nw2025.xcodeproj -scheme nw2025 2>&1 | grep "platform:iOS.*arch:arm64.*id:" | grep -v "Simulator"
+```
+
+### Code Signing Setup
+- **Development Team:** `8DX2TD97D2` (Jay Park - Personal Team)
+- **Bundle Identifier:** `me.park.jay.nw2025`
+- **Signing Style:** Automatic (configured in project.pbxproj)
+- The `-allowProvisioningUpdates` flag allows Xcode to automatically create/update provisioning profiles
+
+### Requirements
+- iPhone must have **Developer Mode enabled** (Settings → Privacy & Security → Developer Mode)
+- Apple ID must be signed into Xcode (Xcode → Settings → Accounts)
+- Free Apple ID works for personal development (apps expire after 7 days)
+
+---
+
 ## Meta Wearables Device Access Toolkit (DAT)
 
 **IMPORTANT:** Always reference this SDK documentation when developing features for Meta Ray-Ban glasses integration.

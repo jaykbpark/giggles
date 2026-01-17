@@ -44,7 +44,7 @@ struct RootView: View {
                     BottomSearchBar(
                         searchText: $viewState.searchText,
                         isSearchFocused: $isSearchFocused,
-                        onCapture: captureClip
+                        onCapture: { captureClip() }
                     )
                 }
                 .navigationTitle("Clips")

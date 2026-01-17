@@ -33,39 +33,54 @@ struct MomentCard: View {
     }
     
     private var cardContent: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Time and duration
-            HStack {
-                Text(clip.formattedTime)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(AppColors.accent)
+        VStack(alignment: .leading, spacing: 10) {
+            // Video thumbnail placeholder
+            ZStack {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [Color(.systemGray5), Color(.systemGray4)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(height: 120)
                 
-                Spacer()
+                // Play icon
+                Image(systemName: "play.fill")
+                    .font(.system(size: 24))
+                    .foregroundStyle(.white.opacity(0.8))
                 
-                // Duration badge
-                Text(clip.formattedDuration)
-                    .font(.system(size: 11, weight: .bold, design: .monospaced))
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background {
-                        Capsule()
-                            .fill(.ultraThinMaterial)
+                // Duration badge overlay
+                VStack {
+                    Spacer()
+                    HStack {
+                        Spacer()
+                        Text(clip.formattedDuration)
+                            .font(.system(size: 10, weight: .bold, design: .monospaced))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 3)
+                            .background {
+                                Capsule()
+                                    .fill(.black.opacity(0.6))
+                            }
+                            .padding(8)
                     }
+                }
             }
             
-            // Title
-            Text(clip.title)
-                .font(.system(size: 15, weight: .medium))
-                .foregroundStyle(AppColors.textPrimary)
-                .lineLimit(2)
+            // Time
+            Text(clip.formattedTime)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(AppColors.accent)
             
             // Topics (if any)
             if !clip.topics.isEmpty {
                 HStack(spacing: 6) {
-                    ForEach(clip.topics.prefix(2), id: \.self) { topic in
+                    ForEach(clip.topics.prefix(3), id: \.self) { topic in
                         Text(topic)
-                            .font(.system(size: 11, weight: .medium))
+                            .font(.system(size: 10, weight: .medium))
                             .foregroundStyle(.secondary)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
@@ -75,15 +90,15 @@ struct MomentCard: View {
                             }
                     }
                     
-                    if clip.topics.count > 2 {
-                        Text("+\(clip.topics.count - 2)")
-                            .font(.system(size: 11, weight: .medium))
+                    if clip.topics.count > 3 {
+                        Text("+\(clip.topics.count - 3)")
+                            .font(.system(size: 10, weight: .medium))
                             .foregroundStyle(.tertiary)
                     }
                 }
             }
         }
-        .padding(16)
+        .padding(10)
     }
 }
 

@@ -6,182 +6,183 @@ struct ClipDetailView: View {
     var namespace: Namespace.ID
     @Binding var selectedClip: ClipMetadata?
     
-    @State private var isPlaying = false
-    @State private var appearAnimation = false
+    @State private var isPlaying = true
+    @State private var showControls = true
+    @State private var controlsTimer: Timer?
 
     var body: some View {
-        ZStack(alignment: .top) {
-            // Background
-            AppColors.warmBackground
-                .ignoresSafeArea()
-                .opacity(appearAnimation ? 1 : 0)
-
-            // Scrollable Content
-            ScrollView {
-                VStack(spacing: 0) {
-                    // Video player area
-                    videoPlayerArea
-                        .frame(height: UIScreen.main.bounds.width * 9/16)
-                        .frame(maxHeight: 400)
-                        .clipShape(RoundedRectangle(cornerRadius: appearAnimation ? 24 : 4, style: .continuous))
-                        .matchedGeometryEffect(id: clip.id, in: namespace)
-                        .shadow(color: .black.opacity(0.15), radius: 24, y: 12)
-                        .padding(.horizontal, 20)
-                        .padding(.top, 60)
-
-                    // Content Area
-                    VStack(alignment: .leading, spacing: 28) {
-                        headerSection
-                        transcriptSection
-                        topicsSection
+        GeometryReader { geometry in
+            ZStack {
+                // Fullscreen black background
+                Color.black
+                    .ignoresSafeArea()
+                
+                // Video player area - fullscreen
+                videoPlayerArea
+                    .frame(width: geometry.size.width, height: geometry.size.height)
+                    .matchedGeometryEffect(id: clip.id, in: namespace)
+                    .ignoresSafeArea()
+                    .onTapGesture {
+                        toggleControls()
                     }
-                    .padding(24)
-                    .padding(.top, 8)
-                    .opacity(appearAnimation ? 1 : 0)
-                    .offset(y: appearAnimation ? 0 : 40)
+                
+                // Overlay controls (fade in/out)
+                if showControls {
+                    controlsOverlay
+                        .transition(.opacity)
                 }
-                .padding(.bottom, 40)
             }
-            .scrollIndicators(.hidden)
-
-            // Close Button with glass
-            HStack {
-                Spacer()
-                Button {
-                    close()
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 36, height: 36)
-                        .glassEffect(.regular.interactive())
-                }
-                .opacity(appearAnimation ? 1 : 0)
-            }
-            .padding(.top, 16)
-            .padding(.horizontal, 20)
         }
+        .statusBarHidden(true)
         .onAppear {
-            withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
-                appearAnimation = true
+            isPlaying = true
+            startControlsTimer()
+        }
+        .onDisappear {
+            controlsTimer?.invalidate()
+        }
+    }
+    
+    private func toggleControls() {
+        withAnimation(.easeInOut(duration: 0.2)) {
+            showControls.toggle()
+        }
+        if showControls {
+            startControlsTimer()
+        }
+    }
+    
+    private func startControlsTimer() {
+        controlsTimer?.invalidate()
+        controlsTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: false) { _ in
+            withAnimation(.easeInOut(duration: 0.2)) {
+                showControls = false
             }
         }
     }
 
     private func close() {
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-            appearAnimation = false
-        }
-        
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
-                selectedClip = nil
-            }
+        HapticManager.playLight()
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+            selectedClip = nil
         }
     }
 
     private var videoPlayerArea: some View {
         ZStack {
-            // Glass background
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(.clear)
-                .glassEffect(in: .rect(cornerRadius: 24))
-
-            // Play button
-            VStack(spacing: 12) {
+            // Dark gradient background (placeholder for actual video)
+            LinearGradient(
+                colors: [Color(white: 0.1), Color(white: 0.05)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            
+            // Placeholder content - replace with actual AVPlayer
+            VStack(spacing: 16) {
+                Image(systemName: "video.fill")
+                    .font(.system(size: 48, weight: .light))
+                    .foregroundStyle(.white.opacity(0.3))
+            }
+        }
+    }
+    
+    private var controlsOverlay: some View {
+        ZStack {
+            // Gradient overlays for better control visibility
+            VStack(spacing: 0) {
+                // Top gradient
+                LinearGradient(
+                    colors: [.black.opacity(0.7), .clear],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(height: 140)
+                
+                Spacer()
+                
+                // Bottom gradient
+                LinearGradient(
+                    colors: [.clear, .black.opacity(0.7)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(height: 180)
+            }
+            .ignoresSafeArea()
+            
+            VStack {
+                // Top bar
+                HStack {
+                    Spacer()
+                    
+                    // Close button
+                    Button(action: close) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(.white)
+                            .frame(width: 40, height: 40)
+                            .background(
+                                Circle()
+                                    .fill(.white.opacity(0.15))
+                            )
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 60)
+                
+                Spacer()
+                
+                // Center play/pause button
                 Button {
                     HapticManager.playLight()
                     isPlaying.toggle()
+                    startControlsTimer()
                 } label: {
                     ZStack {
                         Circle()
-                            .fill(.clear)
-                            .frame(width: 72, height: 72)
-                            .glassEffect(.regular.interactive(), in: .circle)
-
+                            .fill(.white.opacity(0.15))
+                            .frame(width: 80, height: 80)
+                        
                         Image(systemName: isPlaying ? "pause.fill" : "play.fill")
-                            .font(.system(size: 24, weight: .semibold))
-                            .offset(x: isPlaying ? 0 : 2)
+                            .font(.system(size: 32, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .offset(x: isPlaying ? 0 : 3)
                     }
                 }
                 .buttonStyle(PlayButtonStyle())
-
-                if !isPlaying {
-                    Text("Tap to play")
-                        .font(.system(size: 13))
-                        .foregroundStyle(.secondary)
-                }
-            }
-        }
-    }
-
-    private var headerSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            // Time badge with glass
-            Text(clip.formattedTime)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(AppColors.accent)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .glassEffect(in: .capsule)
-            
-            // Date
-            Text(clip.dateGroupKey)
-                .font(.system(size: 28, weight: .bold))
-
-            HStack(spacing: 16) {
-                Label(clip.formattedDuration, systemImage: "clock")
-                Label(clip.relativeDate, systemImage: "calendar")
-            }
-            .font(.system(size: 14))
-            .foregroundStyle(.secondary)
-        }
-    }
-
-    private var transcriptSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Text("Transcript")
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(.secondary)
-
+                
                 Spacer()
-
-                Button {
-                    UIPasteboard.general.string = clip.transcript
-                    HapticManager.playSuccess()
-                } label: {
-                    Image(systemName: "doc.on.doc")
+                
+                // Bottom info
+                VStack(alignment: .leading, spacing: 8) {
+                    // Duration badge
+                    HStack {
+                        Text(clip.formattedDuration)
+                            .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(.white.opacity(0.8))
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(
+                                Capsule()
+                                    .fill(.white.opacity(0.15))
+                            )
+                        
+                        Spacer()
+                    }
+                    
+                    // Title
+                    Text(clip.title)
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundStyle(.white)
+                    
+                    // Date
+                    Text(clip.formattedDate)
                         .font(.system(size: 14))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 32, height: 32)
-                        .glassEffect(.regular.interactive())
+                        .foregroundStyle(.white.opacity(0.6))
                 }
-            }
-
-            Text(clip.transcript)
-                .font(.system(size: 16))
-                .lineSpacing(6)
-                .padding(20)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .glassEffect(in: .rect(cornerRadius: 16))
-        }
-    }
-
-    private var topicsSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Topics")
-                .font(.system(size: 13, weight: .bold))
-                .foregroundStyle(.secondary)
-
-            FlowLayout(spacing: 8) {
-                ForEach(clip.topics, id: \.self) { topic in
-                    Text(topic)
-                        .font(.system(size: 14, weight: .medium))
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 8)
-                        .glassEffect(in: .capsule)
-                }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 50)
             }
         }
     }
@@ -192,8 +193,9 @@ struct ClipDetailView: View {
 struct PlayButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.92 : 1)
-            .animation(.spring(response: 0.25, dampingFraction: 0.6), value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed ? 0.9 : 1)
+            .opacity(configuration.isPressed ? 0.8 : 1)
+            .animation(.spring(response: 0.2, dampingFraction: 0.6), value: configuration.isPressed)
     }
 }
 

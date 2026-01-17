@@ -139,3 +139,4 @@ Thumbs.db
 *.sublime-workspace
 *.sublime-project
 *.swp
+database/*.db

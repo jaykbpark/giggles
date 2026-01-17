@@ -39,7 +39,7 @@ Progress and sprint notes live in `frontend/PROGRESS.md`.
      -configuration Debug build && \
    xcrun simctl boot "iPhone 17 Pro" || true && \
    xcrun simctl install "iPhone 17 Pro" ~/Library/Developer/Xcode/DerivedData/nw2025-*/Build/Products/Debug-iphonesimulator/nw2025.app && \
-   xcrun simctl launch --env USE_MOCK_GLASSES=1 "iPhone 17 Pro" me.park.jay.nw2025
+   SIMCTL_CHILD_USE_MOCK_GLASSES=1 xcrun simctl launch "iPhone 17 Pro" me.park.jay.nw2025
    ```
 
    **Simulator without Mock Mode (real SDK):**
@@ -171,7 +171,8 @@ Docs: `https://wearables.developer.meta.com/docs/develop`
 
 The app supports a mock glasses provider for development without physical hardware.
 
-- **Environment Variable:** `USE_MOCK_GLASSES=1` (passed at launch time)
+- **Environment Variable:** `USE_MOCK_GLASSES=1`
+- **Simulator syntax:** Use `SIMCTL_CHILD_USE_MOCK_GLASSES=1` prefix before `xcrun simctl launch`
 - **When to use Mock Mode:**
   - Running on simulator (no glasses support)
   - Device testing without paired glasses

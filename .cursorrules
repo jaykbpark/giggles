@@ -32,7 +32,7 @@ xcodebuild -project nw2025.xcodeproj -scheme nw2025 \
   -configuration Debug build && \
 xcrun simctl boot "iPhone 17 Pro" || true && \
 xcrun simctl install "iPhone 17 Pro" ~/Library/Developer/Xcode/DerivedData/nw2025-*/Build/Products/Debug-iphonesimulator/nw2025.app && \
-xcrun simctl launch --env USE_MOCK_GLASSES=1 "iPhone 17 Pro" me.park.jay.nw2025
+SIMCTL_CHILD_USE_MOCK_GLASSES=1 xcrun simctl launch "iPhone 17 Pro" me.park.jay.nw2025
 ```
 
 **Simulator without Mock Mode (real SDK):**
@@ -130,6 +130,7 @@ Docs: `https://wearables.developer.meta.com/docs/develop`
 The app supports a mock glasses provider for development without physical hardware.
 
 - **Environment Variable:** `USE_MOCK_GLASSES=1`
+- **Simulator:** Use `SIMCTL_CHILD_USE_MOCK_GLASSES=1` prefix before `xcrun simctl launch`
 - **Location:** `Core/Managers/MetaGlasses/`
   - `MetaGlassesManager.swift` - Unified interface, auto-selects provider
   - `MockGlassesProvider.swift` - Generates synthetic video/audio

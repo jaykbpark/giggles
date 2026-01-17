@@ -204,3 +204,68 @@ wakeWordDetector.stopListening()
 2. **Haptics:** playSuccess() → rigid double tap, playLight() → soft impact, playError() → heavy triple
 3. **Search:** Semantic search via backend, results rendered as 2-column grid with thumbnails
 4. **Status Header:** Green pulse dot + "RAY-BAN META • 82%" + aperture button
+
+---
+
+## Meta Wearables Device Access Toolkit (DAT)
+
+**IMPORTANT:** Always reference this SDK documentation when developing features for Meta Ray-Ban glasses integration.
+
+### SDK Overview
+- Developer preview SDK for Meta AI glasses (Ray-Ban Meta)
+- Enables video streaming, photo capture, and audio access
+- General availability planned for 2026
+
+### Installation (Swift Package Manager)
+```swift
+// In Xcode: File > Add Package Dependencies
+// URL: https://github.com/facebook/meta-wearables-dat-ios
+```
+
+1. In Xcode, select **File** > **Add Package Dependencies...**
+2. Search for `https://github.com/facebook/meta-wearables-dat-ios`
+3. Select `meta-wearables-dat-ios`
+4. Set the version to one of the available versions
+5. Click **Add Package**
+6. Select the target to which you want to add the packages
+7. Click **Add Package**
+
+### Key Capabilities
+- **POV Camera:** Video streaming and photo capture from glasses
+- **Microphone:** Open-ear microphone audio input
+- **Audio Output:** Speakers for audio playback
+- **Sensors:** On-device sensor access
+
+### Analytics Opt-Out Configuration
+To disable Meta analytics collection, add to `Info.plist`:
+
+**Method 1: Xcode Info Tab**
+1. Select app target in Project navigator
+2. Go to **Info** tab → **Custom iOS Target Properties**
+3. Add `MWDAT` key (Dictionary)
+4. Add `Analytics` key under MWDAT (Dictionary)
+5. Add `OptOut` key under Analytics (Boolean) → set to `YES`
+
+**Method 2: Direct XML**
+```xml
+<key>MWDAT</key>
+<dict>
+    <key>Analytics</key>
+    <dict>
+        <key>OptOut</key>
+        <true/>
+    </dict>
+</dict>
+```
+
+### Documentation Links
+- **Blog:** https://developers.meta.com/blog/introducing-meta-wearables-device-access-toolkit/
+- **Docs:** https://wearables.developer.meta.com/docs/develop
+- **GitHub:** https://github.com/facebook/meta-wearables-dat-ios
+- **Sample Code:** `samples/CameraAccess` in the GitHub repo
+
+### Current Limitations (Developer Preview)
+- Voice commands/AI assistant integration **not yet available**
+- Publishing to public restricted to select partners only
+- Internal distribution within orgs/teams is allowed
+- Some features may change before general availability

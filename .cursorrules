@@ -170,7 +170,7 @@ ClipApp/
 
 ## Wake Word Detection ("Clip That")
 
-The app uses native iOS `SFSpeechRecognizer` for on-device wake word detection. When the user says "Clip That", it triggers the video clipping.
+The app uses native iOS `SFSpeechRecognizer` for on-device wake word detection. When the user says "Clip That", it triggers the video clipping and returns the last 30 seconds of transcript.
 
 ### WakeWordDetector Usage
 ```swift
@@ -180,21 +180,28 @@ wakeWordDetector.startListening(audioFormat: audioFormatFromMetaSDK)
 // 2. Feed audio buffers as they arrive from the stream
 wakeWordDetector.processAudioBuffer(buffer)
 
-// 3. The onClipTriggered callback fires automatically when "Clip That" is detected
-wakeWordDetector.onClipTriggered = {
-    // Trigger video clipping here
+// 3. The onClipTriggered callback fires with the last 30 seconds of transcript
+wakeWordDetector.onClipTriggered = { transcript in
+    // transcript contains the last 30 seconds of speech (without "clip that")
+    // Send to backend, trigger video clipping, etc.
+    print("Transcript: \(transcript)")
 }
 
 // 4. Stop listening when done
 wakeWordDetector.stopListening()
+
+// Optional: Get current transcript manually
+let recentTranscript = wakeWordDetector.getRecentTranscript()
 ```
 
 ### Key Details
 - **Location:** `Core/Managers/WakeWordDetector.swift`
 - **On-device:** Uses `requiresOnDeviceRecognition = true` (no network needed)
+- **Transcript buffer:** Maintains rolling 30-second transcript buffer
 - **Session restart:** Auto-restarts every 50 seconds (iOS recognition limit is ~1 minute)
 - **Cooldown:** 2-second debounce to prevent duplicate triggers
 - **UI indicator:** `GlassesStatusCard(isListening:)` shows pulsing mic when active
+- **Published state:** `currentTranscript` shows live transcription
 
 ---
 

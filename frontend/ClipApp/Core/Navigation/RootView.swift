@@ -88,9 +88,9 @@ struct RootView: View {
         // Request speech recognition authorization
         await wakeWordDetector.requestAuthorization()
         
-        // Set up callback when "Clip That" is detected
-        wakeWordDetector.onClipTriggered = { [self] in
-            captureClip()
+        // Set up callback when "Clip That" is detected - receives last 30s of transcript
+        wakeWordDetector.onClipTriggered = { [self] transcript in
+            captureClip(transcript: transcript)
         }
         
         // Note: Call startListening when you have the audio format from Meta SDK
@@ -153,11 +153,31 @@ struct RootView: View {
         }
     }
 
-    private func captureClip() {
+    private func captureClip(transcript: String = "") {
         HapticManager.playSuccess()
         withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
             showClipConfirmation = true
         }
+        
+        // Send transcript to backend
+        if !transcript.isEmpty {
+            Task {
+                await sendClipToBackend(transcript: transcript)
+            }
+        }
+    }
+    
+    private func sendClipToBackend(transcript: String) async {
+        // TODO: Implement backend API call
+        // This is where you send the transcript along with localIdentifier
+        print("📝 Clip triggered with transcript: \(transcript)")
+        
+        // Example:
+        // try await APIService.shared.processClip(
+        //     audioData: audioData,
+        //     localIdentifier: localIdentifier,
+        //     transcript: transcript
+        // )
     }
 }
 

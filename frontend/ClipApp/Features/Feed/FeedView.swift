@@ -175,9 +175,10 @@ struct ClipCard: View {
                 } label: {
                     Image(systemName: clip.isStarred ? "star.fill" : "star")
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(clip.isStarred ? AppColors.accent : .white)
+                        .foregroundStyle(clip.isStarred ? AppColors.accent : AppColors.textPrimary)
                         .frame(width: 30, height: 30)
                         .glassEffect(.regular.interactive(), in: .circle)
+                        .shadow(color: .black.opacity(0.15), radius: 2, y: 1)
                 }
                 .padding(8)
                 .accessibilityLabel(clip.isStarred ? "Remove star" : "Star clip")

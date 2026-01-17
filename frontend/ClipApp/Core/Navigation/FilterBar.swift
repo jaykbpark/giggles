@@ -98,7 +98,7 @@ struct FilterBar: View {
                 if let icon {
                     Image(systemName: icon)
                         .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(isSelected ? AppColors.accent : AppColors.textSecondary)
+                        .foregroundStyle(isSelected ? AppColors.accent : AppColors.textPrimary.opacity(0.7))
                 }
 
                 Text(tab.rawValue)

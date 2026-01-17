@@ -8,26 +8,80 @@
 ## Current Sprint
 
 - [x] Integrate WakeWordDetector with Meta SDK audio stream
-- [ ] Implement backend API call in `sendClipToBackend(transcript:)`
+- [x] Implement clip capture pipeline (ClipCaptureCoordinator + ClipExporter)
+- [ ] Save exported clips to Photo Library
+- [ ] Implement backend video upload (`POST /api/video`)
 - [ ] Test wake word detection end-to-end with real glasses
 - [ ] Add video preview from glasses camera feed
 
 ---
 
+## Data Flow Status
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| Feed data | **Mock** | `MockData.clips` hardcoded (6 sample clips) |
+| Clip capture | **Real** | `ClipCaptureCoordinator` working |
+| Video export | **Real** | `.mov` files created in temp directory |
+| Photo Library save | Not Implemented | TODO in `handleExportedClip()` |
+| Backend upload | Not Implemented | TODO in `sendClipToBackend()` |
+| Search | **Mock** | Filters mock data locally |
+
+### Clip Save Flow (Intended)
+
+```
+Wake Word Detected
+       ↓
+ClipCaptureCoordinator.handleClipTrigger()
+       ↓
+ClipExporter.exportWithHostTimeSync()
+       ↓
+.mov file in temp directory
+       ↓
+[TODO] Save to Photo Library (PHAsset)
+       ↓
+[TODO] Upload to Backend (POST /api/video)
+       ↓
+[TODO] Receive transcript + tags from backend
+       ↓
+[TODO] Update ClipMetadata in feed
+```
+
+---
+
 ## In Progress
+
+### Clip Pipeline Integration
+**Owner:** TBD  
+**Status:** Export working, persistence not implemented
+
+Next steps:
+1. Implement Photo Library save in `handleExportedClip()`
+2. Implement `sendClipToBackend()` with real API call
+3. Wire up backend response to update feed with real metadata
 
 ### Backend Integration
 **Owner:** TBD  
-**Status:** Waiting on API endpoint implementation
+**Status:** Waiting on public server deployment
+
+API contract defined in [`../endpoint.md`](../endpoint.md)
 
 Next steps:
-1. Implement `sendClipToBackend()` in RootView.swift
-2. Connect to `/api/process` endpoint
-3. Handle response and error states
+1. Deploy backend to public server (Cloudflare Tunnel or Railway)
+2. Update `APIService.baseURL` with real endpoint
+3. Implement video upload flow
 
 ---
 
 ## Completed
+
+### Clip Capture Pipeline (Jan 17, 2026)
+- [x] `ClipCaptureCoordinator` - orchestrates video/audio capture with rolling buffers
+- [x] `ClipExporter` - exports synchronized video+audio to `.mov` file
+- [x] `AudioCaptureManager` - captures audio from Bluetooth or mock source
+- [x] 30-second rolling buffer for both video and audio
+- [x] Wake word triggers automatic clip export
+- [x] New clips added to timeline with placeholder metadata
 
 ### Meta Glasses SDK Integration (Jan 17, 2026)
 - [x] `GlassesStreamProvider` protocol for mock/real SDK abstraction
@@ -85,12 +139,14 @@ Next steps:
 
 | Feature | Owner | Status | Notes |
 |---------|-------|--------|-------|
-| Video capture/clipping | Video Team | In Progress | Handles 30s video buffer |
+| Video capture/clipping | - | ✅ Done | `ClipCaptureCoordinator` + `ClipExporter` |
 | Wake word detection | Jay | ✅ Done | Returns 30s transcript |
 | Meta SDK audio stream | - | ✅ Done | Wired to WakeWordDetector via MetaGlassesManager |
 | Meta SDK video stream | - | ✅ Done | Available via `videoFramePublisher` |
-| Backend transcript API | TBD | Not Started | Endpoint: `/api/process` |
-| Semantic search | Backend | ✅ Done | Mock data in place |
+| Photo Library save | - | Not Started | TODO in `handleExportedClip()` |
+| Backend video upload | TBD | Not Started | Endpoint: `POST /api/video` |
+| Backend transcript API | TBD | Not Started | Endpoint: `GET /api/videos` |
+| Semantic search | Backend | Mock | Filters mock data locally |
 
 ---
 
@@ -127,14 +183,26 @@ ClipApp/
 │   │   ├── MetaGlassesManager.swift     ← Main entry point
 │   │   ├── MockGlassesProvider.swift    ← Mock implementation
 │   │   └── MetaSDKProvider.swift        ← Real SDK wrapper
+│   ├── AudioCapture/
+│   │   ├── AudioCaptureManager.swift    ← Audio capture orchestration
+│   │   ├── AudioCaptureProvider.swift   ← Protocol for audio sources
+│   │   ├── BluetoothAudioProvider.swift ← Real Bluetooth audio
+│   │   └── MockAudioProvider.swift      ← Mock audio for development
+│   ├── ClipCaptureCoordinator.swift     ← Orchestrates video+audio capture
+│   ├── ClipExporter.swift               ← Exports .mov files
 │   ├── WakeWordDetector.swift           ← Wake word + transcript buffer
 │   ├── HapticManager.swift
 │   ├── PhotoManager.swift
 │   └── CameraManager.swift
 ├── Core/Navigation/
 │   └── RootView.swift                   ← Main view with integration
+├── Services/
+│   ├── APIService.swift                 ← Backend API calls (mock URL)
+│   └── MockData.swift                   ← Hardcoded sample clips
 └── Info.plist                           ← Permissions
 ```
+
+See also: [`../endpoint.md`](../endpoint.md) for full API contract
 
 ---
 

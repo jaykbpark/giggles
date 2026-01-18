@@ -145,9 +145,9 @@ struct ClipApp: App {
 - Wrap in do-catch and log errors in DEBUG builds
 - NEVER call `configure()` multiple times
 
-### 2. Registration Flow
+### 2. Registration Flow & Deep Links
 
-Registration state is tracked via `RegistrationState` enum:
+Registration is an OAuth-like flow with the Meta AI app. Track state via `RegistrationState` enum:
 - `.available` - SDK available, not yet registered
 - `.registering` - Registration in progress
 - `.registered` - Successfully registered with Meta AI app
@@ -159,7 +159,7 @@ try wearables.startRegistration()
 
 // Handle callback URL via SwiftUI .onOpenURL
 .onOpenURL { url in
-    // Check for metaWearablesAction query parameter
+    // Check for metaWearablesAction query parameter BEFORE processing
     if url.absoluteString.contains("metaWearablesAction") {
         Task {
             let handled = try await Wearables.shared.handleUrl(url)
@@ -167,29 +167,40 @@ try wearables.startRegistration()
     }
 }
 
-// Listen for registration state changes
+// PREFERRED: Use AsyncSequence for registration state changes
+func observeRegistration() {
+    registrationTask = Task {
+        for await state in wearables.registrationStateStream() {
+            await MainActor.run {
+                switch state {
+                case .registered:
+                    // Proceed to device detection
+                case .registering:
+                    // Show loading state
+                case .available, .unavailable:
+                    // Handle accordingly
+                @unknown default:
+                    break
+                }
+            }
+        }
+    }
+}
+
+// Alternative: Listener-based approach
 let token = wearables.addRegistrationStateListener { state in
     Task { @MainActor in
-        switch state {
-        case .registered:
-            // Proceed to device detection
-        case .registering:
-            // Show loading state
-        case .available, .unavailable:
-            // Handle accordingly
-        @unknown default:
-            break
-        }
+        // Handle state changes
     }
 }
 ```
 
-### 3. Device Detection Pattern
+### 3. Device Management
 
 **CRITICAL:** Only listen for devices AFTER registration completes.
 
 ```swift
-// Use async stream for device detection
+// PREFERRED: Use AsyncSequence for device detection
 func observeDevices() {
     deviceTask = Task {
         for await devices in wearables.devicesStream() {
@@ -209,6 +220,13 @@ if let deviceId = deviceIds.first,
     // Use device
 }
 
+// Check device compatibility before streaming
+let compatibilityToken = device.addCompatibilityListener { compatibility in
+    Task { @MainActor in
+        // Check if device supports required features
+    }
+}
+
 // Monitor device link state
 let linkToken = device.addLinkStateListener { linkState in
     switch linkState {
@@ -220,74 +238,199 @@ let linkToken = device.addLinkStateListener { linkState in
 }
 ```
 
-### 4. Streaming Pattern
+### 4. Streaming Architecture
+
+#### AutoDeviceSelector (Recommended)
+Use `AutoDeviceSelector` for automatic device selection and management:
+
+```swift
+// Create auto device selector
+let deviceSelector = AutoDeviceSelector(wearables: wearables)
+
+// Track active device with AsyncSequence
+func observeActiveDevice() {
+    activeDeviceTask = Task {
+        for await device in deviceSelector.activeDeviceStream() {
+            await MainActor.run {
+                // Handle active device changes
+                self.activeDevice = device
+            }
+        }
+    }
+}
+```
+
+#### StreamSession Configuration
 
 ```swift
 // Create stream session with configuration
 let config = StreamSessionConfig(
     videoCodec: .raw,      // or .h264
-    resolution: .medium,   // .low, .medium, .high
-    frameRate: 30
+    resolution: .low,      // .low, .medium, .high (start with .low for stability)
+    frameRate: 24          // 24 fps recommended for smooth streaming
 )
 
-let deviceSelector = SpecificDeviceSelector(device: device.identifier)
-// Or use AutoDeviceSelector() for automatic selection
-
+// Use AutoDeviceSelector with StreamSession (recommended)
 let session = StreamSession(
     streamSessionConfig: config,
-    deviceSelector: deviceSelector
+    deviceSelector: deviceSelector  // AutoDeviceSelector instance
 )
 
-// Set up listeners BEFORE starting
-videoFrameToken = session.videoFramePublisher.listen { frame in
-    Task { @MainActor in
-        // frame.sampleBuffer contains the video data
-        if let pixelBuffer = CMSampleBufferGetImageBuffer(frame.sampleBuffer) {
-            // Process pixel buffer
+// Or use SpecificDeviceSelector for a specific device
+let specificSelector = SpecificDeviceSelector(device: device.identifier)
+let session = StreamSession(
+    streamSessionConfig: config,
+    deviceSelector: specificSelector
+)
+```
+
+### 5. Event Subscription Pattern (Listener Tokens)
+
+**CRITICAL:** All SDK events use a publisher-listener pattern. ALWAYS retain listener tokens (`AnyListenerToken`) as properties.
+
+```swift
+@MainActor
+class StreamViewModel: ObservableObject {
+    // ALWAYS store tokens as properties - they are released when deallocated
+    private var streamStateToken: (any AnyListenerToken)?
+    private var videoFrameToken: (any AnyListenerToken)?
+    private var errorToken: (any AnyListenerToken)?
+    private var photoToken: (any AnyListenerToken)?
+    
+    @Published var currentVideoFrame: UIImage?
+    @Published var isStreaming = false
+    private var hasReceivedFirstFrame = false
+    
+    func setupListeners(session: StreamSession) {
+        // Session state listener
+        streamStateToken = session.statePublisher.listen { [weak self] state in
+            Task { @MainActor in
+                guard let self else { return }
+                switch state {
+                case .stopped:
+                    self.isStreaming = false
+                case .waitingForDevice:
+                    // Waiting for device connection
+                    break
+                case .starting:
+                    // Initializing stream
+                    break
+                case .streaming:
+                    self.isStreaming = true
+                case .stopping:
+                    // Shutting down
+                    break
+                case .paused:
+                    // Temporarily paused
+                    break
+                @unknown default:
+                    break
+                }
+            }
         }
-        // Or convert to UIImage
-        let image = frame.makeUIImage()
-    }
-}
-
-streamStateToken = session.statePublisher.listen { state in
-    Task { @MainActor in
-        switch state {
-        case .streaming:       // Active streaming
-        case .stopped:         // Stream stopped
-        case .paused:          // Stream paused
-        case .waitingForDevice: // Waiting for device
-        case .starting:        // Starting up
-        case .stopping:        // Stopping
-        @unknown default: break
+        
+        // Video frame listener
+        videoFrameToken = session.videoFramePublisher.listen { [weak self] frame in
+            Task { @MainActor in
+                guard let self else { return }
+                // Convert VideoFrame to UIImage
+                self.currentVideoFrame = frame.makeUIImage()
+                
+                // Track first frame for loading states
+                if !self.hasReceivedFirstFrame {
+                    self.hasReceivedFirstFrame = true
+                }
+            }
+        }
+        
+        // Error listener
+        errorToken = session.errorPublisher.listen { [weak self] error in
+            Task { @MainActor in
+                guard let self else { return }
+                self.handleStreamError(error)
+            }
+        }
+        
+        // Photo capture listener
+        photoToken = session.photoDataPublisher.listen { [weak self] photoData in
+            Task { @MainActor in
+                guard let self else { return }
+                // Convert to UIImage
+                if let image = UIImage(data: photoData.data) {
+                    self.handleCapturedPhoto(image)
+                }
+            }
         }
     }
 }
+```
 
-errorToken = session.errorPublisher.listen { error in
-    Task { @MainActor in
-        // Handle StreamSessionError
-    }
-}
+### 6. Session States
 
+Handle `StreamSessionState` enum properly:
+
+| State | Description |
+|-------|-------------|
+| `.stopped` | Not streaming |
+| `.waitingForDevice` | Waiting for device connection |
+| `.starting` | Initializing stream |
+| `.streaming` | Actively receiving frames |
+| `.stopping` | Shutting down |
+| `.paused` | Temporarily paused |
+
+### 7. Photo Capture
+
+```swift
+// Trigger photo capture
+streamSession.capturePhoto(format: .jpeg)  // or .heic
+
+// Receive via photoDataPublisher listener
 photoToken = session.photoDataPublisher.listen { photoData in
     Task { @MainActor in
-        // Handle captured photo
+        if let image = UIImage(data: photoData.data) {
+            // Use captured photo
+        }
     }
 }
+```
 
-// ALWAYS check/request camera permission before starting
-let status = try await wearables.requestPermission(.camera)
-guard status == .granted else { return }
+### 8. Permission Handling
 
-// Start the session
+```swift
+// Check permission status
+let status = try await wearables.checkPermissionStatus(.camera)
+
+// Request permission if needed
+let granted = try await wearables.requestPermission(.camera)
+
+// Permission status enum
+switch status {
+case .granted:
+    // Ready to stream
+case .denied:
+    // Show permission denied UI
+default:
+    break
+}
+
+// ALWAYS check/request camera permission before starting stream
+guard try await wearables.requestPermission(.camera) == .granted else {
+    throw GlassesError.permissionDenied
+}
+await session.start()
+```
+
+### 9. Starting & Stopping Streams
+
+```swift
+// Start the session (always after setting up listeners and checking permissions)
 await session.start()
 
 // Stop when done
 await session.stop()
 ```
 
-### 5. Mock Mode Implementation
+### 10. Mock Mode Implementation
 
 ```swift
 @MainActor
@@ -311,6 +454,21 @@ final class MetaGlassesManager: ObservableObject {
         }
     }
 }
+```
+
+### 11. Testing with MWDATMockDevice
+
+```swift
+#if DEBUG
+import MWDATMockDevice
+
+// MockDeviceKit.shared manages mock devices
+func setupMockDevice() {
+    // Create simulated Ray-Ban Meta glasses
+    MockDeviceKit.shared.pairRaybanMeta()
+    // Mock devices support full streaming workflow
+}
+#endif
 ```
 
 **Mock Mode Activation:**
@@ -379,15 +537,35 @@ do {
     }
 }
 
-// Streaming errors
-enum StreamSessionError {
-    case internalError
-    case deviceNotFound
-    case deviceNotConnected
-    case timeout
-    case videoStreamingError
-    case audioStreamingError
-    case permissionDenied
+// Streaming errors (handle all cases from SDK)
+// StreamSessionError cases:
+//   .internalError       - Internal SDK error
+//   .deviceNotFound      - Device unavailable
+//   .deviceNotConnected  - Connection lost
+//   .timeout             - Operation timed out
+//   .videoStreamingError - Video streaming failure
+//   .audioStreamingError - Audio streaming failure
+//   .permissionDenied    - Camera permission denied
+
+func handleStreamError(_ error: StreamSessionError) {
+    switch error {
+    case .internalError:
+        showError("Internal error occurred")
+    case .deviceNotFound:
+        showError("Device not found")
+    case .deviceNotConnected:
+        showError("Device disconnected")
+    case .timeout:
+        showError("Connection timed out")
+    case .videoStreamingError:
+        showError("Video streaming error")
+    case .audioStreamingError:
+        showError("Audio streaming error")
+    case .permissionDenied:
+        showError("Camera permission denied")
+    @unknown default:
+        showError("Unknown error")
+    }
 }
 
 // Custom app error type
@@ -597,6 +775,12 @@ deinit {
     <string>YOUR_CLIENT_TOKEN</string>
     <key>TeamID</key>
     <string>YOUR_APPLE_TEAM_ID</string>
+    <!-- Optional: Opt out of analytics -->
+    <key>Analytics</key>
+    <dict>
+        <key>OptOut</key>
+        <true/>
+    </dict>
 </dict>
 
 <!-- Background Modes for Bluetooth -->
@@ -720,8 +904,22 @@ wakeWordDetector.onClipTriggered = { transcript in
 | Start registration | `try wearables.startRegistration()` |
 | Handle OAuth callback | `try await wearables.handleUrl(url)` |
 | Check registration | `wearables.registrationState == .registered` |
-| Get devices | `wearables.devices` (after registration) |
+| Registration stream | `for await state in wearables.registrationStateStream()` |
+| Devices stream | `for await devices in wearables.devicesStream()` |
 | Get device object | `wearables.deviceForIdentifier(id)` |
+| Auto device selector | `AutoDeviceSelector(wearables: wearables)` |
+| Active device stream | `for await device in deviceSelector.activeDeviceStream()` |
+| Stream config | `StreamSessionConfig(videoCodec: .raw, resolution: .low, frameRate: 24)` |
+| Create session | `StreamSession(streamSessionConfig: config, deviceSelector: selector)` |
+| Video frames | `session.videoFramePublisher.listen { frame in }` |
+| Session state | `session.statePublisher.listen { state in }` |
+| Stream errors | `session.errorPublisher.listen { error in }` |
+| Photo capture | `session.capturePhoto(format: .jpeg)` |
+| Photo listener | `session.photoDataPublisher.listen { photo in }` |
+| Frame to UIImage | `videoFrame.makeUIImage()` |
+| Check permission | `try await wearables.checkPermissionStatus(.camera)` |
+| Request permission | `try await wearables.requestPermission(.camera)` |
 | Start stream | `await session.start()` |
 | Stop stream | `await session.stop()` |
 | Check mock mode | `ProcessInfo.processInfo.environment["USE_MOCK_GLASSES"] != nil` |
+| Setup mock device | `MockDeviceKit.shared.pairRaybanMeta()` (DEBUG only) |

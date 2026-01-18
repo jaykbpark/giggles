@@ -104,7 +104,9 @@ final class MetaGlassesManager: ObservableObject {
     }
     
     private func updateDeviceInfo() {
-        guard connectionState.isConnected else { return }
+        // Read connection state directly from provider to avoid race condition
+        // (the manager's connectionState is updated async via Combine)
+        guard provider.connectionState.isConnected else { return }
         
         batteryLevel = provider.batteryLevel
         deviceName = provider.deviceName
@@ -120,6 +122,9 @@ final class MetaGlassesManager: ObservableObject {
         
         do {
             try await provider.connect()
+            // Sync connection state immediately from provider to avoid race condition
+            // (the Combine subscription updates async, but we need state now)
+            connectionState = provider.connectionState
             updateDeviceInfo()
         } catch let error as GlassesError {
             lastError = error
@@ -145,6 +150,15 @@ final class MetaGlassesManager: ObservableObject {
             return false
         }
         return await sdkProvider.handleURL(url)
+    }
+    
+    /// Re-request camera permission from the SDK
+    /// Returns a status message for the UI
+    func reauthorize() async -> String {
+        guard let sdkProvider = provider as? MetaSDKProvider else {
+            return "SDK not available"
+        }
+        return await sdkProvider.reauthorize()
     }
     
     // MARK: - Video Streaming

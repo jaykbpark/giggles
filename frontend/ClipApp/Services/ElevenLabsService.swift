@@ -313,7 +313,7 @@ private struct VoiceSettings {
         similarityBoost: 0.90,  // High similarity = clearer reproduction
         style: 0.0,             // No style variation = more literal
         useSpeakerBoost: true,
-        speed: 1.0              // Normal speed for clarity
+        speed: 1.25             // 25% faster - snappier delivery
     )
 }
 

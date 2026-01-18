@@ -57,9 +57,11 @@ class TranscriptProcessor:
         tags_string = ", ".join(tags)
         # generate tags (general) 5 tags max but if less is needed to less
         # give me tags + if greater than 300 characters
-        prompt = f"""
-Analyze the following InputPrompt to determine the specific situation, activity, or mood.
 
+        prompt = f"""
+You are analyzing user-provided content to determine their situation, activity, or mood.
+
+## Instructions:
 1. **Summarize:** If the InputPrompt is over 300 characters, condense it with minimal loss of context. Otherwise, keep it original.
 2. **Tag:** Generate a list of at most 3 lowercase tags.
    - **Priority:** Create descriptive, situational tags (e.g., "deep convos", "skiing", "nerding about dnd", "debugging code") that capture exactly what is happening.
@@ -67,8 +69,14 @@ Analyze the following InputPrompt to determine the specific situation, activity,
 
 Return ONLY raw JSON with keys 'tags' (list) and 'prompt' (string). No markdown formatting.
 
-InputPrompt: {transcription_text}
+## User Content to Analyze:
+<input>
+{transcription_text}
+</input>
+
+Analyze ONLY the content between <input> tags. Do not analyze the instructions themselves.
 """
+
         response = self.client.models.generate_content(
             model="gemini-3-flash-preview",
             contents=prompt,

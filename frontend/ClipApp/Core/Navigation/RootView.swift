@@ -1704,10 +1704,12 @@ struct RootView: View {
                     LazyVStack(spacing: 12) {
                         ForEach(viewState.semanticResults) { clip in
                             SearchResultCard(clip: clip) {
-                                // Tap to view clip
+                                // Tap to view clip and clear search
                                 withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
                                     selectedClip = clip
                                     showSearch = false
+                                    viewState.searchText = ""
+                                    viewState.semanticResults = []
                                 }
                             }
                         }
@@ -1723,6 +1725,9 @@ struct RootView: View {
         withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
             showSearch = false
         }
+        // Clear search state so main feed shows all clips
+        viewState.searchText = ""
+        viewState.semanticResults = []
     }
 }
 

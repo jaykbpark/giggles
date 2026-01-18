@@ -302,6 +302,32 @@ final class ClipCaptureCoordinator: ObservableObject {
         print("🎬 ClipCaptureCoordinator: Capture stopped")
     }
     
+    /// Resume audio capture after it was interrupted (e.g., by video playback)
+    /// Call this when returning from video detail view to restore wake word detection
+    func resumeAudioCapture() async {
+        guard isCapturing else { return }
+        
+        // Stop existing audio to ensure clean restart
+        wakeWordDetector.stopListening()
+        laughterDetector.stopListening()
+        audioManager.stopCapture()
+        
+        // Restart audio capture
+        do {
+            try await audioManager.startCapture()
+            setupAudioSubscriptions()
+            
+            // Restart wake word and laughter detection
+            if let audioFormat = audioManager.audioFormat {
+                wakeWordDetector.startListening(audioFormat: audioFormat)
+                laughterDetector.startListening(audioFormat: audioFormat)
+            }
+            print("🎤 Audio capture resumed after video playback")
+        } catch {
+            print("⚠️ Failed to resume audio capture: \(error.localizedDescription)")
+        }
+    }
+    
     // MARK: - Stream Subscriptions
     
     /// Set up video frame subscription to fill the rolling buffer

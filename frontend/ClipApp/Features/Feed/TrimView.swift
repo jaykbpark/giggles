@@ -115,8 +115,7 @@ struct TrimView: View {
     private var videoPreview: some View {
         ZStack {
             if let player = player {
-                VideoPlayer(player: player)
-                    .disabled(true) // Disable default controls
+                TrimPlayerView(player: player)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                     .overlay {
                         RoundedRectangle(cornerRadius: 12)
@@ -466,6 +465,47 @@ struct TrimView: View {
         let seconds = Int(time) % 60
         let fraction = Int((time.truncatingRemainder(dividingBy: 1)) * 10)
         return String(format: "%d:%02d.%d", minutes, seconds, fraction)
+    }
+}
+
+// MARK: - Custom Video Player (No Default Controls)
+
+/// A custom video player view that wraps AVPlayerLayer directly,
+/// bypassing SwiftUI's VideoPlayer which shows default Apple controls on tap.
+struct TrimPlayerView: UIViewRepresentable {
+    let player: AVPlayer
+    
+    func makeUIView(context: Context) -> TrimPlayerUIView {
+        TrimPlayerUIView(player: player)
+    }
+    
+    func updateUIView(_ uiView: TrimPlayerUIView, context: Context) {
+        uiView.updatePlayer(player)
+    }
+}
+
+/// The underlying UIView that hosts the AVPlayerLayer
+class TrimPlayerUIView: UIView {
+    private var playerLayer: AVPlayerLayer
+    
+    init(player: AVPlayer) {
+        playerLayer = AVPlayerLayer(player: player)
+        super.init(frame: .zero)
+        playerLayer.videoGravity = .resizeAspect
+        layer.addSublayer(playerLayer)
+    }
+    
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+    
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        playerLayer.frame = bounds
+    }
+    
+    func updatePlayer(_ player: AVPlayer) {
+        playerLayer.player = player
     }
 }
 

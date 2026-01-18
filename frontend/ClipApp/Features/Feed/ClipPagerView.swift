@@ -10,6 +10,7 @@ struct ClipPagerView: View {
     
     @State private var currentIndex: Int = 0
     @State private var scrolledID: UUID?
+    @State private var dragOffset: CGFloat = 0
     
     var body: some View {
         GeometryReader { geometry in
@@ -60,6 +61,29 @@ struct ClipPagerView: View {
         }
         .background(Color.black)
         .ignoresSafeArea()
+        .offset(x: dragOffset)
+        .gesture(
+            DragGesture()
+                .onChanged { value in
+                    // Only track right-ward swipes from left edge (within 30pt)
+                    if value.startLocation.x < 30 && value.translation.width > 0 {
+                        dragOffset = value.translation.width
+                    }
+                }
+                .onEnded { value in
+                    // Dismiss if swiped far enough or with velocity
+                    if dragOffset > 100 || value.predictedEndTranslation.width > 200 {
+                        HapticManager.playLight()
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                            selectedClip = nil
+                        }
+                    } else {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            dragOffset = 0
+                        }
+                    }
+                }
+        )
     }
 }
 

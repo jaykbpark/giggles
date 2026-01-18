@@ -51,6 +51,7 @@ final class ClipCaptureCoordinator: ObservableObject {
     private let laughterDetector: LaughterDetector
     private let exporter: ClipExporter
     private let ffmpegExporter: FFmpegExporter
+    private let elevenLabsSTT: ElevenLabsSTTService
     
     // MARK: - Published State
     
@@ -98,6 +99,17 @@ final class ClipCaptureCoordinator: ObservableObject {
         }
     }
     
+    /// Whether to use ElevenLabs STT for real-time transcription (better quality, requires API key)
+    @Published var useElevenLabsSTT: Bool = true
+    
+    /// Current real-time transcript from ElevenLabs STT
+    @Published private(set) var realtimeTranscript: String = ""
+    
+    /// Whether ElevenLabs STT is connected
+    var isElevenLabsConnected: Bool {
+        elevenLabsSTT.isConnected
+    }
+    
     /// Current laughter detection confidence (0.0 - 1.0)
     @Published private(set) var laughterConfidence: Float = 0
     
@@ -137,10 +149,12 @@ final class ClipCaptureCoordinator: ObservableObject {
         self.laughterDetector = LaughterDetector()
         self.exporter = ClipExporter()
         self.ffmpegExporter = FFmpegExporter()
+        self.elevenLabsSTT = ElevenLabsSTTService.shared
         
         setupWakeWordCallback()
         setupLaughterCallback()
         setupExporterProgress()
+        setupElevenLabsSTTCallback()
     }
     
     /// Initialize with custom managers (for testing)
@@ -157,10 +171,12 @@ final class ClipCaptureCoordinator: ObservableObject {
         self.laughterDetector = laughterDetector
         self.exporter = exporter
         self.ffmpegExporter = FFmpegExporter()
+        self.elevenLabsSTT = ElevenLabsSTTService.shared
         
         setupWakeWordCallback()
         setupLaughterCallback()
         setupExporterProgress()
+        setupElevenLabsSTTCallback()
     }
     
     // MARK: - Setup
@@ -203,6 +219,45 @@ final class ClipCaptureCoordinator: ObservableObject {
             Task { @MainActor in
                 self?.exportFramesWritten = framesWritten
                 self?.exportTotalFrames = totalFrames
+            }
+        }
+    }
+    
+    private func setupElevenLabsSTTCallback() {
+        // Real-time transcript updates
+        elevenLabsSTT.onPartialTranscript = { [weak self] transcript in
+            Task { @MainActor in
+                self?.realtimeTranscript = transcript
+            }
+        }
+        
+        elevenLabsSTT.onCommittedTranscript = { [weak self] transcript in
+            Task { @MainActor in
+                // Append to transcript display
+                if let self = self, !transcript.isEmpty {
+                    if self.realtimeTranscript.isEmpty {
+                        self.realtimeTranscript = transcript
+                    } else {
+                        self.realtimeTranscript += " " + transcript
+                    }
+                }
+            }
+        }
+        
+        // Phrase detection (clip triggers, questions)
+        elevenLabsSTT.onPhraseDetected = { [weak self] phrase in
+            Task { @MainActor in
+                guard let self = self else { return }
+                
+                switch phrase {
+                case .clipThat(let transcript):
+                    print("🎤 [ElevenLabs] Clip triggered with transcript: \(transcript.prefix(50))...")
+                    await self.handleClipTrigger(transcript: transcript, source: .wakeWord)
+                    
+                case .heyClip(let question):
+                    print("🎤 [ElevenLabs] Question asked: \(question)")
+                    self.onQuestionAsked?(question)
+                }
             }
         }
     }
@@ -298,6 +353,10 @@ final class ClipCaptureCoordinator: ObservableObject {
         audioManager.stopCapture()
         glassesManager.stopVideoStream()
         
+        // Disconnect ElevenLabs STT
+        elevenLabsSTT.disconnect()
+        realtimeTranscript = ""
+        
         isCapturing = false
         print("🎬 ClipCaptureCoordinator: Capture stopped")
     }
@@ -355,16 +414,37 @@ final class ClipCaptureCoordinator: ObservableObject {
             }
             .store(in: &cancellables)
         
-        // Feed raw audio to wake word detector
+        // Feed raw audio to wake word detector and/or ElevenLabs STT
         audioManager.audioBufferPublisher
             .receive(on: DispatchQueue.main)
             .sink { [weak self] buffer in
-                self?.wakeWordDetector.processAudioBuffer(buffer)
-                self?.laughterDetector.processAudioBuffer(buffer)
+                guard let self = self else { return }
+                
+                // Always use local wake word detector as fallback
+                self.wakeWordDetector.processAudioBuffer(buffer)
+                self.laughterDetector.processAudioBuffer(buffer)
+                
+                // Also send to ElevenLabs STT if enabled and connected
+                if self.useElevenLabsSTT && self.elevenLabsSTT.isConnected {
+                    self.elevenLabsSTT.sendAudioBuffer(buffer)
+                }
             }
             .store(in: &cancellables)
         
         print("🎤 Audio subscriptions set up")
+        
+        // Connect to ElevenLabs STT if enabled
+        if useElevenLabsSTT && elevenLabsSTT.isConfigured {
+            Task {
+                do {
+                    try await elevenLabsSTT.connect()
+                    print("🎤 [ElevenLabs] Real-time STT connected")
+                } catch {
+                    print("⚠️ [ElevenLabs] STT connection failed: \(error.localizedDescription)")
+                    print("⚠️ [ElevenLabs] Falling back to on-device transcription")
+                }
+            }
+        }
     }
 
     /// Auto-start video stream when glasses finish connecting
@@ -750,8 +830,16 @@ final class ClipCaptureCoordinator: ObservableObject {
         return url
     }
     
-    /// Get the recent transcript from the wake word detector (for manual clip triggers)
+    /// Get the recent transcript from the wake word detector or ElevenLabs STT (for manual clip triggers)
     func getRecentTranscript() -> String {
+        // Prefer ElevenLabs STT transcript if available and connected
+        if useElevenLabsSTT && elevenLabsSTT.isConnected {
+            let elevenLabsTranscript = elevenLabsSTT.getRecentTranscript()
+            if !elevenLabsTranscript.isEmpty {
+                return elevenLabsTranscript
+            }
+        }
+        // Fall back to on-device wake word detector
         return wakeWordDetector.getRecentTranscript()
     }
 }

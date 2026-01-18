@@ -28,6 +28,9 @@ enum AppColors {
     // Shadows
     static let cardShadow = Color.black.opacity(0.06)
     
+    // Card backgrounds
+    static let cardBackground = Color(red: 0.95, green: 0.94, blue: 0.92)     // Light warm gray
+    
     // Legacy compatibility
     static let glass = Material.ultraThinMaterial
 }

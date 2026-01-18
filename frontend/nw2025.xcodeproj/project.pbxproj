@@ -45,6 +45,7 @@
 		4EC031B52F19000000552603 /* PresageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031B42F19000000552603 /* PresageService.swift */; };
 		4EC031B72F19000000552603 /* SmartSpectraSwiftSDK in Frameworks */ = {isa = PBXBuildFile; productRef = 4EC031B82F19000000552603 /* SmartSpectraSwiftSDK */; };
 		4EC031B92F1A000000552603 /* ElevenLabsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031BA2F1A000000552603 /* ElevenLabsService.swift */; };
+		4EC031BB2F1A000000552604 /* ElevenLabsSTTService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031BC2F1A000000552604 /* ElevenLabsSTTService.swift */; };
 		4EC031C02F1B000000552603 /* TrimView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031C12F1B000000552603 /* TrimView.swift */; };
 		4EC031C22F1B000000552603 /* CaptionOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031C32F1B000000552603 /* CaptionOverlayView.swift */; };
 		4EC031C42F1B000000552603 /* CaptionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031C52F1B000000552603 /* CaptionManager.swift */; };
@@ -99,6 +100,7 @@
 		4EC031B22F19000000552603 /* StateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StateView.swift; sourceTree = "<group>"; };
 		4EC031B42F19000000552603 /* PresageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PresageService.swift; sourceTree = "<group>"; };
 		4EC031BA2F1A000000552603 /* ElevenLabsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElevenLabsService.swift; sourceTree = "<group>"; };
+		4EC031BC2F1A000000552604 /* ElevenLabsSTTService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElevenLabsSTTService.swift; sourceTree = "<group>"; };
 		4EC031C12F1B000000552603 /* TrimView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrimView.swift; sourceTree = "<group>"; };
 		4EC031C32F1B000000552603 /* CaptionOverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptionOverlayView.swift; sourceTree = "<group>"; };
 		4EC031C52F1B000000552603 /* CaptionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptionManager.swift; sourceTree = "<group>"; };
@@ -252,6 +254,7 @@
 				4EC031912F17800000552603 /* TitleGenerator.swift */,
 				4EC031B42F19000000552603 /* PresageService.swift */,
 				4EC031BA2F1A000000552603 /* ElevenLabsService.swift */,
+				4EC031BC2F1A000000552604 /* ElevenLabsSTTService.swift */,
 				4EC031D12F1C000000552603 /* GeminiService.swift */,
 				4EC031D32F1C000000552603 /* MemoryAssistantService.swift */,
 			);
@@ -415,6 +418,7 @@
 				4EC031B32F19000000552603 /* StateView.swift in Sources */,
 				4EC031B52F19000000552603 /* PresageService.swift in Sources */,
 				4EC031B92F1A000000552603 /* ElevenLabsService.swift in Sources */,
+				4EC031BB2F1A000000552604 /* ElevenLabsSTTService.swift in Sources */,
 				4EC031D02F1C000000552603 /* GeminiService.swift in Sources */,
 				4EC031D22F1C000000552603 /* MemoryAssistantService.swift in Sources */,
 				4EC031D42F1C000000552603 /* MemoryAssistantView.swift in Sources */,

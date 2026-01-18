@@ -5,7 +5,11 @@ import numpy as np
 MILVUS_COLLECTION_NAME = "clip_embeddings"
 class DatabaseOperations():
     def __init__(self):
-        # Use paths relative to this file's location
+        self.sqlite_conn = sqlite3.connect(
+            'database/sqlite.db', 
+            timeout=20, 
+            check_same_thread=False
+        )
         import os
         db_dir = os.path.join(os.path.dirname(__file__), 'database')
         self.milvus_conn = MilvusClient(os.path.join(db_dir, 'milvus_storage.db'))

@@ -1465,11 +1465,14 @@ struct ClipConfirmation: View {
                     .scaleEffect(ringScale)
                     .opacity(ringOpacity)
                 
-                // Glass circle background
+                // Warm surface circle background
                 Circle()
-                    .fill(.clear)
+                    .fill(AppColors.warmBackground)
                     .frame(width: 76, height: 76)
-                    .glassEffect(in: .circle)
+                    .overlay {
+                        Circle()
+                            .stroke(AppColors.timelineLine.opacity(0.4), lineWidth: 1)
+                    }
 
                 // Checkmark
                 CheckmarkShape()
@@ -1481,16 +1484,24 @@ struct ClipConfirmation: View {
 
             VStack(spacing: 4) {
                 Text("Clipped!")
-                    .font(.system(size: 20, weight: .semibold))
+                    .font(AppTypography.cardTitle)
+                    .foregroundStyle(AppColors.textPrimary)
 
                 Text("Last 30 seconds saved")
-                    .font(.system(size: 14))
-                    .foregroundStyle(.secondary)
+                    .font(AppTypography.metadata)
+                    .foregroundStyle(AppColors.textSecondary)
             }
         }
         .padding(44)
-        .glassEffect(in: .rect(cornerRadius: 32))
-        .shadow(color: .black.opacity(0.2), radius: 40, y: 20)
+        .background {
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(AppColors.warmSurface)
+                .overlay {
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .stroke(AppColors.timelineLine.opacity(0.4), lineWidth: 1)
+                }
+        }
+        .shadow(color: AppColors.cardShadow, radius: 14, y: 8)
         .onAppear {
             withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
                 ringScale = 1.1

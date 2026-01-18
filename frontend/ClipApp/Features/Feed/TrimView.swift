@@ -29,8 +29,8 @@ struct TrimView: View {
     
     var body: some View {
         ZStack {
-            // Background
-            Color.black
+            // Background - warm minimal theme
+            AppColors.warmBackground
                 .ignoresSafeArea()
             
             VStack(spacing: 0) {
@@ -84,17 +84,21 @@ struct TrimView: View {
             } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(AppColors.textPrimary)
                     .frame(width: 40, height: 40)
-                    .background(.white.opacity(0.15))
+                    .background(AppColors.warmSurface)
                     .clipShape(Circle())
+                    .overlay {
+                        Circle()
+                            .stroke(AppColors.timelineLine.opacity(0.4), lineWidth: 1)
+                    }
             }
             
             Spacer()
             
             Text("Trim Clip")
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(.white)
+                .font(AppTypography.cardTitle)
+                .foregroundStyle(AppColors.textPrimary)
             
             Spacer()
             
@@ -116,14 +120,14 @@ struct TrimView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                     .overlay {
                         RoundedRectangle(cornerRadius: 12)
-                            .stroke(.white.opacity(0.2), lineWidth: 1)
+                            .stroke(AppColors.timelineLine, lineWidth: 1)
                     }
             } else {
                 RoundedRectangle(cornerRadius: 12)
-                    .fill(.white.opacity(0.1))
+                    .fill(AppColors.warmSurface)
                     .overlay {
                         ProgressView()
-                            .tint(.white)
+                            .tint(AppColors.accent)
                     }
             }
             
@@ -133,12 +137,13 @@ struct TrimView: View {
             } label: {
                 ZStack {
                     Circle()
-                        .fill(.black.opacity(0.4))
+                        .fill(AppColors.warmSurface.opacity(0.9))
                         .frame(width: 64, height: 64)
+                        .shadow(color: AppColors.cardShadow, radius: 8, y: 4)
                     
                     Image(systemName: isPlaying ? "pause.fill" : "play.fill")
                         .font(.system(size: 24, weight: .semibold))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(AppColors.accent)
                         .offset(x: isPlaying ? 0 : 2)
                 }
             }
@@ -174,14 +179,14 @@ struct TrimView: View {
                 HStack(spacing: 0) {
                     // Left dim
                     Rectangle()
-                        .fill(.black.opacity(0.6))
+                        .fill(AppColors.warmBackground.opacity(0.7))
                         .frame(width: handleWidth + (trimAreaWidth * startTime / max(duration, 1)))
                     
                     Spacer()
                     
                     // Right dim
                     Rectangle()
-                        .fill(.black.opacity(0.6))
+                        .fill(AppColors.warmBackground.opacity(0.7))
                         .frame(width: handleWidth + (trimAreaWidth * (1 - endTime / max(duration, 1))))
                 }
                 .frame(height: 56)
@@ -236,7 +241,7 @@ struct TrimView: View {
                 // Playhead
                 let playheadX = handleWidth + (trimAreaWidth * currentTime / max(duration, 1))
                 Rectangle()
-                    .fill(.white)
+                    .fill(AppColors.textPrimary)
                     .frame(width: 2, height: 64)
                     .offset(x: playheadX - 1)
                     .allowsHitTesting(false)
@@ -268,18 +273,18 @@ struct TrimView: View {
             // Start time
             VStack(spacing: 2) {
                 Text("START")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.5))
+                    .font(AppTypography.status)
+                    .foregroundStyle(AppColors.textSecondary)
                 Text(formatTime(startTime))
-                    .font(.system(size: 14, weight: .medium, design: .monospaced))
-                    .foregroundStyle(.white)
+                    .font(AppTypography.metadata)
+                    .foregroundStyle(AppColors.textPrimary)
             }
             
             // Trimmed duration
             VStack(spacing: 2) {
                 Text("DURATION")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.5))
+                    .font(AppTypography.status)
+                    .foregroundStyle(AppColors.textSecondary)
                 Text(formatTime(trimmedDuration))
                     .font(.system(size: 18, weight: .bold, design: .monospaced))
                     .foregroundStyle(AppColors.accent)
@@ -289,11 +294,11 @@ struct TrimView: View {
             // End time
             VStack(spacing: 2) {
                 Text("END")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.5))
+                    .font(AppTypography.status)
+                    .foregroundStyle(AppColors.textSecondary)
                 Text(formatTime(endTime))
-                    .font(.system(size: 14, weight: .medium, design: .monospaced))
-                    .foregroundStyle(.white)
+                    .font(AppTypography.metadata)
+                    .foregroundStyle(AppColors.textPrimary)
             }
         }
     }
@@ -312,11 +317,15 @@ struct TrimView: View {
                         Text("Save Full")
                             .font(.system(size: 15, weight: .semibold))
                     }
-                    .foregroundStyle(.white)
+                    .foregroundStyle(AppColors.textPrimary)
                     .frame(maxWidth: .infinity)
                     .frame(height: 50)
-                    .background(.white.opacity(0.15))
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .background(AppColors.warmSurface)
+                    .clipShape(RoundedRectangle(cornerRadius: AppLayout.cardRadius))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: AppLayout.cardRadius)
+                            .stroke(AppColors.timelineLine.opacity(0.4), lineWidth: 1)
+                    }
                 }
                 
                 // Save trimmed button
@@ -336,7 +345,7 @@ struct TrimView: View {
                     .frame(maxWidth: .infinity)
                     .frame(height: 50)
                     .background(AppGradients.accent)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .clipShape(RoundedRectangle(cornerRadius: AppLayout.cardRadius))
                 }
             }
             
@@ -347,8 +356,8 @@ struct TrimView: View {
                     onDiscard()
                 } label: {
                     Text("Discard")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.5))
+                        .font(AppTypography.metadata)
+                        .foregroundStyle(AppColors.textSecondary)
                 }
             }
         }

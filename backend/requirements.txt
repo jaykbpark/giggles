@@ -3,4 +3,3 @@ pymilvus[milvus_lite]
 pydantic
 fastapi
 fastapi[standard]
-sqlite3

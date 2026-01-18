@@ -7,7 +7,7 @@ from pymilvus import (
 import sqlite3
 
 
-client = MilvusClient("./milvus.db")
+client = MilvusClient("./milvus_storage.db")
 
 fields = [
     FieldSchema(name="id", dtype=DataType.INT64, is_primary=True, auto_id=True),
@@ -24,7 +24,7 @@ client.create_collection(
 )
 
 
-db_conn = sqlite3.connect("sqliteVideos.db")
+db_conn = sqlite3.connect("sqlite.db")
 db_cursor = db_conn.cursor()
 db_cursor.execute("""
                   CREATE TABLE IF NOT EXISTS videos(
@@ -34,12 +34,6 @@ db_cursor.execute("""
                       timestamp TEXT
                   )
                   """)
-
-db_conn.commit()
-db_conn.close()
-
-db_conn = sqlite3.connect("sqliteTags.db")
-db_cursor = db_conn.cursor()
 db_cursor.execute("""
                   CREATE TABLE IF NOT EXISTS tags(
                       id INTEGER PRIMARY KEY AUTOINCREMENT,

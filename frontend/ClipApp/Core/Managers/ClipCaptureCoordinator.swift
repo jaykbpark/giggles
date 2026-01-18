@@ -119,6 +119,10 @@ final class ClipCaptureCoordinator: ObservableObject {
     
     private let bufferQueue = DispatchQueue(label: "com.clip.capturecoordinator.buffer", qos: .userInitiated)
     
+    /// Tracks whether we've received at least one video frame (gates audio buffering)
+    /// This prevents buffering audio before video is ready, which would result in black clips
+    private var hasReceivedFirstVideoFrame: Bool = false
+    
     // MARK: - Subscriptions
     
     private var cancellables = Set<AnyCancellable>()
@@ -377,6 +381,12 @@ final class ClipCaptureCoordinator: ObservableObject {
             presentationTime: frame.presentationTime
         )
         
+        // Mark that we've received a video frame (enables audio buffering)
+        if !hasReceivedFirstVideoFrame {
+            hasReceivedFirstVideoFrame = true
+            print("📹 [Buffer] First video frame received - enabling audio buffering")
+        }
+        
         let now = Date()
         videoBuffer.append((frame: copiedFrame, timestamp: now))
         pruneVideoBuffer(before: now.addingTimeInterval(-bufferDuration))
@@ -500,6 +510,9 @@ final class ClipCaptureCoordinator: ObservableObject {
     }
     
     private func appendAudioBuffer(_ buffer: TimestampedAudioBuffer) {
+        // Don't buffer audio until we have video frames to prevent black clips at stream startup
+        guard hasReceivedFirstVideoFrame else { return }
+        
         let now = Date()
         audioBuffer.append((buffer: buffer, timestamp: now))
         pruneAudioBuffer(before: now.addingTimeInterval(-bufferDuration))
@@ -549,6 +562,7 @@ final class ClipCaptureCoordinator: ObservableObject {
             videoBuffer.removeAll()
             audioBuffer.removeAll()
         }
+        hasReceivedFirstVideoFrame = false
         videoBufferCount = 0
         audioBufferCount = 0
         currentBufferDuration = 0.0

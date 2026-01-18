@@ -9,6 +9,11 @@ struct ClipDetailView: View {
     @Binding var selectedClip: ClipMetadata?
     @ObservedObject var viewState: GlobalViewState
     
+    // Pager integration props
+    var isActive: Bool = true
+    var onReachedEnd: (() -> Void)? = nil
+    var onClose: (() -> Void)? = nil
+    
     @State private var isPlaying = true
     @State private var showControls = true
     @State private var controlsTimer: Timer?
@@ -19,6 +24,7 @@ struct ClipDetailView: View {
     @State private var isLoadingVideo = true
     @State private var videoLoadError: String?
     @State private var timeObserver: Any?
+    @State private var videoDuration: TimeInterval = 0
     
     // Audio narration state
     @State private var audioPlayer: AVPlayer?
@@ -35,10 +41,22 @@ struct ClipDetailView: View {
     @State private var currentPlaybackTime: TimeInterval = 0
     @State private var playbackTimer: Timer?
     
+    // End-of-clip bounce animation state
+    @State private var bounceOffset: CGFloat = 0
+    @State private var showNextHint = false
+    @State private var hasTriggeredEndBounce = false
+    
+    // Scrubber seeking state
+    @State private var isSeeking = false
+    
     private let photoManager = PhotoManager()
 
     private var currentClip: ClipMetadata {
         viewState.clips.first(where: { $0.id == clip.id }) ?? clip
+    }
+    
+    private var effectiveDuration: TimeInterval {
+        videoDuration > 0 ? videoDuration : currentClip.duration
     }
 
     var body: some View {
@@ -54,11 +72,32 @@ struct ClipDetailView: View {
                 .onTapGesture {
                     toggleControls()
                 }
+                .offset(y: bounceOffset)
             
             // Overlay controls (fade in/out)
             if showControls {
                 controlsOverlay
                     .transition(.opacity)
+            }
+            
+            // Next clip hint indicator
+            if showNextHint {
+                VStack {
+                    Spacer()
+                    
+                    VStack(spacing: 8) {
+                        Image(systemName: "chevron.up")
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.8))
+                        
+                        Text("Swipe for next")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.6))
+                    }
+                    .padding(.bottom, 100)
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+                }
+                .animation(.easeInOut(duration: 0.3), value: showNextHint)
             }
         }
         .ignoresSafeArea(.all)
@@ -66,15 +105,31 @@ struct ClipDetailView: View {
         .onAppear {
             startControlsTimer()
             configureAudioSession()
-            loadVideo()
+            if isActive {
+                loadVideo()
+            }
         }
         .onDisappear {
             cleanupPlayer()
             controlsTimer?.invalidate()
             stopAudio()
         }
+        .onChange(of: isActive) { _, active in
+            if active {
+                loadVideo()
+                if isPlaying {
+                    player?.play()
+                }
+            } else {
+                player?.pause()
+                // Reset bounce state when becoming inactive
+                hasTriggeredEndBounce = false
+                showNextHint = false
+                bounceOffset = 0
+            }
+        }
         .onChange(of: isPlaying) { _, playing in
-            if playing {
+            if playing && isActive {
                 player?.play()
             } else {
                 player?.pause()
@@ -105,14 +160,20 @@ struct ClipDetailView: View {
 
     private func close() {
         HapticManager.playLight()
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-            selectedClip = nil
+        if let onClose = onClose {
+            onClose()
+        } else {
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                selectedClip = nil
+            }
         }
     }
     
     // MARK: - Video Loading
     
     private func loadVideo() {
+        guard player == nil else { return } // Already loaded
+        
         isLoadingVideo = true
         videoLoadError = nil
         
@@ -122,8 +183,11 @@ struct ClipDetailView: View {
                 if currentClip.localIdentifier.hasPrefix("mock-") || currentClip.localIdentifier.hasSuffix(".mov") {
                     await MainActor.run {
                         isLoadingVideo = false
-                        isPlaying = true
-                        startPlaybackTimer()
+                        videoDuration = currentClip.duration
+                        if isActive {
+                            isPlaying = true
+                            startPlaybackTimer()
+                        }
                     }
                     return
                 }
@@ -141,8 +205,11 @@ struct ClipDetailView: View {
                 await MainActor.run {
                     videoLoadError = error.localizedDescription
                     isLoadingVideo = false
+                    videoDuration = currentClip.duration
                     // Start simulated playback for testing
-                    startPlaybackTimer()
+                    if isActive {
+                        startPlaybackTimer()
+                    }
                 }
             }
         }
@@ -152,27 +219,42 @@ struct ClipDetailView: View {
         let playerItem = AVPlayerItem(url: url)
         player = AVPlayer(playerItem: playerItem)
         
-        // Add time observer for captions
+        // Get actual video duration
+        Task {
+            if let asset = player?.currentItem?.asset {
+                let duration = try? await asset.load(.duration)
+                await MainActor.run {
+                    videoDuration = duration?.seconds ?? currentClip.duration
+                }
+            }
+        }
+        
+        // Add time observer for captions and scrubber
         timeObserver = player?.addPeriodicTimeObserver(
             forInterval: CMTime(seconds: 0.1, preferredTimescale: 600),
             queue: .main
         ) { [self] time in
+            guard !isSeeking else { return }
             currentPlaybackTime = time.seconds
+            checkForEndOfClip()
         }
         
-        // Loop video
+        // Loop video and trigger end bounce
         NotificationCenter.default.addObserver(
             forName: .AVPlayerItemDidPlayToEndTime,
             object: playerItem,
             queue: .main
         ) { _ in
+            triggerEndBounce()
             player?.seek(to: .zero)
             player?.play()
         }
         
         isLoadingVideo = false
-        isPlaying = true
-        player?.play()
+        if isActive {
+            isPlaying = true
+            player?.play()
+        }
     }
     
     private func cleanupPlayer() {
@@ -189,24 +271,81 @@ struct ClipDetailView: View {
     private func startPlaybackTimer() {
         // Simulated playback for clips without actual video
         playbackTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
-            if isPlaying {
+            guard !isSeeking else { return }
+            if isPlaying && isActive {
                 currentPlaybackTime += 0.1
-                if currentPlaybackTime >= currentClip.duration {
+                checkForEndOfClip()
+                if currentPlaybackTime >= effectiveDuration {
+                    triggerEndBounce()
                     currentPlaybackTime = 0
                 }
             }
         }
     }
     
+    private func checkForEndOfClip() {
+        // Trigger bounce hint when reaching 90% of clip duration
+        let threshold = effectiveDuration * 0.90
+        if currentPlaybackTime >= threshold && !hasTriggeredEndBounce && effectiveDuration > 0 {
+            // Will trigger on actual end, not here
+        }
+    }
+    
+    private func triggerEndBounce() {
+        guard !hasTriggeredEndBounce else { return }
+        hasTriggeredEndBounce = true
+        
+        // Bounce animation
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.5)) {
+            bounceOffset = -30
+        }
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) {
+                bounceOffset = 0
+            }
+        }
+        
+        // Show swipe hint
+        withAnimation(.easeInOut(duration: 0.3)) {
+            showNextHint = true
+        }
+        
+        // Hide hint after a delay
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+            withAnimation(.easeInOut(duration: 0.3)) {
+                showNextHint = false
+            }
+        }
+        
+        // Reset bounce flag after animation completes for next loop
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            hasTriggeredEndBounce = false
+        }
+        
+        onReachedEnd?()
+        HapticManager.playLight()
+    }
+    
     private func togglePlayback() {
         isPlaying.toggle()
-        if isPlaying {
+        if isPlaying && isActive {
             player?.play()
         } else {
             player?.pause()
         }
     }
     
+    private func seekTo(time: TimeInterval) {
+        let clampedTime = max(0, min(effectiveDuration, time))
+        
+        if let player = player {
+            let cmTime = CMTime(seconds: clampedTime, preferredTimescale: 600)
+            player.seek(to: cmTime, toleranceBefore: .zero, toleranceAfter: .zero)
+        }
+        
+        currentPlaybackTime = clampedTime
+    }
 
     private var videoPlayerArea: some View {
         ZStack {
@@ -286,13 +425,13 @@ struct ClipDetailView: View {
                 
                 Spacer()
                 
-                // Bottom gradient
+                // Bottom gradient (extended for scrubber)
                 LinearGradient(
                     colors: [.clear, .black.opacity(0.7)],
                     startPoint: .top,
                     endPoint: .bottom
                 )
-                .frame(height: 180)
+                .frame(height: 240)
             }
             .ignoresSafeArea()
             
@@ -403,19 +542,24 @@ struct ClipDetailView: View {
                 
                 Spacer()
                 
-                // Bottom info
-                VStack(alignment: .leading, spacing: 8) {
-                    // Duration badge
-                    HStack {
-                        Text(currentClip.formattedDuration)
-                            .font(.system(size: 13, weight: .semibold, design: .monospaced))
-                            .foregroundStyle(.white.opacity(0.8))
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 5)
-                            .glassEffect(in: .capsule)
-                        
-                        Spacer()
-                    }
+                // Bottom info and scrubber
+                VStack(alignment: .leading, spacing: 12) {
+                    // Timeline scrubber
+                    TimelineScrubber(
+                        currentTime: $currentPlaybackTime,
+                        duration: effectiveDuration,
+                        onSeek: { time in
+                            isSeeking = true
+                            seekTo(time: time)
+                            startControlsTimer()
+                            
+                            // Reset seeking state after a brief delay
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                isSeeking = false
+                            }
+                        }
+                    )
+                    .padding(.horizontal, -20) // Compensate for parent padding
                     
                     // Title
                     Text(currentClip.title)

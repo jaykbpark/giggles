@@ -280,13 +280,14 @@ struct RootView: View {
         // Live glasses preview
         glassesPreviewOverlay
         
-        // Detail view overlay
+        // Detail view overlay with vertical paging
         if let clip = selectedClip {
-            ClipDetailView(
-                clip: clip,
-                namespace: namespace,
+            ClipPagerView(
+                clips: viewState.filteredClips,
+                initialClip: clip,
                 selectedClip: $selectedClip,
-                viewState: viewState
+                viewState: viewState,
+                namespace: namespace
             )
             .transition(.asymmetric(insertion: .identity, removal: .opacity))
             .zIndex(100)

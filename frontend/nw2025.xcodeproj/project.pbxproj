@@ -53,6 +53,8 @@
 		4EC031D02F1C000000552603 /* GeminiService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031D12F1C000000552603 /* GeminiService.swift */; };
 		4EC031D22F1C000000552603 /* MemoryAssistantService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031D32F1C000000552603 /* MemoryAssistantService.swift */; };
 		4EC031D42F1C000000552603 /* MemoryAssistantView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031D52F1C000000552603 /* MemoryAssistantView.swift */; };
+		4EC031E02F1D000000552603 /* TimelineScrubber.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031E12F1D000000552603 /* TimelineScrubber.swift */; };
+		4EC031E22F1D000000552603 /* ClipPagerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031E32F1D000000552603 /* ClipPagerView.swift */; };
 		EDE0E54B2F1C414600788AE2 /* MWDATCamera in Frameworks */ = {isa = PBXBuildFile; productRef = EDE0E54A2F1C414600788AE2 /* MWDATCamera */; };
 		EDE0E54D2F1C414600788AE2 /* MWDATCore in Frameworks */ = {isa = PBXBuildFile; productRef = EDE0E54C2F1C414600788AE2 /* MWDATCore */; };
 		EDE0E54F2F1C414600788AE2 /* MWDATMockDevice in Frameworks */ = {isa = PBXBuildFile; productRef = EDE0E54E2F1C414600788AE2 /* MWDATMockDevice */; };
@@ -106,6 +108,8 @@
 		4EC031D12F1C000000552603 /* GeminiService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeminiService.swift; sourceTree = "<group>"; };
 		4EC031D32F1C000000552603 /* MemoryAssistantService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryAssistantService.swift; sourceTree = "<group>"; };
 		4EC031D52F1C000000552603 /* MemoryAssistantView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryAssistantView.swift; sourceTree = "<group>"; };
+		4EC031E12F1D000000552603 /* TimelineScrubber.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineScrubber.swift; sourceTree = "<group>"; };
+		4EC031E32F1D000000552603 /* ClipPagerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipPagerView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -211,6 +215,7 @@
 			children = (
 				4EC031C32F1B000000552603 /* CaptionOverlayView.swift */,
 				4EC031472F16242C00552603 /* ClipDetailView.swift */,
+				4EC031E32F1D000000552603 /* ClipPagerView.swift */,
 				4EC0317E2F16600000552603 /* ClipsGridView.swift */,
 				4EC031802F16600000552603 /* ClipsListView.swift */,
 				4EC031742F16500000552603 /* FeedView.swift */,
@@ -218,6 +223,7 @@
 				4EC031D52F1C000000552603 /* MemoryAssistantView.swift */,
 				4EC0317C2F16400000552603 /* MomentCard.swift */,
 				4EC0317A2F16400000552603 /* TimelineView.swift */,
+				4EC031E12F1D000000552603 /* TimelineScrubber.swift */,
 				4EC031C12F1B000000552603 /* TrimView.swift */,
 			);
 			path = Feed;
@@ -420,6 +426,8 @@
 				4EC031C22F1B000000552603 /* CaptionOverlayView.swift in Sources */,
 				4EC031C42F1B000000552603 /* CaptionManager.swift in Sources */,
 				4EC031C62F1B000000552603 /* LaughterDetector.swift in Sources */,
+				4EC031E02F1D000000552603 /* TimelineScrubber.swift in Sources */,
+				4EC031E22F1D000000552603 /* ClipPagerView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

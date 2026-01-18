@@ -46,6 +46,12 @@ class DatabaseOperations():
         )
         return self.cursor.fetchall()
     
+    def query_video_table_all(self):
+        self.cursor.execute(
+            "SELECT * FROM videos"                       
+        )
+        return self.cursor.fetchall()
+    
     def insert_video_table(self,video_id,title,transcript,timestamp):
         self.cursor.execute(
             "INSERT into videos (id,title,transcript,timestamp) VALUES (?,?,?,?)",

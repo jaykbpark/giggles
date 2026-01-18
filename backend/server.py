@@ -7,6 +7,7 @@ from backend.objects.ResponseObjects import ResponseTagsObject, ResponseVideoObj
 from backend.database_operations import DatabaseOperations
 from backend.preprocessing.processing_manager import ProcessingManager
 from backend.vectorizer import Vectorizer
+
 app = FastAPI()
 
 # Allow CORS for iOS app
@@ -67,18 +68,38 @@ async def create_video(
     db.close()
     return {"message": "Item created"}
 
-# get all videos
+# get all videos, PAGINATION NOT IMPLEMENTED YET
 @app.get("/api/videos")
 def get_videos(limit: int = 50, offset: int = 0):
-    # SQL DATABASE QUERY HERE
-    return
+    db = DatabaseOperations()
+    all_videos = db.query_video_table_all() # need this to be in the proper format
+    # format: [(id, title, transcript, timestamp), (), ()]
+    all_video_objects = []
+    for (id, title, transcript, timestamp) in all_videos:
+        video_object = ResponseVideoObject(
+            videoId=id,
+            title=title,
+            transcript=transcript,
+            timestamp=timestamp
+        )
+        all_video_objects.append(video_object)
+    db.close()
+    return {"success": True, "result": all_video_objects}
 
 # retrieve full metadata + transcript for a specific video
 @app.get("/api/video/:videoId")
 def get_video(videoId):
-    # SQL DATANASE QUERY HERE
-    return
+    db = DatabaseOperations()
+    (id, title, transcript, timestamp) = db.query_video_table(videoId)
+    result = ResponseVideoObject(
+        videoId=id,
+        title=title,
+        transcript=transcript,
+        timestamp=timestamp
+    )
+    return {"success": True, "result": result}
 
 @app.get("/api/search")
 def search(search: RequestSearchObject):
+    vect = Vectorizer()
     return

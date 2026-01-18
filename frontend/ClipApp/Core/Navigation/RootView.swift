@@ -641,15 +641,16 @@ struct RootView: View {
                 // Upload to backend asynchronously
                 let uploadURL = localURL ?? url
                 if FileManager.default.fileExists(atPath: uploadURL.path) {
-                    // Use existing serverVideoId or generate a new one
-                    let videoIdForUpload = updatedClip.serverVideoId ?? viewState.nextVideoId()
-                    Task.detached(priority: .background) {
+                    let clipForUpload = updatedClip
+                    Task {
+                        // Use existing serverVideoId or generate a new one from backend
+                        let videoIdForUpload = clipForUpload.serverVideoId ?? await viewState.nextVideoId()
                         do {
                             try await APIService.shared.uploadClip(
                                 videoURL: uploadURL,
                                 videoId: videoIdForUpload,
                                 title: finalTitle,
-                                timestamp: updatedClip.capturedAt
+                                timestamp: clipForUpload.capturedAt
                             )
                             print("✅ Uploaded clip to backend: \(videoIdForUpload)")
                         } catch {
@@ -706,15 +707,16 @@ struct RootView: View {
                 
                 // Upload to backend asynchronously if we still have a local file
                 if FileManager.default.fileExists(atPath: localURL.path) {
-                    // Use existing serverVideoId or generate a new one
-                    let videoIdForUpload = updatedClip.serverVideoId ?? viewState.nextVideoId()
-                    Task.detached(priority: .background) {
+                    let clipForUpload = updatedClip
+                    Task {
+                        // Use existing serverVideoId or generate a new one from backend
+                        let videoIdForUpload = clipForUpload.serverVideoId ?? await viewState.nextVideoId()
                         do {
                             try await APIService.shared.uploadClip(
                                 videoURL: localURL,
                                 videoId: videoIdForUpload,
-                                title: updatedClip.title,
-                                timestamp: updatedClip.capturedAt
+                                title: clipForUpload.title,
+                                timestamp: clipForUpload.capturedAt
                             )
                             print("✅ Uploaded clip to backend (Photos failed): \(videoIdForUpload)")
                         } catch {
@@ -776,30 +778,34 @@ struct RootView: View {
             )
         }
         
-        // Get the next sequential videoId for backend sync
-        let nextId = viewState.nextVideoId()
         let clipTitle = "Clip \(Date().formatted(date: .omitted, time: .shortened))"
         let capturedAt = Date()
         
-        let newClip = ClipMetadata(
-            id: UUID(),
-            localIdentifier: exportedURL.lastPathComponent,
-            serverVideoId: nextId,
-            title: clipTitle,
-            transcript: finalTranscript,
-            topics: ["Clip"],
-            capturedAt: capturedAt,
-            duration: duration,
-            localFileURL: exportedURL.path,
-            captionSegments: captionSegments,
-            showCaptions: captionSegments != nil
-        )
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-            viewState.clips.insert(newClip, at: 0)
-        }
-        
-        // Upload to backend
+        // Fetch unique videoId from backend and upload
         Task {
+            // Get the next sequential videoId from backend to ensure uniqueness
+            let nextId = await viewState.nextVideoId()
+            
+            let newClip = ClipMetadata(
+                id: UUID(),
+                localIdentifier: exportedURL.lastPathComponent,
+                serverVideoId: nextId,
+                title: clipTitle,
+                transcript: finalTranscript,
+                topics: ["Clip"],
+                capturedAt: capturedAt,
+                duration: duration,
+                localFileURL: exportedURL.path,
+                captionSegments: captionSegments,
+                showCaptions: captionSegments != nil
+            )
+            
+            // Add to local clips immediately for UI feedback
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                viewState.clips.insert(newClip, at: 0)
+            }
+            
+            // Upload to backend
             do {
                 try await APIService.shared.uploadClip(
                     videoURL: exportedURL,
@@ -810,6 +816,8 @@ struct RootView: View {
                 print("✅ Uploaded clip with videoId: \(nextId)")
             } catch {
                 print("⚠️ Failed to upload clip: \(error.localizedDescription)")
+                // Note: Clip is still in local storage but won't appear after restart
+                // until backend upload succeeds
             }
         }
     }

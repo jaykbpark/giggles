@@ -31,7 +31,6 @@ struct RootView: View {
     @State private var streamErrorText = ""
     @State private var showPhotoSaveError = false
     @State private var photoSaveErrorText = ""
-    @State private var showPhotoSaveSuccess = false
     @State private var showExportErrorMessage = false
     @State private var exportErrorText = ""
     @State private var selectedTab: AppTab = .clips
@@ -386,26 +385,6 @@ struct RootView: View {
         if showExportErrorMessage {
             toastView(icon: "xmark.circle", text: exportErrorText.isEmpty ? "Export failed" : exportErrorText, color: .red.opacity(0.8))
         }
-        
-        // Photo save success message
-        if showPhotoSaveSuccess {
-            VStack {
-                Spacer()
-                HStack(spacing: 8) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 18, weight: .medium))
-                    Text("Saved to Photos")
-                        .font(.system(size: 14, weight: .medium))
-                }
-                .foregroundStyle(.white)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .background(AppColors.connected.opacity(0.9))
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                .padding(.bottom, 120)
-            }
-            .transition(.move(edge: .bottom).combined(with: .opacity))
-        }
     }
     
     private func toastView(icon: String?, text: String, color: Color) -> some View {
@@ -617,16 +596,6 @@ struct RootView: View {
                     captionStyle: updatedClip.captionStyle
                 )
                 viewState.clips[index] = updatedClip
-            }
-            
-            // Show success toast
-            withAnimation {
-                showPhotoSaveSuccess = true
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-                withAnimation {
-                    showPhotoSaveSuccess = false
-                }
             }
             
             // Clean up temp file if we copied to local storage

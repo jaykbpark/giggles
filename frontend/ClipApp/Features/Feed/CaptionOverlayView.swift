@@ -63,7 +63,7 @@ struct CaptionOverlayView: View {
                     .fill((Color(hex: style.backgroundColor) ?? .black).opacity(style.backgroundOpacity))
             }
             .padding(.horizontal, 20)
-            .padding(.bottom, style.position == .bottom ? 60 : 20)
+            .padding(.bottom, style.position == .bottom ? 200 : 20)
             .padding(.top, style.position == .top ? 60 : 20)
             .frame(maxWidth: geometry.size.width * 0.9)
     }
@@ -155,7 +155,7 @@ struct AnimatedCaptionView: View {
                 .fill((Color(hex: style.backgroundColor) ?? .black).opacity(style.backgroundOpacity))
         }
         .padding(.horizontal, 20)
-        .padding(.bottom, style.position == .bottom ? 60 : 20)
+        .padding(.bottom, style.position == .bottom ? 200 : 20)
         .frame(maxWidth: geometry.size.width * 0.9)
     }
     

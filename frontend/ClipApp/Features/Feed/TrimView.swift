@@ -204,6 +204,23 @@ struct TrimView: View {
                     .offset(x: startX)
                     .allowsHitTesting(false)
                 
+                // Tappable area for scrubbing (between handles)
+                Rectangle()
+                    .fill(Color.clear)
+                    .frame(height: 56)
+                    .padding(.horizontal, handleWidth)
+                    .contentShape(Rectangle())
+                    .onTapGesture { location in
+                        // Calculate tapped time from position
+                        let tappedProgress = location.x / trimAreaWidth
+                        let tappedTime = tappedProgress * duration
+                        // Clamp within trim range
+                        let clampedTime = max(startTime, min(endTime, tappedTime))
+                        currentTime = clampedTime
+                        seekTo(time: clampedTime)
+                        HapticManager.playLight()
+                    }
+                
                 // Start handle
                 trimHandle(isStart: true)
                     .offset(x: handleWidth + (trimAreaWidth * startTime / max(duration, 1)) - handleWidth)

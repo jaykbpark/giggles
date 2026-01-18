@@ -30,7 +30,17 @@ def health_check():
 # upload video
 @app.post("/api/videos")
 async def create_video(video: RequestVideoObject):
-    # SQL INSERTION/CREATION QUERY HERE
+    pm = ProcessingManager(video)
+    db = DatabaseOperations()
+    # preprocessing
+    tags = db.query_tags_table_get_tags()
+    ((transcription, tags), condensed_transcript) = pm.create_transcript_from_audio(tags)
+    # video _ tags table insertion
+    db.insert_video_table(video.video_id, video.title, transcription, video.timestamp)
+    for tag in tags:
+        db.insert_tags_table(tag, video.videoId)
+    # vectorizing table insertion
+    frames = pm.split_video_to_frames(3)
     return video
 
 # get all videos

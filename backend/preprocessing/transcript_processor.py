@@ -41,7 +41,7 @@ class TranscriptProcessor:
 
     # audio data is taken in as bytes and processed,
     # using elevenlabs to convert speech to text
-    def process_audio(self, audio_bytes):
+    def process_audio(self, audio_bytes, tags):
         audio_data = BytesIO(audio_bytes)
         # use elevenlabs to convert speech to text
         transcription = self.elevenlabs.speech_to_text.convert(
@@ -52,10 +52,7 @@ class TranscriptProcessor:
             diarize=False,
         )
         transcription_text = transcription.text
-        # check db for tag matches
-        db = DatabaseOperations()
         # list of tags string
-        tags = db.query_tags_table_get_tags()
         tags_string = ", ".join(tags)
         # generate tags (general) 5 tags max but if less is needed to less
         # give me tags + if greater than 300 characters

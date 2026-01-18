@@ -660,11 +660,6 @@ struct RootView: View {
                                 timestamp: updatedClip.capturedAt
                             )
                             print("✅ Uploaded clip to backend: \(localIdentifier)")
-                            
-                            // Refresh tags and sync data after successful upload
-                            await viewState.refreshAvailableTags()
-                            await viewState.syncWithBackend()
-                            print("🔄 Refreshed tags and synced with backend")
                         } catch {
                             print("❌ Upload failed: \(error.localizedDescription)")
                         }

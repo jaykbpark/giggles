@@ -2,24 +2,6 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>Clip uses speech recognition to detect "Clip That" voice commands to save moments from your glasses.</string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>Clip needs microphone access to capture audio from your Ray-Ban Meta glasses.</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Clip saves captured moments to your Photo Library so you can access them anytime.</string>
-	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>Clip saves captured moments to your Photo Library.</string>
-	<key>NSCameraUsageDescription</key>
-	<string>Clip uses the camera to measure vitals with SmartSpectra.</string>
-	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>Clip uses Bluetooth to connect to your Ray-Ban Meta glasses.</string>
-	<key>NSBluetoothPeripheralUsageDescription</key>
-	<string>Clip uses Bluetooth to connect to your Ray-Ban Meta glasses.</string>
-	<key>NSLocalNetworkUsageDescription</key>
-	<string>Clip uses local network to communicate with your glasses.</string>
-	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Required to discover nearby glasses via Bluetooth</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -33,10 +15,28 @@
 			</array>
 		</dict>
 	</array>
+	<key>ELEVENLABS_API_KEY</key>
+	<string>69d464144176e45535c23e3a3b3b245f9a3a205596ea7be1eaccb4ffebdb1274</string>
+	<key>GEMINI_API_KEY</key>
+	<string>AIzaSyBdVodbOPsEPw_cUM3JEPdKhGJ5NWDcQPI</string>
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>fb-viewapp</string>
 	</array>
+	<key>MWDAT</key>
+	<dict>
+		<key>Analytics</key>
+		<dict>
+			<key>OptOut</key>
+			<true/>
+		</dict>
+		<key>AppLinkURLScheme</key>
+		<string>clip1599598524565922://</string>
+		<key>MetaAppID</key>
+		<string>1599598524565922</string>
+	</dict>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Needed to connect to Meta Wearables</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>bluetooth-peripheral</string>
@@ -46,17 +46,5 @@
 	<array>
 		<string>com.meta.ar.wearable</string>
 	</array>
-	<key>MWDAT</key>
-	<dict>
-		<key>MetaAppID</key>
-		<string>1599598524565922</string>
-		<key>Analytics</key>
-		<dict>
-			<key>OptOut</key>
-			<true/>
-		</dict>
-		<key>AppLinkURLScheme</key>
-		<string>clip1599598524565922://</string>
-	</dict>
 </dict>
 </plist>

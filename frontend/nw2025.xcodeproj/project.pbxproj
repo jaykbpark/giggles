@@ -45,13 +45,13 @@
 		4EC031B52F19000000552603 /* PresageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031B42F19000000552603 /* PresageService.swift */; };
 		4EC031B72F19000000552603 /* SmartSpectraSwiftSDK in Frameworks */ = {isa = PBXBuildFile; productRef = 4EC031B82F19000000552603 /* SmartSpectraSwiftSDK */; };
 		4EC031B92F1A000000552603 /* ElevenLabsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031BA2F1A000000552603 /* ElevenLabsService.swift */; };
-		4EC031D02F1C000000552603 /* GeminiService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031D12F1C000000552603 /* GeminiService.swift */; };
-		4EC031D22F1C000000552603 /* MemoryAssistantService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031D32F1C000000552603 /* MemoryAssistantService.swift */; };
-		4EC031D42F1C000000552603 /* MemoryAssistantView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031D52F1C000000552603 /* MemoryAssistantView.swift */; };
 		4EC031C02F1B000000552603 /* TrimView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031C12F1B000000552603 /* TrimView.swift */; };
 		4EC031C22F1B000000552603 /* CaptionOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031C32F1B000000552603 /* CaptionOverlayView.swift */; };
 		4EC031C42F1B000000552603 /* CaptionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031C52F1B000000552603 /* CaptionManager.swift */; };
 		4EC031C62F1B000000552603 /* LaughterDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031C72F1B000000552603 /* LaughterDetector.swift */; };
+		4EC031D02F1C000000552603 /* GeminiService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031D12F1C000000552603 /* GeminiService.swift */; };
+		4EC031D22F1C000000552603 /* MemoryAssistantService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031D32F1C000000552603 /* MemoryAssistantService.swift */; };
+		4EC031D42F1C000000552603 /* MemoryAssistantView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031D52F1C000000552603 /* MemoryAssistantView.swift */; };
 		EDE0E54B2F1C414600788AE2 /* MWDATCamera in Frameworks */ = {isa = PBXBuildFile; productRef = EDE0E54A2F1C414600788AE2 /* MWDATCamera */; };
 		EDE0E54D2F1C414600788AE2 /* MWDATCore in Frameworks */ = {isa = PBXBuildFile; productRef = EDE0E54C2F1C414600788AE2 /* MWDATCore */; };
 		EDE0E54F2F1C414600788AE2 /* MWDATMockDevice in Frameworks */ = {isa = PBXBuildFile; productRef = EDE0E54E2F1C414600788AE2 /* MWDATMockDevice */; };
@@ -97,13 +97,13 @@
 		4EC031B22F19000000552603 /* StateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StateView.swift; sourceTree = "<group>"; };
 		4EC031B42F19000000552603 /* PresageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PresageService.swift; sourceTree = "<group>"; };
 		4EC031BA2F1A000000552603 /* ElevenLabsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElevenLabsService.swift; sourceTree = "<group>"; };
-		4EC031D12F1C000000552603 /* GeminiService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeminiService.swift; sourceTree = "<group>"; };
-		4EC031D32F1C000000552603 /* MemoryAssistantService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryAssistantService.swift; sourceTree = "<group>"; };
-		4EC031D52F1C000000552603 /* MemoryAssistantView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryAssistantView.swift; sourceTree = "<group>"; };
 		4EC031C12F1B000000552603 /* TrimView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrimView.swift; sourceTree = "<group>"; };
 		4EC031C32F1B000000552603 /* CaptionOverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptionOverlayView.swift; sourceTree = "<group>"; };
 		4EC031C52F1B000000552603 /* CaptionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptionManager.swift; sourceTree = "<group>"; };
 		4EC031C72F1B000000552603 /* LaughterDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaughterDetector.swift; sourceTree = "<group>"; };
+		4EC031D12F1C000000552603 /* GeminiService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeminiService.swift; sourceTree = "<group>"; };
+		4EC031D32F1C000000552603 /* MemoryAssistantService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryAssistantService.swift; sourceTree = "<group>"; };
+		4EC031D52F1C000000552603 /* MemoryAssistantView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryAssistantView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -220,14 +220,6 @@
 			path = Feed;
 			sourceTree = "<group>";
 		};
-		4EC031B62F19000000552603 /* State */ = {
-			isa = PBXGroup;
-			children = (
-				4EC031B22F19000000552603 /* StateView.swift */,
-			);
-			path = State;
-			sourceTree = "<group>";
-		};
 		4EC0314B2F16242C00552603 /* Features */ = {
 			isa = PBXGroup;
 			children = (
@@ -291,6 +283,14 @@
 				4EC031A52F18000000552603 /* BluetoothAudioProvider.swift */,
 			);
 			path = AudioCapture;
+			sourceTree = "<group>";
+		};
+		4EC031B62F19000000552603 /* State */ = {
+			isa = PBXGroup;
+			children = (
+				4EC031B22F19000000552603 /* StateView.swift */,
+			);
+			path = State;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -548,15 +548,18 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 64UF22G88Y;
+				DEVELOPMENT_TEAM = 8DX2TD97D2;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ClipApp/Info.plist;
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Clip uses Bluetooth to connect to your Ray-Ban Meta glasses.";
 				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = "Clip uses Bluetooth to connect to your Ray-Ban Meta glasses.";
-				INFOPLIST_KEY_NSCameraUsageDescription = "Clip needs camera access to stream video from your Ray-Ban Meta glasses.";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Clip needs location access to discover your Ray-Ban Meta glasses via Bluetooth.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Clip uses the camera to measure vitals with SmartSpectra.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Clip uses local network to communicate with your glasses.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Required to discover nearby glasses via Bluetooth";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Clip needs microphone access to capture audio from your Ray-Ban Meta glasses.";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Clip saves captured moments to your Photo Library.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Clip saves captured moments to your Photo Library so you can access them anytime.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Clip uses speech recognition to detect \"Clip That\" voice commands to save moments from your glasses.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -568,7 +571,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = me.lin.erik.nw2026;
+				PRODUCT_BUNDLE_IDENTIFIER = me.park.jay.nw2025;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -587,15 +590,18 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 64UF22G88Y;
+				DEVELOPMENT_TEAM = 8DX2TD97D2;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ClipApp/Info.plist;
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Clip uses Bluetooth to connect to your Ray-Ban Meta glasses.";
 				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = "Clip uses Bluetooth to connect to your Ray-Ban Meta glasses.";
-				INFOPLIST_KEY_NSCameraUsageDescription = "Clip needs camera access to stream video from your Ray-Ban Meta glasses.";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Clip needs location access to discover your Ray-Ban Meta glasses via Bluetooth.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Clip uses the camera to measure vitals with SmartSpectra.";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Clip uses local network to communicate with your glasses.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Required to discover nearby glasses via Bluetooth";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Clip needs microphone access to capture audio from your Ray-Ban Meta glasses.";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Clip saves captured moments to your Photo Library.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Clip saves captured moments to your Photo Library so you can access them anytime.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Clip uses speech recognition to detect \"Clip That\" voice commands to save moments from your glasses.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -607,7 +613,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = me.lin.erik.nw2026;
+				PRODUCT_BUNDLE_IDENTIFIER = me.park.jay.nw2025;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -643,6 +649,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		4EC031B92F19000000552603 /* XCRemoteSwiftPackageReference "SmartSpectra" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/Presage-Security/SmartSpectra";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
 		EDE0E5492F1C414600788AE2 /* XCRemoteSwiftPackageReference "meta-wearables-dat-ios" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/facebook/meta-wearables-dat-ios";
@@ -651,17 +665,14 @@
 				minimumVersion = 0.3.0;
 			};
 		};
-		4EC031B92F19000000552603 /* XCRemoteSwiftPackageReference "SmartSpectra" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/Presage-Security/SmartSpectra";
-			requirement = {
-				kind = branch;
-				branch = main;
-			};
-		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		4EC031B82F19000000552603 /* SmartSpectraSwiftSDK */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 4EC031B92F19000000552603 /* XCRemoteSwiftPackageReference "SmartSpectra" */;
+			productName = SmartSpectraSwiftSDK;
+		};
 		EDE0E54A2F1C414600788AE2 /* MWDATCamera */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = EDE0E5492F1C414600788AE2 /* XCRemoteSwiftPackageReference "meta-wearables-dat-ios" */;
@@ -676,11 +687,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = EDE0E5492F1C414600788AE2 /* XCRemoteSwiftPackageReference "meta-wearables-dat-ios" */;
 			productName = MWDATMockDevice;
-		};
-		4EC031B82F19000000552603 /* SmartSpectraSwiftSDK */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 4EC031B92F19000000552603 /* XCRemoteSwiftPackageReference "SmartSpectra" */;
-			productName = SmartSpectraSwiftSDK;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

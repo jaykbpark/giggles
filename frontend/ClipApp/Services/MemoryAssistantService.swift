@@ -198,18 +198,33 @@ final class MemoryAssistantService: ObservableObject {
     
     /// Speak text using ElevenLabs TTS
     private func speakResponse(_ text: String) async throws {
+        print("🔊 Speaking: Getting audio from ElevenLabs...")
         let audioURL = try await ElevenLabsService.shared.speakText(text)
+        print("🔊 Speaking: Got audio URL: \(audioURL)")
+        
+        // Configure audio session for playback
+        let audioSession = AVAudioSession.sharedInstance()
+        do {
+            try audioSession.setCategory(.playback, mode: .spokenAudio, options: [.duckOthers])
+            try audioSession.setActive(true)
+            print("🔊 Speaking: Audio session configured")
+        } catch {
+            print("🔊 Speaking: Audio session error: \(error)")
+        }
         
         // Play the audio
         await MainActor.run {
-            audioPlayer = AVPlayer(url: audioURL)
+            let playerItem = AVPlayerItem(url: audioURL)
+            audioPlayer = AVPlayer(playerItem: playerItem)
+            audioPlayer?.volume = 1.0
             
             // Listen for playback completion
             playerObserver = NotificationCenter.default.addObserver(
                 forName: .AVPlayerItemDidPlayToEndTime,
-                object: audioPlayer?.currentItem,
+                object: playerItem,
                 queue: .main
             ) { [weak self] _ in
+                print("🔊 Speaking: Playback finished")
                 self?.audioPlayer = nil
                 if self?.playerObserver != nil {
                     NotificationCenter.default.removeObserver(self!.playerObserver!)
@@ -217,12 +232,19 @@ final class MemoryAssistantService: ObservableObject {
                 }
             }
             
+            print("🔊 Speaking: Starting playback...")
             audioPlayer?.play()
         }
         
-        // Wait for audio to finish
-        while audioPlayer != nil {
+        // Wait for audio to finish (with timeout)
+        var waitTime: Double = 0
+        let maxWait: Double = 60 // 60 second max
+        while audioPlayer != nil && waitTime < maxWait {
             try await Task.sleep(nanoseconds: 100_000_000) // 100ms
+            waitTime += 0.1
         }
+        
+        // Deactivate audio session
+        try? audioSession.setActive(false, options: .notifyOthersOnDeactivation)
     }
 }

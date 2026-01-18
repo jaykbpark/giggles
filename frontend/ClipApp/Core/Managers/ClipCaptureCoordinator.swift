@@ -13,6 +13,10 @@ import Speech
 /// - Wake Word: Feeds audio to `WakeWordDetector` for "Clip That" detection
 /// - Export: On trigger, exports last 30 seconds as synchronized video+audio file
 ///
+/// ## SDK Requirement: Audio/HFP Setup Order
+/// Per Meta Wearables DAT SDK documentation, HFP (Bluetooth audio) MUST be configured
+/// BEFORE starting any stream session that requires audio functionality.
+///
 /// ## Usage
 /// ```swift
 /// let coordinator = ClipCaptureCoordinator.shared
@@ -34,6 +38,9 @@ final class ClipCaptureCoordinator: ObservableObject {
     
     /// Duration of the rolling buffer (30 seconds)
     let bufferDuration: TimeInterval = 30.0
+    
+    /// Delay after HFP setup before starting video stream (per SDK docs)
+    private let hfpSetupDelay: UInt64 = 2_000_000_000 // 2 seconds in nanoseconds
     
     // MARK: - Dependencies
     
@@ -189,35 +196,58 @@ final class ClipCaptureCoordinator: ObservableObject {
     // MARK: - Capture Control
     
     /// Start capturing video and audio from glasses
+    ///
+    /// **IMPORTANT**: Per Meta Wearables DAT SDK documentation, this method
+    /// configures HFP (Bluetooth audio) BEFORE starting the video stream session.
+    /// This order is critical for proper audio+video synchronization.
     func startCapture() async throws {
         guard !isCapturing else { return }
         
         // Clear buffers
         clearBuffers()
         
-        // 1. Start glasses video stream (required)
-        if !glassesManager.isVideoStreaming {
-            try await glassesManager.startVideoStream()
-        }
-        
-        // 2. Set up video subscription IMMEDIATELY (before attempting audio)
-        // This ensures video frames are captured even if audio fails
+        // Set up subscriptions FIRST so we capture frames as soon as streams start
         setupVideoSubscription()
         
-        // 3. Try audio capture (optional - don't fail if it doesn't work)
+        // =====================================================================
+        // CRITICAL: HFP/Audio MUST be configured BEFORE starting video stream
+        // Per Meta Wearables DAT SDK docs:
+        // "When planning to use HFP and streaming simultaneously, it is essential
+        // to ensure that HFP is fully configured before initiating any streaming
+        // session that requires audio functionality."
+        // =====================================================================
+        
+        // 1️⃣ FIRST: Set up HFP/Bluetooth audio session
         var audioAvailable = false
         do {
             try await audioManager.startCapture()
             setupAudioSubscriptions()
             audioAvailable = true
-            print("🎤 Audio capture started successfully")
+            print("🎤 [HFP] Audio/HFP configured successfully")
         } catch {
-            print("⚠️ Audio capture unavailable: \(error.localizedDescription)")
-            print("⚠️ Continuing with video-only recording")
+            print("⚠️ [HFP] Audio capture failed: \(error.localizedDescription)")
+            print("⚠️ [HFP] Continuing with video-only recording")
             // Continue without audio - video-only recording is fine
         }
         
-        // 4. Wake word + laughter detection (only if audio is available)
+        // 2️⃣ Wait for HFP to be fully ready (per SDK docs)
+        // The docs show a 2-second delay as fallback; ideally use state-based coordination
+        if audioAvailable {
+            print("🎤 [HFP] Waiting for HFP to be ready...")
+            try? await Task.sleep(nanoseconds: hfpSetupDelay)
+            print("🎤 [HFP] HFP setup delay complete")
+        }
+        
+        // 3️⃣ Video stream is NOT auto-started here
+        // The video stream will be started when:
+        // - User taps the preview button (via ensureVideoStreamReady)
+        // - User manually triggers recording
+        // This avoids race conditions between coordinator and UI trying to start the stream simultaneously
+        print("📹 [Stream] Video stream NOT auto-started (will start on user action)")
+        
+        // Note: If glasses are already streaming, we'll pick up the frames via our subscription
+        
+        // 4️⃣ Wake word + laughter detection (only if audio is available)
         if audioAvailable {
             if wakeWordDetector.authorizationStatus == .notDetermined {
                 await wakeWordDetector.requestAuthorization()
@@ -225,9 +255,8 @@ final class ClipCaptureCoordinator: ObservableObject {
             
             if let audioFormat = audioManager.audioFormat {
                 wakeWordDetector.startListening(audioFormat: audioFormat)
-                
-                // Start laughter detection (if enabled)
                 laughterDetector.startListening(audioFormat: audioFormat)
+                print("🎤 [WakeWord] Wake word detection started")
             }
         }
         

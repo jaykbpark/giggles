@@ -18,9 +18,13 @@ struct GlassesPreviewView: View {
                 Rectangle()
                     .fill(Color.black.opacity(0.6))
                     .overlay {
-                        Image(systemName: "video.slash")
-                            .font(.system(size: 20))
-                            .foregroundStyle(.white.opacity(0.5))
+                        VStack(spacing: 8) {
+                            ProgressView()
+                                .tint(.white)
+                            Text("Waiting for feed...")
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundStyle(.white.opacity(0.7))
+                        }
                     }
             }
         }
@@ -51,10 +55,17 @@ final class GlassesPreviewViewModel: ObservableObject {
     }
     
     private func setupSubscription() {
+        print("📹 [GlassesPreview] Setting up video frame subscription...")
+        print("📹 [GlassesPreview] Video streaming: \(glassesManager.isVideoStreaming)")
+        
         glassesManager.videoFramePublisher
             .receive(on: DispatchQueue.main)
             .sink { [weak self] pixelBuffer in
-                self?.processFrame(pixelBuffer)
+                guard let self = self else { return }
+                if self.currentImage == nil {
+                    print("📹 [GlassesPreview] Received first video frame!")
+                }
+                self.processFrame(pixelBuffer)
             }
             .store(in: &cancellables)
     }
@@ -65,6 +76,8 @@ final class GlassesPreviewViewModel: ObservableObject {
         
         if let cgImage = ciContext.createCGImage(ciImage, from: ciImage.extent) {
             currentImage = UIImage(cgImage: cgImage)
+        } else {
+            print("⚠️ [GlassesPreview] Failed to create CGImage from pixel buffer")
         }
     }
 }

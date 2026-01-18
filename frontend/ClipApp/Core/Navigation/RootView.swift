@@ -97,55 +97,6 @@ struct RootView: View {
             VStack(spacing: 0) {
                 headerBar
 
-                GlassesStatusCard(
-                    isListening: captureCoordinator.isCapturing,
-                    connectionState: glassesManager.connectionState,
-                    deviceName: glassesManager.deviceName,
-                    debugStatus: glassesManager.sdkDebugStatus,
-                    isPreviewVisible: showGlassesPreview,
-                    onRetryTap: {
-                        Task {
-                            try? await glassesManager.connect()
-                        }
-                    },
-                    onCardTap: {
-                        Task {
-                            do {
-                                // Start video stream if not already streaming
-                                if !glassesManager.isVideoStreaming {
-                                    try await glassesManager.startVideoStream()
-                                }
-                                
-                                // Ensure capture coordinator is running to fill the buffer
-                                // This is important if the initial startCapture() failed (e.g., audio issues)
-                                if !captureCoordinator.isCapturing {
-                                    try await captureCoordinator.startCapture()
-                                }
-                                
-                                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                                    showGlassesPreview.toggle()
-                                }
-                            } catch {
-                                // Show error to user
-                                print("Failed to start video stream: \(error)")
-                                HapticManager.playError()
-                                streamErrorText = error.localizedDescription
-                                withAnimation {
-                                    showStreamErrorMessage = true
-                                }
-                                // Auto-dismiss after 3 seconds
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
-                                    withAnimation {
-                                        showStreamErrorMessage = false
-                                    }
-                                }
-                            }
-                        }
-                    }
-                )
-                .padding(.horizontal, 20)
-                .padding(.bottom, 8)
-
                 FilterBar(viewState: viewState)
                     .padding(.bottom, 4)
 
@@ -156,9 +107,6 @@ struct RootView: View {
                     selectedClip: $selectedClip,
                     namespace: namespace
                 )
-                
-                // Bottom spacing for tab bar
-                Spacer().frame(height: 90)
             }
             .opacity(selectedClip != nil ? 0 : 1)
             .blur(radius: showSearch ? 6 : 0)
@@ -172,7 +120,7 @@ struct RootView: View {
                         Spacer()
                         recordButton
                             .padding(.trailing, 24)
-                            .padding(.bottom, 100) // Above tab bar
+                            .padding(.bottom, 85) // Above floating tab
                     }
                 }
                 .transition(.opacity)
@@ -195,11 +143,25 @@ struct RootView: View {
                                     showGlassesPreview = false
                                 }
                             }
+                            .onAppear {
+                                print("👁️ [Preview] Preview overlay appeared")
+                                print("   - showGlassesPreview: \(showGlassesPreview)")
+                                print("   - selectedClip: \(selectedClip?.localIdentifier ?? "nil")")
+                                print("   - showSearch: \(showSearch)")
+                                print("   - selectedTab: \(selectedTab)")
+                                print("   - isVideoStreaming: \(glassesManager.isVideoStreaming)")
+                            }
                     }
                     Spacer()
                 }
                 .transition(.opacity)
                 .zIndex(10)
+            } else if showGlassesPreview {
+                // Debug: Log why preview isn't showing
+                Color.clear
+                    .onAppear {
+                        print("👁️ [Preview] Preview hidden - showGlassesPreview: \(showGlassesPreview), selectedClip: \(selectedClip != nil), showSearch: \(showSearch), selectedTab: \(selectedTab)")
+                    }
             }
         }
     }
@@ -268,47 +230,40 @@ struct RootView: View {
             viewState: viewState,
             isEmbedded: true
         )
-        .padding(.bottom, 90) // Space for tab bar
+        .padding(.bottom, 70) // Space for floating tab
     }
     
-    // MARK: - Bottom Tab Bar
+    // MARK: - Floating Tab Switcher
     
     private var bottomTabBar: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: 4) {
             ForEach(AppTab.allCases, id: \.self) { tab in
                 Button {
                     HapticManager.playLight()
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
                         selectedTab = tab
                     }
                 } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: tab.icon)
-                            .font(.system(size: 16, weight: .semibold))
-                        
-                        if selectedTab == tab {
-                            Text(tab.rawValue)
-                                .font(.system(size: 14, weight: .semibold))
+                    Image(systemName: tab.icon)
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundStyle(selectedTab == tab ? .white : AppColors.textPrimary)
+                        .frame(width: 48, height: 48)
+                        .background {
+                            if selectedTab == tab {
+                                Circle()
+                                    .fill(AppColors.accent)
+                                    .matchedGeometryEffect(id: "tabIndicator", in: namespace)
+                            }
                         }
-                    }
-                    .foregroundStyle(selectedTab == tab ? .white : AppColors.textSecondary)
-                    .padding(.horizontal, selectedTab == tab ? 20 : 16)
-                    .padding(.vertical, 12)
-                    .background {
-                        if selectedTab == tab {
-                            Capsule()
-                                .fill(AppColors.accent)
-                        }
-                    }
                 }
-                .animation(.spring(response: 0.3, dampingFraction: 0.8), value: selectedTab)
             }
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 8)
-        .glassEffect(in: .capsule)
-        .shadow(color: .black.opacity(0.1), radius: 20, y: 10)
-        .padding(.horizontal, 40)
+        .padding(6)
+        .background {
+            Capsule()
+                .fill(.white.opacity(0.95))
+                .shadow(color: .black.opacity(0.12), radius: 20, y: 8)
+        }
         .padding(.bottom, 20)
     }
     
@@ -697,44 +652,188 @@ struct RootView: View {
     // MARK: - Header Bar
     
     private var headerBar: some View {
-        HStack(alignment: .center) {
-            // Wordmark
+        HStack(alignment: .center, spacing: 12) {
+            // Wordmark - clean, no pill
             Text("clip")
                 .font(.system(size: 28, weight: .bold))
                 .tracking(-0.6)
                 .foregroundStyle(AppColors.textPrimary)
             
+            // Compact glasses status indicator
+            compactGlassesStatus
+            
             Spacer()
             
-            // Search button with glass
+            // Search button
             Button {
                 HapticManager.playLight()
                 withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
                     showSearch = true
                 }
             } label: {
-                ZStack {
-                    Circle()
-                        .fill(.clear)
-                        .frame(width: 36, height: 36)
-                        .glassEffect(.regular.interactive(), in: .circle)
-
-                    Image(systemName: "magnifyingglass")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundStyle(AppColors.textSecondary)
-                }
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(AppColors.textPrimary)
+                    .frame(width: 40, height: 40)
+                    .background {
+                        Circle()
+                            .fill(.white.opacity(0.9))
+                            .shadow(color: .black.opacity(0.08), radius: 8, y: 2)
+                    }
             }
             .accessibilityLabel("Search clips")
         }
         .padding(.horizontal, 20)
-        .padding(.top, 12)
+        .padding(.top, 8)
         .padding(.bottom, 8)
-        .overlay(alignment: .bottom) {
-            Rectangle()
-                .fill(AppColors.timelineLine.opacity(0.4))
-                .frame(height: 1)
-                .padding(.horizontal, 20)
+    }
+    
+    // MARK: - Compact Glasses Status
+    
+    private var compactGlassesStatus: some View {
+        Button {
+            HapticManager.playLight()
+            Task {
+                do {
+                    try await ensureVideoStreamReady()
+
+                    // Toggle preview visibility
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                        showGlassesPreview.toggle()
+                        print("👁️ [Preview] Preview toggled to: \(showGlassesPreview)")
+                    }
+                } catch {
+                    print("❌ [Preview] Glasses action failed: \(error)")
+                    HapticManager.playError()
+                    
+                    // Show error message with helpful hint
+                    let errorMsg = error.localizedDescription
+                    var userMessage = "Failed to start preview: \(errorMsg)"
+                    if errorMsg.contains("Internal SDK error") {
+                        userMessage = "Stream error - try tapping glasses temple to wake them, then retry"
+                    } else if errorMsg.contains("permission denied") || errorMsg.contains("Permission") {
+                        userMessage = "Camera permission needed - tap glasses temple when prompted, or grant in Meta AI app"
+                    }
+                    
+                    streamErrorText = userMessage
+                    withAnimation { showStreamErrorMessage = true }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) {
+                        withAnimation { showStreamErrorMessage = false }
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 6) {
+                // Glasses icon
+                Image(systemName: "eyeglasses")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(glassesStatusColor)
+                
+                // Status text
+                Text(glassesStatusText)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(AppColors.textSecondary)
+                
+                // Animated dot for live status
+                if glassesManager.connectionState == .connected && captureCoordinator.isCapturing {
+                    Circle()
+                        .fill(AppColors.connected)
+                        .frame(width: 6, height: 6)
+                        .modifier(PulseAnimation())
+                }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background {
+                Capsule()
+                    .fill(glassesStatusColor.opacity(0.1))
+                    .overlay {
+                        Capsule()
+                            .stroke(glassesStatusColor.opacity(0.2), lineWidth: 1)
+                    }
+            }
         }
+        .buttonStyle(.plain)
+    }
+    
+    private var glassesStatusColor: Color {
+        switch glassesManager.connectionState {
+        case .connected:
+            return captureCoordinator.isCapturing ? AppColors.connected : AppColors.accent
+        case .connecting:
+            return .orange
+        case .disconnected, .error:
+            return AppColors.textSecondary
+        }
+    }
+    
+    private var glassesStatusText: String {
+        switch glassesManager.connectionState {
+        case .connected:
+            return captureCoordinator.isCapturing ? "Live" : "Connected"
+        case .connecting:
+            return "Syncing..."
+        case .disconnected:
+            return "Connect"
+        case .error:
+            return "Retry"
+        }
+    }
+
+    private func ensureVideoStreamReady() async throws {
+        // If not connected, connect first
+        if glassesManager.connectionState != .connected {
+            print("🔌 [Stream] Connecting to glasses...")
+            try await glassesManager.connect()
+            print("✅ [Stream] Connected successfully")
+        }
+
+        // If already streaming, nothing to do
+        guard !glassesManager.isVideoStreaming else { return }
+
+        print("📹 [Stream] Starting video stream...")
+        print("💡 [Stream] Tip: Tap glasses temple to wake camera before starting")
+
+        // Wait a moment to ensure glasses are ready
+        try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
+
+        var lastError: Error?
+        for attempt in 1...3 {
+            do {
+                try await glassesManager.startVideoStream()
+                print("✅ [Stream] Video stream started on attempt \(attempt)")
+                // Wait a moment for first frame
+                try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
+                return
+            } catch {
+                lastError = error
+                let errorStr = error.localizedDescription
+                print("⚠️ [Stream] Stream start attempt \(attempt) failed: \(errorStr)")
+
+                // Handle permission denied - try reauthorizing
+                if errorStr.contains("permission denied") || errorStr.contains("Permission") {
+                    print("🔐 [Stream] Permission denied - trying to reauthorize...")
+                    let authResult = await glassesManager.reauthorize()
+                    print("🔐 [Stream] Reauthorize result: \(authResult)")
+
+                    // Wait a moment for permission to be granted
+                    try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
+
+                    if attempt < 3 {
+                        continue
+                    }
+                } else if errorStr.contains("Internal SDK error") && attempt < 3 {
+                    // Internal errors often mean the glasses camera is asleep
+                    let delay = UInt64(attempt * 3_000_000_000) // 3s, 6s delays
+                    print("🔄 [Stream] Internal error - waiting \(attempt * 3)s then retrying...")
+                    print("💡 [Stream] IMPORTANT: Tap glasses temple NOW to wake the camera!")
+                    try? await Task.sleep(nanoseconds: delay)
+                    continue
+                }
+            }
+        }
+
+        throw lastError ?? GlassesError.streamFailed("Failed to start video stream")
     }
     
     // MARK: - Record Button
@@ -848,6 +947,10 @@ struct RootView: View {
                 if !captureCoordinator.isCapturing {
                     try await captureCoordinator.startCapture()
                 }
+                
+                // Ensure video stream is running before export
+                try await ensureVideoStreamReady()
+
                 let url = try await captureCoordinator.triggerClipExport()
                 await MainActor.run {
                     captureClip(exportedURL: url)
@@ -1485,6 +1588,26 @@ struct FlowLayout: Layout {
             
             self.size.height = y + rowHeight
         }
+    }
+}
+
+// MARK: - Pulse Animation Modifier
+
+struct PulseAnimation: ViewModifier {
+    @State private var isPulsing = false
+    
+    func body(content: Content) -> some View {
+        content
+            .scaleEffect(isPulsing ? 1.3 : 1.0)
+            .opacity(isPulsing ? 0.6 : 1.0)
+            .animation(
+                .easeInOut(duration: 0.8)
+                .repeatForever(autoreverses: true),
+                value: isPulsing
+            )
+            .onAppear {
+                isPulsing = true
+            }
     }
 }
 

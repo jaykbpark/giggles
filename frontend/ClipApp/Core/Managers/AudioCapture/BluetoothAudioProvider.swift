@@ -123,23 +123,32 @@ final class BluetoothAudioProvider: AudioCaptureProvider {
     
     private func configureAudioSession() throws {
         let audioSession = AVAudioSession.sharedInstance()
-        
-        // Configure for play and record with Bluetooth support
-        // .allowBluetooth routes input through connected Bluetooth device (glasses mic)
-        try audioSession.setCategory(
-            .playAndRecord,
-            mode: .measurement,
-            options: [.allowBluetooth, .defaultToSpeaker]
-        )
-        
-        // Set preferred sample rate
-        try audioSession.setPreferredSampleRate(desiredSampleRate)
-        
-        // Set preferred buffer duration for low latency
-        try audioSession.setPreferredIOBufferDuration(Double(bufferSize) / desiredSampleRate)
-        
-        // Activate the session
-        try audioSession.setActive(true)
+
+        do {
+            // Configure for play and record with Bluetooth support
+            // .allowBluetooth routes input through connected Bluetooth device (glasses mic)
+            try audioSession.setCategory(
+                .playAndRecord,
+                mode: .measurement,
+                options: [.allowBluetooth, .defaultToSpeaker]
+            )
+
+            // Set preferred sample rate
+            try audioSession.setPreferredSampleRate(desiredSampleRate)
+
+            // Set preferred buffer duration for low latency
+            try audioSession.setPreferredIOBufferDuration(Double(bufferSize) / desiredSampleRate)
+
+            // Activate the session
+            try audioSession.setActive(true)
+        } catch {
+            // Fallback to built-in mic if Bluetooth session activation fails
+            print("⚠️ Audio session Bluetooth config failed, falling back to device mic: \(error.localizedDescription)")
+            try audioSession.setCategory(.record, mode: .measurement, options: [])
+            try audioSession.setPreferredSampleRate(desiredSampleRate)
+            try audioSession.setPreferredIOBufferDuration(Double(bufferSize) / desiredSampleRate)
+            try audioSession.setActive(true)
+        }
         
         // Log the current input route
         if let input = audioSession.currentRoute.inputs.first {

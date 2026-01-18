@@ -11,9 +11,10 @@ actor ElevenLabsService {
     private let apiKey: String?
     private let baseURL = URL(string: "https://api.elevenlabs.io/v1")!
     
-    // Default voice ID (Rachel - natural, versatile voice)
-    // Can be customized per emotion/state later
-    private let defaultVoiceId = "21m00Tcm4TlvDq8ikWAM"
+    // Voice ID for Memory Assistant
+    // "Charlotte" - warm, calm, nurturing voice - ideal for Alzheimer's/memory care
+    // Alternative: "Rachel" (21m00Tcm4TlvDq8ikWAM) - neutral, versatile
+    private let defaultVoiceId = "XB0fDUnXU5powFXDhCwa" // Charlotte - warm & caring
     
     // MARK: - Cache
     
@@ -26,11 +27,15 @@ actor ElevenLabsService {
         // Get API key from environment variable or Info.plist (same pattern as PresageService)
         if let envKey = ProcessInfo.processInfo.environment["ELEVENLABS_API_KEY"], !envKey.isEmpty {
             self.apiKey = envKey
+            print("🔑 ElevenLabs: Using API key from environment")
         } else if let infoKey = Bundle.main.object(forInfoDictionaryKey: "ELEVENLABS_API_KEY") as? String,
-                  !infoKey.isEmpty {
+                  !infoKey.isEmpty,
+                  !infoKey.contains("YOUR_") {  // Skip placeholder values
             self.apiKey = infoKey
+            print("🔑 ElevenLabs: Using API key from Info.plist (length: \(infoKey.count))")
         } else {
             self.apiKey = nil
+            print("⚠️ ElevenLabs: NO API KEY FOUND!")
         }
         
         // Setup cache directory
@@ -107,12 +112,13 @@ actor ElevenLabsService {
             throw ElevenLabsError.apiKeyMissing
         }
         
-        // Use turbo model for faster responses (important for conversational flow)
+        // Use multilingual_v2 for highest quality (warm, natural voice for memory assistant)
+        // Trade-off: slightly higher latency but much better quality for care context
         let audioURL = try await generateAudio(
             text: text,
             voiceId: defaultVoiceId,
-            modelId: "eleven_turbo_v2_5",
-            voiceSettings: VoiceSettings.default
+            modelId: "eleven_multilingual_v2",
+            voiceSettings: VoiceSettings.warmCaring  // Optimized for gentle delivery
         )
         
         // Cache if key provided
@@ -138,6 +144,8 @@ actor ElevenLabsService {
         modelId: String,
         voiceSettings: VoiceSettings
     ) async throws -> URL {
+        print("🔊 ElevenLabs: Generating audio for text: \"\(text.prefix(50))...\"")
+        
         let url = baseURL.appendingPathComponent("/text-to-speech/\(voiceId)")
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -156,20 +164,26 @@ actor ElevenLabsService {
         ]
         
         // Add text normalization for better quality (especially with Flash/Turbo models)
+        // Value must be "auto", "on", or "off" (not boolean)
         if modelId.contains("turbo") || modelId.contains("flash") {
-            payload["apply_text_normalization"] = true
+            payload["apply_text_normalization"] = "auto"
         }
         
         request.httpBody = try JSONSerialization.data(withJSONObject: payload)
         
+        print("🔊 ElevenLabs: Making API request to \(url)")
         let (data, response) = try await URLSession.shared.data(for: request)
         
         guard let httpResponse = response as? HTTPURLResponse else {
+            print("🔊 ElevenLabs: Invalid response type")
             throw ElevenLabsError.invalidResponse
         }
         
+        print("🔊 ElevenLabs: Response status: \(httpResponse.statusCode)")
+        
         guard httpResponse.statusCode == 200 else {
             let errorMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
+            print("🔊 ElevenLabs: API Error: \(errorMessage)")
             throw ElevenLabsError.apiError("HTTP \(httpResponse.statusCode): \(errorMessage)")
         }
         
@@ -179,6 +193,7 @@ actor ElevenLabsService {
             .appendingPathExtension("mp3")
         
         try data.write(to: tempURL)
+        print("🔊 ElevenLabs: Audio saved to \(tempURL), size: \(data.count) bytes")
         return tempURL
     }
     
@@ -276,6 +291,14 @@ private struct VoiceSettings {
         stability: 0.5,
         similarityBoost: 0.75,
         style: 0.1,
+        useSpeakerBoost: true
+    )
+    
+    // Optimized for warm, caring delivery (Alzheimer's/memory care context)
+    static let warmCaring = VoiceSettings(
+        stability: 0.65,        // Higher stability = more consistent, calming
+        similarityBoost: 0.80,  // Clear voice reproduction
+        style: 0.15,            // Slight expressiveness without being dramatic
         useSpeakerBoost: true
     )
 }

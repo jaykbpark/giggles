@@ -104,6 +104,7 @@ final class MetaSDKProvider: GlassesStreamProvider {
     }
     private var currentDevice: Device?
     private var streamSession: StreamSession?
+    private var isStartingStream = false // Guard against concurrent starts
     private var linkStateToken: (any AnyListenerToken)?
     private var registrationStateToken: (any AnyListenerToken)?
     private var videoFrameToken: (any AnyListenerToken)?
@@ -114,6 +115,15 @@ final class MetaSDKProvider: GlassesStreamProvider {
     
     // Track when streaming started to detect immediate stop (permission denial)
     private var streamingStartTime: Date?
+    
+    // Device availability monitoring task (per SDK docs: monitor devicesMetadata for availability)
+    private var deviceAvailabilityTask: Task<Void, Never>?
+    
+    // Serial queue for stream operations to prevent concurrent start attempts
+    private let streamOperationQueue = DispatchQueue(label: "com.clip.metasdk.stream", qos: .userInitiated)
+    
+    // Actor-like lock for stream start
+    private var streamStartTask: Task<Void, Error>?
     
     // Location manager for BLE device discovery (iOS requires location for BLE scanning)
     private let locationManager = CLLocationManager()
@@ -137,6 +147,9 @@ final class MetaSDKProvider: GlassesStreamProvider {
     }
     
     deinit {
+        // Cancel device availability monitoring
+        deviceAvailabilityTask?.cancel()
+        
         // Cancel tokens
         Task { [linkStateToken, registrationStateToken, videoFrameToken, streamStateToken, errorToken] in
             await linkStateToken?.cancel()
@@ -232,14 +245,29 @@ final class MetaSDKProvider: GlassesStreamProvider {
             return
         }
         
+        // Only set up device observation if this is a new device
+        let isNewDevice = currentDevice?.identifier != device.identifier
+        
         // #region agent log H5
-        os_log("[DEBUG-H5] checkForDevices: found device '%{public}@' linkState=%{public}@", log: debugLog, type: .error, device.name, String(describing: device.linkState))
+        os_log("[DEBUG-H5] checkForDevices: found device '%{public}@' linkState=%{public}@ isNew=%{public}@", log: debugLog, type: .error, device.name, String(describing: device.linkState), isNewDevice ? "yes" : "no")
         // #endregion
+        
         currentDevice = device
         deviceName = device.name
-        observeDeviceLinkState(device)
         
-        // Check current link state
+        // Only register listener for new devices (avoid duplicate listeners)
+        if isNewDevice {
+            // Cancel previous listener if any
+            Task {
+                await linkStateToken?.cancel()
+            }
+            linkStateToken = nil
+            previousLinkState = nil // Reset state tracking for new device
+            
+            observeDeviceLinkState(device)
+        }
+        
+        // Check current link state (handleLinkStateChange has its own dedup logic)
         handleLinkStateChange(device.linkState)
     }
     
@@ -249,22 +277,75 @@ final class MetaSDKProvider: GlassesStreamProvider {
                 self?.handleLinkStateChange(linkState)
             }
         }
+        
+        // Start device availability monitoring (per SDK docs)
+        startDeviceAvailabilityMonitoring(device)
     }
     
+    /// Monitor device availability per SDK documentation:
+    /// "Use device metadata to detect availability. Hinge position is not exposed, but it influences connectivity."
+    /// "Closing the hinges disconnects Bluetooth, stops active streams, and forces SessionState to STOPPED."
+    ///
+    /// Note: We only log here - actual cleanup is handled by linkState listener to avoid duplicate cleanup.
+    private func startDeviceAvailabilityMonitoring(_ device: Device) {
+        deviceAvailabilityTask?.cancel()
+        deviceAvailabilityTask = Task { [weak self] in
+            // Poll device availability periodically (iOS SDK may not expose async stream like Android)
+            // This checks linkState which reflects availability (disconnected when hinges closed)
+            var lastKnownState: LinkState = device.linkState
+            
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 10_000_000_000) // Check every 10 seconds (reduced frequency)
+                
+                guard let self = self else { return }
+                guard !Task.isCancelled else { return }
+                
+                // Only log state changes, don't trigger cleanup (linkState listener handles that)
+                let currentState = device.linkState
+                if currentState != lastKnownState {
+                    print("[MetaSDK] 📊 Availability monitor: linkState changed from \(lastKnownState) to \(currentState)")
+                    lastKnownState = currentState
+                }
+            }
+        }
+    }
+    
+    /// Track previous link state to avoid redundant handling
+    private var previousLinkState: LinkState?
+    
     private func handleLinkStateChange(_ linkState: LinkState) {
+        // Skip if state hasn't actually changed (avoids redundant cleanup)
+        guard linkState != previousLinkState else {
+            return
+        }
+        
+        let wasConnected = previousLinkState == .connected
+        previousLinkState = linkState
+        
         switch linkState {
         case .connected:
             connectionStateSubject.send(.connected)
             // Meta DAT SDK doesn't expose battery level
             // Use -1 to indicate "unknown" so UI can show a Preview pill instead
             batteryLevel = -1
-            print("[MetaSDK] Device connected! Battery level unavailable (SDK doesn't expose it)")
+            print("[MetaSDK] ✅ Device connected!")
+            
         case .connecting:
             connectionStateSubject.send(.connecting)
+            print("[MetaSDK] 🔄 Device connecting...")
+            
         case .disconnected:
             connectionStateSubject.send(.disconnected)
             batteryLevel = 0
-            stopVideoStream()
+            
+            // Only cleanup if we were previously connected (avoid spam on initial disconnected state)
+            if wasConnected {
+                print("[MetaSDK] 📴 Device disconnected (was connected) - cleaning up resources")
+                cleanupStreamResources()
+            } else {
+                print("[MetaSDK] 📴 Device disconnected (initial state or already disconnected)")
+            }
+            
         @unknown default:
             break
         }
@@ -463,7 +544,8 @@ final class MetaSDKProvider: GlassesStreamProvider {
     // MARK: - Video Streaming
     
     /// Maps StreamSessionError to a meaningful GlassesError for UI display
-    private func mapStreamError(_ error: StreamSessionError) -> GlassesError {
+    /// Note: nonisolated because it's a pure function with no state access
+    nonisolated private func mapStreamError(_ error: StreamSessionError) -> GlassesError {
         switch error {
         case .deviceNotFound:
             return .deviceNotFound
@@ -486,16 +568,63 @@ final class MetaSDKProvider: GlassesStreamProvider {
     }
     
     func startVideoStream() async throws {
-        print("[MetaSDK] startVideoStream called. ConnectionState: \(connectionState), isVideoStreaming: \(isVideoStreaming)")
+        print("[MetaSDK] startVideoStream called. ConnectionState: \(connectionState), isVideoStreaming: \(isVideoStreaming), isStartingStream: \(isStartingStream)")
+        
+        // If already streaming, return immediately
+        guard !isVideoStreaming else {
+            print("[MetaSDK] Already streaming - returning")
+            return
+        }
+        
+        // If another start is in progress, wait for it instead of starting another
+        if let existingTask = streamStartTask, isStartingStream {
+            print("[MetaSDK] Stream start already in progress - waiting for existing task...")
+            do {
+                try await existingTask.value
+                print("[MetaSDK] Existing task completed - checking if now streaming")
+                if isVideoStreaming {
+                    return // Existing task succeeded
+                }
+                // Existing task failed, we'll start a new one below
+            } catch {
+                print("[MetaSDK] Existing task failed: \(error.localizedDescription)")
+                // Existing task failed, we'll try starting a new one
+            }
+        }
         
         guard connectionState == .connected else {
             print("[MetaSDK] Cannot start stream - not connected")
             throw GlassesError.notConnected
         }
         
+        // Double-check streaming state after waiting
         guard !isVideoStreaming else {
-            print("[MetaSDK] Already streaming")
+            print("[MetaSDK] Already streaming after wait - returning")
             return
+        }
+        
+        // Create and store the task so concurrent callers can wait on it
+        let task = Task { @MainActor in
+            try await performStreamStart()
+        }
+        streamStartTask = task
+        
+        // Await the task
+        try await task.value
+    }
+    
+    /// Internal implementation of stream start - should only be called from startVideoStream
+    private func performStreamStart() async throws {
+        // Final guard against concurrent execution
+        guard !isStartingStream else {
+            print("[MetaSDK] performStreamStart: Another start in progress, aborting")
+            throw GlassesError.streamFailed("Stream start already in progress")
+        }
+        
+        isStartingStream = true
+        defer { 
+            isStartingStream = false 
+            streamStartTask = nil
         }
         
         guard let wearables = wearables else {
@@ -528,8 +657,9 @@ final class MetaSDKProvider: GlassesStreamProvider {
                 permissionGranted = true
                 print("[MetaSDK] Camera permission already granted")
             } else if currentStatus == .denied {
-                print("[MetaSDK] Camera permission was previously denied - need to re-grant in Meta AI app")
-                throw GlassesError.permissionDenied
+                print("[MetaSDK] Camera permission was previously denied - requesting again...")
+                // Don't throw immediately - try to request permission first
+                // The user might have denied it before but will grant it now
             }
         } catch let error as GlassesError {
             throw error
@@ -580,9 +710,10 @@ final class MetaSDKProvider: GlassesStreamProvider {
         }
         
         // Clean up any existing session before creating a new one
-        if let existingSession = streamSession {
+        if streamSession != nil || videoFrameToken != nil {
             print("[MetaSDK] Cleaning up existing stream session...")
-            await existingSession.stop()
+            isVideoStreaming = false
+            await streamSession?.stop()
             await videoFrameToken?.cancel()
             await streamStateToken?.cancel()
             await errorToken?.cancel()
@@ -590,6 +721,11 @@ final class MetaSDKProvider: GlassesStreamProvider {
             streamStateToken = nil
             errorToken = nil
             streamSession = nil
+            previousStreamState = nil // Reset state tracking
+            // Give SDK more time to fully clean up before starting new session
+            print("[MetaSDK] Waiting 2 seconds for SDK to fully reset...")
+            try? await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
+            print("[MetaSDK] Cleanup complete")
         }
         
         // Use SpecificDeviceSelector with the device we already connected to
@@ -604,6 +740,14 @@ final class MetaSDKProvider: GlassesStreamProvider {
         )
         
         print("[MetaSDK] Creating stream session with device: \(device.name)...")
+        
+        // Give the glasses a moment to be ready (camera might need to wake up)
+        // This helps prevent internalError when camera isn't ready yet
+        // Increased to 3 seconds based on SDK behavior - glasses camera often needs time to wake
+        print("[MetaSDK] Waiting 3 seconds for glasses camera to be ready...")
+        print("[MetaSDK] 💡 TIP: Tap the glasses temple NOW to wake the camera")
+        try? await Task.sleep(nanoseconds: 3_000_000_000) // 3 seconds
+        
         let session = StreamSession(streamSessionConfig: config, deviceSelector: deviceSelector)
         self.streamSession = session
         
@@ -638,7 +782,7 @@ final class MetaSDKProvider: GlassesStreamProvider {
                 }
                 
                 // Listen for state changes - resume on streaming
-                self?.streamStateToken = session.statePublisher.listen { state in
+                self?.streamStateToken = session.statePublisher.listen { [weak self] state in
                     print("[MetaSDK] Stream state during startup: \(state)")
                     switch state {
                     case .streaming:
@@ -647,7 +791,15 @@ final class MetaSDKProvider: GlassesStreamProvider {
                     case .stopped:
                         // If we immediately hit stopped without streaming, something went wrong
                         print("[MetaSDK] Stream stopped before reaching streaming state")
-                        safeResume(with: .failure(GlassesError.streamFailed("Stream stopped unexpectedly - check glasses camera permission in Meta AI app")))
+                        // Check flags on MainActor
+                        Task { @MainActor in
+                            guard let self = self else { return }
+                            if self.isVideoStreaming == false && self.isStartingStream == true {
+                                // Reset flag before resuming so retry can happen
+                                self.isStartingStream = false
+                                safeResume(with: .failure(GlassesError.streamFailed("Stream stopped unexpectedly - try tapping glasses temple to wake them")))
+                            }
+                        }
                     default:
                         break
                     }
@@ -666,6 +818,25 @@ final class MetaSDKProvider: GlassesStreamProvider {
                         print("[MetaSDK] ⚠️ Video streaming error - glasses may need to be woken up (tap temple)")
                     case .timeout:
                         print("[MetaSDK] ⚠️ Timeout - glasses may be asleep or out of range")
+                    case .internalError:
+                        print("[MetaSDK] ⚠️ Internal SDK error - this often means glasses need to be woken up")
+                        print("[MetaSDK] ⚠️ Try: 1) Tap glasses temple 2) Wait 2 seconds 3) Retry")
+                        // Reset flags immediately so retry can happen
+                        Task { @MainActor [weak self] in
+                            guard let self = self else { return }
+                            self.isVideoStreaming = false
+                            self.isStartingStream = false // CRITICAL: Reset flag so retry can happen
+                            // Clean up session
+                            await self.streamSession?.stop()
+                            await self.videoFrameToken?.cancel()
+                            await self.streamStateToken?.cancel()
+                            await self.errorToken?.cancel()
+                            self.streamSession = nil
+                            self.videoFrameToken = nil
+                            self.streamStateToken = nil
+                            self.errorToken = nil
+                            print("[MetaSDK] ✅ Cleanup complete, ready for retry")
+                        }
                     default:
                         break
                     }
@@ -703,6 +874,8 @@ final class MetaSDKProvider: GlassesStreamProvider {
         } catch {
             // Clean up on failure
             print("[MetaSDK] ❌ Stream startup failed, cleaning up...")
+            isVideoStreaming = false
+            isStartingStream = false
             await streamSession?.stop()
             streamSession = nil
             await videoFrameToken?.cancel()
@@ -743,12 +916,23 @@ final class MetaSDKProvider: GlassesStreamProvider {
         timestampedVideoFrameSubject.send(timestampedFrame)
     }
     
+    /// Track previous stream state to avoid redundant handling
+    private var previousStreamState: StreamSessionState?
+    
     private func handleStreamStateChange(_ state: StreamSessionState) {
+        // Skip if state hasn't actually changed
+        guard state != previousStreamState else {
+            return
+        }
+        previousStreamState = state
+        
         switch state {
         case .streaming:
             streamingStartTime = Date()
             isVideoStreaming = true
-        case .stopped, .stopping:
+            print("[MetaSDK] ▶️ Stream is now streaming")
+            
+        case .stopped:
             // Detect if stream stopped immediately after starting (indicates permission denial by glasses)
             if let startTime = streamingStartTime {
                 let duration = Date().timeIntervalSince(startTime)
@@ -756,16 +940,80 @@ final class MetaSDKProvider: GlassesStreamProvider {
                     print("[MetaSDK] WARNING: Stream stopped after only \(String(format: "%.1f", duration))s - camera permission likely denied by glasses")
                 }
             }
-            isVideoStreaming = false
-            streamingStartTime = nil
+            
+            // Only cleanup if we were actually streaming or have a session
+            if isVideoStreaming || streamSession != nil {
+                print("[MetaSDK] 🛑 Stream stopped - releasing resources per SDK docs")
+                isVideoStreaming = false
+                streamingStartTime = nil
+                cleanupStreamResources()
+            }
+            
+        case .stopping:
+            // Transitional state - don't cleanup yet, wait for stopped
+            print("[MetaSDK] ⏹️ Stream stopping...")
+            
         case .paused:
-            // Still technically streaming but paused
-            break
+            // Per SDK docs: "Your app should not attempt to restart a device session while it is paused."
+            // Keep isVideoStreaming = true so startVideoStream() guard prevents restart
+            // The device keeps the connection alive and may resume automatically
+            print("[MetaSDK] ⏸️ Stream paused - waiting for RUNNING or STOPPED (not restarting per SDK docs)")
+            // Do NOT set isVideoStreaming = false here
+            
         case .waitingForDevice, .starting:
-            // Transitional states
+            // Transitional states - no action needed
             break
+            
         @unknown default:
             break
+        }
+    }
+    
+    /// Clean up all stream-related resources.
+    /// Called on STOPPED state and when device becomes unavailable.
+    /// Includes guard to prevent redundant cleanup calls.
+    private var isCleaningUp = false
+    
+    private func cleanupStreamResources() {
+        // Guard against redundant cleanup calls (prevents spam from multiple code paths)
+        guard !isCleaningUp else {
+            return // Already cleaning up
+        }
+        
+        // Only clean up if there's actually something to clean
+        guard streamSession != nil || videoFrameToken != nil || streamStateToken != nil || errorToken != nil || isVideoStreaming else {
+            return // Nothing to clean up
+        }
+        
+        isCleaningUp = true
+        
+        // Cancel listener tokens
+        Task { [videoFrameToken, streamStateToken, errorToken, streamSession] in
+            await videoFrameToken?.cancel()
+            await streamStateToken?.cancel()
+            await errorToken?.cancel()
+            await streamSession?.stop()
+        }
+        
+        // Clear references
+        videoFrameToken = nil
+        streamStateToken = nil
+        errorToken = nil
+        streamSession = nil
+        
+        // Reset state flags
+        isVideoStreaming = false
+        isStartingStream = false
+        streamingStartTime = nil
+        
+        print("[MetaSDK] ✅ Stream resources cleaned up")
+        
+        // Reset cleanup flag after a short delay to allow pending operations to complete
+        Task {
+            try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+            await MainActor.run {
+                self.isCleaningUp = false
+            }
         }
     }
     
@@ -806,22 +1054,8 @@ final class MetaSDKProvider: GlassesStreamProvider {
     func stopVideoStream() {
         guard isVideoStreaming || streamSession != nil else { return }
         
-        Task {
-            await streamSession?.stop()
-        }
-        
-        // Cancel listeners
-        Task {
-            await videoFrameToken?.cancel()
-            await streamStateToken?.cancel()
-            await errorToken?.cancel()
-        }
-        videoFrameToken = nil
-        streamStateToken = nil
-        errorToken = nil
-        streamSession = nil
-        
-        isVideoStreaming = false
+        print("[MetaSDK] 🛑 stopVideoStream called - cleaning up resources")
+        cleanupStreamResources()
     }
     
     // MARK: - Audio Streaming

@@ -110,11 +110,7 @@ struct RootView: View {
                 await viewState.loadClipsFromBackend()
             }
         }
-        .onChange(of: viewState.searchText) { _, newValue in
-            Task { @MainActor in
-                await viewState.refreshSemanticSearch(query: newValue)
-            }
-        }
+        // Search is now triggered on Enter/submit, not on every keystroke
         .onChange(of: showSearch) { _, newValue in
             if newValue {
                 showSearchSuggestions = false
@@ -1360,13 +1356,18 @@ struct RootView: View {
                             .font(.system(size: 16))
                             .foregroundStyle(AppColors.textPrimary)
                             .autocorrectionDisabled()
+                            .submitLabel(.search)
                             .onSubmit {
-                                // User pressed return/search - results already displayed
+                                // Trigger search on Enter/search button
+                                Task { @MainActor in
+                                    await viewState.refreshSemanticSearch(query: viewState.searchText)
+                                }
                             }
                         
                         if !viewState.searchText.isEmpty {
                             Button {
                                 viewState.searchText = ""
+                                viewState.semanticResults = [] // Clear results immediately
                             } label: {
                                 Image(systemName: "xmark.circle.fill")
                                     .font(.system(size: 16))

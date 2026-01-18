@@ -383,9 +383,16 @@ final class FFmpegExporter {
         var timebaseInfo = mach_timebase_info_data_t()
         mach_timebase_info(&timebaseInfo)
 
-        let elapsedHostTime = hostTime - baseHostTime
-        let nanoseconds = elapsedHostTime * UInt64(timebaseInfo.numer) / UInt64(timebaseInfo.denom)
+        // Use signed arithmetic to handle cases where hostTime < baseHostTime
+        // (e.g., audio samples from before video started)
+        let elapsedHostTime = Int64(hostTime) - Int64(baseHostTime)
+        let nanoseconds = elapsedHostTime * Int64(timebaseInfo.numer) / Int64(timebaseInfo.denom)
         let seconds = Double(nanoseconds) / 1_000_000_000.0
+
+        // Return invalid time for negative timestamps (samples before video start)
+        if seconds < 0 {
+            return .invalid
+        }
 
         return CMTime(seconds: seconds, preferredTimescale: 600)
     }
@@ -398,6 +405,11 @@ final class FFmpegExporter {
         let formatPtr = buffer.format.streamDescription
 
         let presentationTime = hostTimeToCMTime(timestampedBuffer.hostTime, relativeTo: baseHostTime)
+        
+        // Skip audio samples with invalid timestamps (from before video started)
+        guard presentationTime.isValid else {
+            return nil
+        }
 
         var formatDescription: CMAudioFormatDescription?
         let status = CMAudioFormatDescriptionCreate(

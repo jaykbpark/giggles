@@ -108,8 +108,12 @@ final class MetaSDKProvider: GlassesStreamProvider {
     private var registrationStateToken: (any AnyListenerToken)?
     private var videoFrameToken: (any AnyListenerToken)?
     private var streamStateToken: (any AnyListenerToken)?
+    private var errorToken: (any AnyListenerToken)?
     
     private var cancellables = Set<AnyCancellable>()
+    
+    // Track when streaming started to detect immediate stop (permission denial)
+    private var streamingStartTime: Date?
     
     // Location manager for BLE device discovery (iOS requires location for BLE scanning)
     private let locationManager = CLLocationManager()
@@ -134,30 +138,24 @@ final class MetaSDKProvider: GlassesStreamProvider {
     
     deinit {
         // Cancel tokens
-        Task { [linkStateToken, registrationStateToken, videoFrameToken, streamStateToken] in
+        Task { [linkStateToken, registrationStateToken, videoFrameToken, streamStateToken, errorToken] in
             await linkStateToken?.cancel()
             await registrationStateToken?.cancel()
             await videoFrameToken?.cancel()
             await streamStateToken?.cancel()
+            await errorToken?.cancel()
         }
     }
     
     // MARK: - SDK Configuration
     
     private func configureSDK() {
-        do {
-            try Wearables.configure()
-            wearables = Wearables.shared
-            // #region agent log H2,H3
-            os_log("[DEBUG-H2H3] SDK configured. RegState=%{public}@ DeviceCount=%{public}d", log: debugLog, type: .error, String(describing: wearables?.registrationState), wearables?.devices.count ?? 0)
-            // #endregion
-        } catch {
-            // #region agent log H2
-            os_log("[DEBUG-H2] SDK config FAILED: %{public}@", log: debugLog, type: .error, String(describing: error))
-            // #endregion
-            print("[MetaSDKProvider] Failed to configure SDK: \(error)")
-            connectionStateSubject.send(.error(.sdkNotAvailable))
-        }
+        // Wearables.configure() is called once in ClipApp.init() per SDK documentation
+        // Here we just get the shared instance
+        wearables = Wearables.shared
+        // #region agent log H2,H3
+        os_log("[DEBUG-H2H3] SDK configured. RegState=%{public}@ DeviceCount=%{public}d", log: debugLog, type: .error, String(describing: wearables?.registrationState), wearables?.devices.count ?? 0)
+        // #endregion
     }
     
     private func setupRegistrationObserver() {
@@ -257,10 +255,15 @@ final class MetaSDKProvider: GlassesStreamProvider {
         switch linkState {
         case .connected:
             connectionStateSubject.send(.connected)
+            // Meta DAT SDK doesn't expose battery level
+            // Use -1 to indicate "unknown" so UI can show a Preview pill instead
+            batteryLevel = -1
+            print("[MetaSDK] Device connected! Battery level unavailable (SDK doesn't expose it)")
         case .connecting:
             connectionStateSubject.send(.connecting)
         case .disconnected:
             connectionStateSubject.send(.disconnected)
+            batteryLevel = 0
             stopVideoStream()
         @unknown default:
             break
@@ -362,6 +365,52 @@ final class MetaSDKProvider: GlassesStreamProvider {
         connectionStateSubject.send(.disconnected)
     }
     
+    /// Re-request camera permission from the SDK
+    /// Returns a status message for the UI
+    func reauthorize() async -> String {
+        guard let wearables = wearables else {
+            return "SDK not available"
+        }
+        
+        print("[MetaSDK] Re-requesting camera permission...")
+        
+        // Check current status
+        do {
+            let currentStatus = try await wearables.checkPermissionStatus(.camera)
+            print("[MetaSDK] Current camera permission status: \(currentStatus)")
+            
+            if currentStatus == .granted {
+                return "Permission already granted. Try Preview."
+            } else if currentStatus == .denied {
+                return "Permission denied. Try disconnecting glasses in Meta AI app and reconnecting."
+            }
+        } catch {
+            print("[MetaSDK] checkPermissionStatus error: \(error)")
+        }
+        
+        // Try to request permission
+        do {
+            let result = try await wearables.requestPermission(.camera)
+            print("[MetaSDK] Permission request result: \(result)")
+            
+            if result == .granted {
+                return "Permission granted! Try Preview now."
+            } else if result == .denied {
+                return "Permission denied by Meta AI app."
+            } else {
+                return "Permission status: \(result). Try Preview."
+            }
+        } catch {
+            let errorStr = String(describing: error)
+            print("[MetaSDK] requestPermission error: \(errorStr)")
+            
+            if errorStr.contains("error 3") {
+                return "Permission state locked. Try Preview - it may work."
+            }
+            return "Error: \(error.localizedDescription)"
+        }
+    }
+    
     // MARK: - URL Handling
     
     /// Handle URL callback from Meta AI app after registration/permission flow
@@ -413,74 +462,212 @@ final class MetaSDKProvider: GlassesStreamProvider {
     
     // MARK: - Video Streaming
     
+    /// Maps StreamSessionError to a meaningful GlassesError for UI display
+    private func mapStreamError(_ error: StreamSessionError) -> GlassesError {
+        switch error {
+        case .deviceNotFound:
+            return .deviceNotFound
+        case .deviceNotConnected:
+            return .notConnected
+        case .permissionDenied:
+            return .permissionDenied
+        case .timeout:
+            return .streamFailed("Connection timeout - check glasses are awake")
+        case .videoStreamingError:
+            return .streamFailed("Video streaming error - try reconnecting")
+        case .audioStreamingError:
+            return .streamFailed("Audio streaming error")
+        case .internalError:
+            return .streamFailed("Internal SDK error - restart the app")
+        @unknown default:
+            return .streamFailed("Unknown streaming error")
+        }
+    }
+    
     func startVideoStream() async throws {
+        print("[MetaSDK] startVideoStream called. ConnectionState: \(connectionState), isVideoStreaming: \(isVideoStreaming)")
+        
         guard connectionState == .connected else {
+            print("[MetaSDK] Cannot start stream - not connected")
             throw GlassesError.notConnected
         }
         
-        guard !isVideoStreaming else { return }
+        guard !isVideoStreaming else {
+            print("[MetaSDK] Already streaming")
+            return
+        }
+        
+        guard let wearables = wearables else {
+            print("[MetaSDK] No wearables instance")
+            throw GlassesError.sdkNotAvailable
+        }
         
         guard let device = currentDevice else {
+            print("[MetaSDK] No current device")
             throw GlassesError.notConnected
         }
         
-        // Request camera permission if needed
-        if let wearables = wearables {
-            do {
-                let status = try await wearables.requestPermission(.camera)
-                if status == .denied {
-                    throw GlassesError.permissionDenied
-                }
-            } catch let error as PermissionError {
-                throw GlassesError.connectionFailed(error.description)
+        print("[MetaSDK] Starting video stream from device: \(device.name), linkState: \(device.linkState)")
+        
+        // Check current permission status first
+        do {
+            let currentStatus = try await wearables.checkPermissionStatus(.camera)
+            print("[MetaSDK] Current camera permission status: \(currentStatus)")
+            
+            if currentStatus == .denied {
+                print("[MetaSDK] Camera permission was previously denied")
+                throw GlassesError.permissionDenied
+            }
+        } catch let error as GlassesError {
+            throw error
+        } catch {
+            print("[MetaSDK] Could not check permission status: \(error)")
+            // Continue anyway - we'll try requesting
+        }
+        
+        // Request camera permission before streaming
+        // Note: PermissionError error 3 can occur if already authorized - we handle that gracefully
+        do {
+            let status = try await wearables.requestPermission(.camera)
+            print("[MetaSDK] Camera permission request result: \(status)")
+            guard status == .granted else {
+                print("[MetaSDK] Camera permission not granted (status: \(status))")
+                throw GlassesError.permissionDenied
+            }
+            print("[MetaSDK] Camera permission GRANTED")
+        } catch let error as GlassesError {
+            throw error
+        } catch {
+            // PermissionError error 3 often means "already authorized" or SDK state issue
+            // If device is connected, continue anyway - the stream might still work
+            let errorString = String(describing: error)
+            print("[MetaSDK] Permission request error: \(errorString)")
+            
+            if device.linkState == .connected && errorString.contains("error 3") {
+                print("[MetaSDK] Device connected + error 3 - continuing anyway (likely already authorized)")
+            } else if device.linkState == .connected {
+                // Device connected but different error - still try to continue
+                print("[MetaSDK] Device connected but permission error - attempting stream anyway")
+            } else {
+                // Device not connected and permission failed - this is a real error
+                print("[MetaSDK] Device not connected and permission failed")
+                throw GlassesError.streamFailed("Permission check failed: \(error.localizedDescription)")
             }
         }
         
-        // Create device selector for this specific device
+        // Use SpecificDeviceSelector with the device we already connected to
         let deviceSelector = SpecificDeviceSelector(device: device.identifier)
         
         // Create stream session with config
+        // Using .low resolution and 24fps for stability as recommended by SDK docs
         let config = StreamSessionConfig(
             videoCodec: .raw,
-            resolution: .medium,
-            frameRate: 30
+            resolution: .low,
+            frameRate: 24
         )
         
+        print("[MetaSDK] Creating stream session with device: \(device.name)...")
         let session = StreamSession(streamSessionConfig: config, deviceSelector: deviceSelector)
         self.streamSession = session
         
-        // Listen for video frames
+        // Listen for video frames (this continues working after startup)
         videoFrameToken = session.videoFramePublisher.listen { [weak self] frame in
             Task { @MainActor in
                 self?.handleVideoFrame(frame)
             }
         }
         
-        // Listen for state changes
-        streamStateToken = session.statePublisher.listen { [weak self] state in
-            Task { @MainActor in
-                self?.handleStreamStateChange(state)
+        // Use CheckedContinuation to properly wait for streaming state or error
+        print("[MetaSDK] Starting session and waiting for stream state...")
+        
+        do {
+            try await withCheckedThrowingContinuation { [weak self] (continuation: CheckedContinuation<Void, Error>) in
+                // Track if we've already resumed to prevent multiple resumes
+                var didResume = false
+                let resumeLock = NSLock()
+                
+                func safeResume(with result: Result<Void, Error>) {
+                    resumeLock.lock()
+                    defer { resumeLock.unlock() }
+                    guard !didResume else { return }
+                    didResume = true
+                    
+                    switch result {
+                    case .success:
+                        continuation.resume()
+                    case .failure(let error):
+                        continuation.resume(throwing: error)
+                    }
+                }
+                
+                // Listen for state changes - resume on streaming
+                self?.streamStateToken = session.statePublisher.listen { state in
+                    print("[MetaSDK] Stream state during startup: \(state)")
+                    if state == .streaming {
+                        print("[MetaSDK] Stream reached .streaming state!")
+                        safeResume(with: .success(()))
+                    }
+                }
+                
+                // Listen for errors - resume with error
+                self?.errorToken = session.errorPublisher.listen { [weak self] error in
+                    print("[MetaSDK] Stream error during startup: \(error)")
+                    let mappedError = self?.mapStreamError(error) ?? GlassesError.streamFailed("Unknown error")
+                    safeResume(with: .failure(mappedError))
+                }
+                
+                // Start the session and set a timeout
+                Task {
+                    await session.start()
+                    
+                    // Wait up to 10 seconds for streaming to start
+                    try? await Task.sleep(nanoseconds: 10_000_000_000)
+                    
+                    // If we haven't resumed yet, it's a timeout
+                    safeResume(with: .failure(GlassesError.streamFailed("Stream startup timeout - glasses may be asleep")))
+                }
             }
-        }
-        
-        // Start the session
-        await session.start()
-        
-        // Check if streaming started successfully
-        if session.state == .streaming {
+            
+            // If we get here, streaming started successfully
             isVideoStreaming = true
-        } else {
-            throw GlassesError.streamFailed("Failed to start video stream")
+            print("[MetaSDK] Video stream started successfully!")
+            
+            // Set up ongoing state change handler (for later state changes like pause/stop)
+            streamStateToken = session.statePublisher.listen { [weak self] state in
+                Task { @MainActor in
+                    print("[MetaSDK] Stream state changed: \(state)")
+                    self?.handleStreamStateChange(state)
+                }
+            }
+            
+        } catch {
+            // Clean up on failure
+            await streamSession?.stop()
+            streamSession = nil
+            await videoFrameToken?.cancel()
+            await streamStateToken?.cancel()
+            await errorToken?.cancel()
+            videoFrameToken = nil
+            streamStateToken = nil
+            errorToken = nil
+            
+            print("[MetaSDK] Failed to start video stream: \(error.localizedDescription)")
+            throw error
         }
     }
     
     private func handleVideoFrame(_ frame: VideoFrame) {
         // Extract pixel buffer from CMSampleBuffer
+        // Note: The SDK provides frame.makeUIImage() for convenience, but we intentionally use
+        // CVPixelBuffer here because:
+        // 1. The timestamped frame publisher needs raw pixel buffers for video recording/export
+        // 2. GlassesPreviewView handles UIImage conversion efficiently via GPU-accelerated CIContext
+        // 3. This avoids creating unnecessary UIImage objects for frames that won't be displayed
         guard let pixelBuffer = CMSampleBufferGetImageBuffer(frame.sampleBuffer) else {
             return
         }
         
-        // Send raw pixel buffer for backward compatibility
+        // Send raw pixel buffer for preview and recording pipeline
         videoFrameSubject.send(pixelBuffer)
         
         // Extract timing information and send timestamped frame
@@ -498,9 +685,18 @@ final class MetaSDKProvider: GlassesStreamProvider {
     private func handleStreamStateChange(_ state: StreamSessionState) {
         switch state {
         case .streaming:
+            streamingStartTime = Date()
             isVideoStreaming = true
         case .stopped, .stopping:
+            // Detect if stream stopped immediately after starting (indicates permission denial by glasses)
+            if let startTime = streamingStartTime {
+                let duration = Date().timeIntervalSince(startTime)
+                if duration < 2.0 {
+                    print("[MetaSDK] WARNING: Stream stopped after only \(String(format: "%.1f", duration))s - camera permission likely denied by glasses")
+                }
+            }
             isVideoStreaming = false
+            streamingStartTime = nil
         case .paused:
             // Still technically streaming but paused
             break
@@ -509,6 +705,40 @@ final class MetaSDKProvider: GlassesStreamProvider {
             break
         @unknown default:
             break
+        }
+    }
+    
+    private func handleStreamError(_ error: StreamSessionError) {
+        print("[MetaSDK] ⚠️ Stream session error: \(error)")
+        
+        // Log detailed error for debugging
+        switch error {
+        case .deviceNotFound:
+            print("[MetaSDK] Error: Device not found - glasses may have disconnected")
+        case .deviceNotConnected:
+            print("[MetaSDK] Error: Device not connected")
+        case .permissionDenied:
+            print("[MetaSDK] Error: Permission denied - check Meta AI app developer mode and permissions")
+        case .timeout:
+            print("[MetaSDK] Error: Stream timeout")
+        case .videoStreamingError:
+            print("[MetaSDK] Error: Video streaming error")
+        case .audioStreamingError:
+            print("[MetaSDK] Error: Audio streaming error")
+        case .internalError:
+            print("[MetaSDK] Error: Internal SDK error")
+        @unknown default:
+            print("[MetaSDK] Error: Unknown error")
+        }
+        
+        // DON'T change connection state to error - that causes UI flash
+        // The device is still connected, only the stream failed
+        // Just mark streaming as stopped
+        isVideoStreaming = false
+        
+        // Stop the session cleanly
+        Task {
+            await streamSession?.stop()
         }
     }
     
@@ -523,9 +753,11 @@ final class MetaSDKProvider: GlassesStreamProvider {
         Task {
             await videoFrameToken?.cancel()
             await streamStateToken?.cancel()
+            await errorToken?.cancel()
         }
         videoFrameToken = nil
         streamStateToken = nil
+        errorToken = nil
         streamSession = nil
         
         isVideoStreaming = false

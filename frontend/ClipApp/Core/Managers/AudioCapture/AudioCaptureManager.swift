@@ -2,7 +2,7 @@ import AVFoundation
 import Combine
 
 /// Main manager for audio capture from glasses microphone via Bluetooth.
-/// Provides a unified interface that automatically selects between mock and real providers.
+/// Provides a unified interface for Bluetooth audio capture.
 ///
 /// ## Usage
 /// ```swift
@@ -15,25 +15,17 @@ import Combine
 ///     }
 ///     .store(in: &cancellables)
 /// ```
-///
-/// ## Configuration
-/// - Set `USE_MOCK_GLASSES=1` environment variable to use mock mode
-/// - In Xcode: Edit Scheme → Run → Arguments → Environment Variables
-/// - Or use `AudioCaptureManager(useMock: true)` directly
 @MainActor
 final class AudioCaptureManager: ObservableObject {
     
     // MARK: - Singleton
     
-    /// Shared instance configured based on environment
+    /// Shared instance
     static let shared = AudioCaptureManager()
     
     // MARK: - Provider
     
     private let provider: AudioCaptureProvider
-    
-    /// Whether the manager is using mock mode
-    let isMockMode: Bool
     
     // MARK: - Published State
     
@@ -69,26 +61,9 @@ final class AudioCaptureManager: ObservableObject {
     
     // MARK: - Initialization
     
-    /// Initialize with automatic provider selection based on environment
-    convenience init() {
-        // Check for USE_MOCK_GLASSES environment variable (same as MetaGlassesManager)
-        let useMock = ProcessInfo.processInfo.environment["USE_MOCK_GLASSES"] != nil
-        self.init(useMock: useMock)
-    }
-    
-    /// Initialize with explicit provider selection
-    /// - Parameter useMock: If true, uses mock provider; otherwise uses real Bluetooth provider
-    init(useMock: Bool) {
-        self.isMockMode = useMock
-        
-        if useMock {
-            self.provider = MockAudioProvider()
-            print("🎤 AudioCaptureManager: Using MOCK provider")
-        } else {
-            self.provider = BluetoothAudioProvider()
-            print("🎤 AudioCaptureManager: Using BLUETOOTH provider")
-        }
-        
+    init() {
+        self.provider = BluetoothAudioProvider()
+        print("🎤 AudioCaptureManager: Initialized with Bluetooth provider")
         setupBindings()
     }
     
@@ -141,7 +116,6 @@ extension AudioCaptureManager {
     var debugDescription: String {
         """
         AudioCaptureManager:
-          Mode: \(isMockMode ? "Mock" : "Bluetooth")
           State: \(captureState.statusText)
           Capturing: \(isCapturing)
           Format: \(audioFormat?.description ?? "None")

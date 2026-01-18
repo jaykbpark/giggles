@@ -20,12 +20,12 @@
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| Feed data | **Mock** | `MockData.clips` hardcoded (6 sample clips) |
+| Feed data | **Sample** | `MockData.clips` hardcoded (6 sample clips) |
 | Clip capture | **Real** | `ClipCaptureCoordinator` working |
 | Video export | **Real** | `.mov` files created in temp directory |
 | Photo Library save | Not Implemented | TODO in `handleExportedClip()` |
 | Backend upload | Not Implemented | TODO in `sendClipToBackend()` |
-| Search | **Mock** | Filters mock data locally |
+| Search | **Sample** | Filters sample data locally |
 
 ### Clip Save Flow (Intended)
 
@@ -78,20 +78,17 @@ Next steps:
 ### Clip Capture Pipeline (Jan 17, 2026)
 - [x] `ClipCaptureCoordinator` - orchestrates video/audio capture with rolling buffers
 - [x] `ClipExporter` - exports synchronized video+audio to `.mov` file
-- [x] `AudioCaptureManager` - captures audio from Bluetooth or mock source
+- [x] `AudioCaptureManager` - captures audio from Bluetooth source
 - [x] 30-second rolling buffer for both video and audio
 - [x] Wake word triggers automatic clip export
 - [x] New clips added to timeline with placeholder metadata
 
 ### Meta Glasses SDK Integration (Jan 17, 2026)
-- [x] `GlassesStreamProvider` protocol for mock/real SDK abstraction
-- [x] `MockGlassesProvider` - generates synthetic video frames and audio
+- [x] `GlassesStreamProvider` protocol for SDK abstraction
 - [x] `MetaSDKProvider` - wrapper for real Meta Wearables DAT SDK
-- [x] `MetaGlassesManager` - main entry point with provider selection
+- [x] `MetaGlassesManager` - main entry point
 - [x] Audio stream wired to WakeWordDetector
 - [x] GlassesStatusCard shows real connection state and battery
-- [x] Mock mode indicator in status card
-- [x] Environment variable configuration (`USE_MOCK_GLASSES=1`)
 
 ### Wake Word Detection (Jan 17, 2026)
 - [x] `WakeWordDetector` class using native iOS `SFSpeechRecognizer`
@@ -104,7 +101,7 @@ Next steps:
 
 ### UI Components (Jan 17, 2026)
 - [x] `ListeningIndicator` - Pulsing mic animation
-- [x] `GlassesStatusCard` - Shows connection state, listening, battery, mock mode
+- [x] `GlassesStatusCard` - Shows connection state, listening, battery
 - [x] `SpectacularConfirmation` - Clip saved overlay
 
 ### Permissions (Jan 17, 2026)
@@ -130,8 +127,7 @@ Next steps:
 | 50-second session restart | iOS limits recognition to ~1 minute; restart preserves transcript |
 | Transcript buffer (not audio buffer) | Lighter memory footprint; video team handles actual clip |
 | Foreground-only listening | Simpler implementation, less battery drain |
-| Protocol-based SDK abstraction | Allows mock mode for development, easy swap to real SDK |
-| Environment variable for mock mode | Clean separation, no code changes needed to switch |
+| Protocol-based SDK abstraction | Clean architecture, easy to test and extend |
 
 ---
 
@@ -146,7 +142,7 @@ Next steps:
 | Photo Library save | - | Not Started | TODO in `handleExportedClip()` |
 | Backend video upload | TBD | Not Started | Endpoint: `POST /api/video` |
 | Backend transcript API | TBD | Not Started | Endpoint: `GET /api/videos` |
-| Semantic search | Backend | Mock | Filters mock data locally |
+| Semantic search | Backend | Sample | Filters sample data locally |
 
 ---
 
@@ -177,28 +173,56 @@ POST /api/process
 
 ```
 ClipApp/
-├── Core/Managers/
-│   ├── MetaGlasses/
-│   │   ├── GlassesStreamProvider.swift  ← Protocol + shared types
-│   │   ├── MetaGlassesManager.swift     ← Main entry point
-│   │   ├── MockGlassesProvider.swift    ← Mock implementation
-│   │   └── MetaSDKProvider.swift        ← Real SDK wrapper
-│   ├── AudioCapture/
-│   │   ├── AudioCaptureManager.swift    ← Audio capture orchestration
-│   │   ├── AudioCaptureProvider.swift   ← Protocol for audio sources
-│   │   ├── BluetoothAudioProvider.swift ← Real Bluetooth audio
-│   │   └── MockAudioProvider.swift      ← Mock audio for development
-│   ├── ClipCaptureCoordinator.swift     ← Orchestrates video+audio capture
-│   ├── ClipExporter.swift               ← Exports .mov files
-│   ├── WakeWordDetector.swift           ← Wake word + transcript buffer
-│   ├── HapticManager.swift
-│   ├── PhotoManager.swift
-│   └── CameraManager.swift
-├── Core/Navigation/
-│   └── RootView.swift                   ← Main view with integration
+├── App/
+│   ├── ClipApp.swift                    ← App entry point
+│   └── GlobalViewState.swift            ← Shared app state
+├── Core/
+│   ├── DesignSystem/
+│   │   ├── Colors.swift                 ← Color palette
+│   │   ├── Gradients.swift              ← Gradient definitions
+│   │   ├── Typography.swift             ← Font styles
+│   │   └── Components/
+│   │       ├── SkeletonView.swift       ← Loading skeleton
+│   │       └── TopicPill.swift          ← Tag pill component
+│   ├── Managers/
+│   │   ├── MetaGlasses/
+│   │   │   ├── GlassesStreamProvider.swift  ← Protocol + shared types
+│   │   │   ├── MetaGlassesManager.swift     ← Main entry point
+│   │   │   └── MetaSDKProvider.swift        ← Real SDK wrapper
+│   │   ├── AudioCapture/
+│   │   │   ├── AudioCaptureManager.swift    ← Audio capture orchestration
+│   │   │   ├── AudioCaptureProvider.swift   ← Protocol for audio sources
+│   │   │   └── BluetoothAudioProvider.swift ← Real Bluetooth audio
+│   │   ├── ClipCaptureCoordinator.swift     ← Orchestrates video+audio capture
+│   │   ├── ClipExporter.swift               ← Exports .mov files
+│   │   ├── WakeWordDetector.swift           ← Wake word + transcript buffer
+│   │   ├── HapticManager.swift              ← Haptic feedback
+│   │   ├── PhotoManager.swift               ← Photo Library access
+│   │   └── CameraManager.swift              ← Camera capture
+│   └── Navigation/
+│       ├── RootView.swift               ← Main view with integration
+│       ├── FilterBar.swift              ← Filter/tab bar
+│       └── LaunchView.swift             ← Launch screen
+├── Features/
+│   ├── Feed/
+│   │   ├── TimelineView.swift           ← Timeline list view
+│   │   ├── ClipsGridView.swift          ← Grid layout view
+│   │   ├── ClipsListView.swift          ← List layout view
+│   │   ├── FeedView.swift               ← Feed container
+│   │   ├── MomentCard.swift             ← Clip card component
+│   │   ├── ClipDetailView.swift         ← Full clip detail
+│   │   └── GlassesPreviewView.swift     ← Live glasses preview
+│   └── State/
+│       └── StateView.swift              ← State management view
+├── Models/
+│   ├── ClipMetadata.swift               ← Clip data model
+│   └── SearchResult.swift               ← Search result model
 ├── Services/
-│   ├── APIService.swift                 ← Backend API calls (mock URL)
-│   └── MockData.swift                   ← Hardcoded sample clips
+│   ├── APIService.swift                 ← Backend API calls
+│   ├── MockData.swift                   ← Sample clip data
+│   ├── ElevenLabsService.swift          ← ElevenLabs TTS integration
+│   ├── PresageService.swift             ← Presage AI service
+│   └── TitleGenerator.swift             ← Auto title generation
 └── Info.plist                           ← Permissions
 ```
 
@@ -211,29 +235,12 @@ See also: [`../endpoint.md`](../endpoint.md) for full API contract
 1. Open `nw2025.xcodeproj` in Xcode
 2. Build target: iOS 26+ device or simulator
 3. The app requests speech recognition permission on launch
-4. **Mock mode is active by default** - set `USE_MOCK_GLASSES=1` environment variable
-
-### Using Mock Mode (Development)
-
-Mock mode is ideal for development without physical glasses:
-
-```
-Edit Scheme → Run → Arguments → Environment Variables
-Add: USE_MOCK_GLASSES = 1
-```
-
-The mock provider generates:
-- **Video:** 720p frames at 30fps with gradient background, timestamp, and "MOCK GLASSES FEED" watermark
-- **Audio:** Silent buffers at 16kHz (keeps speech recognition active)
-- **Connection:** Simulates 1-2 second connection delay
-- **Battery:** Returns mock 82% level
 
 ### Using Real Glasses
 
-1. Remove or unset `USE_MOCK_GLASSES` environment variable
-2. Add Meta Wearables SDK via SPM: `https://github.com/facebook/meta-wearables-dat-ios`
-3. Pair glasses via Meta View app
-4. Uncomment SDK imports in `MetaSDKProvider.swift`
+1. Add Meta Wearables SDK via SPM: `https://github.com/facebook/meta-wearables-dat-ios`
+2. Pair glasses via Meta View app
+3. Enable Developer Mode in Meta AI app
 
 ### Testing Wake Word
 

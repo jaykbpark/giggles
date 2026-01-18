@@ -17,6 +17,10 @@ struct RootView: View {
     @State private var cancellables = Set<AnyCancellable>()
     @State private var showBufferTooShortMessage = false
     @State private var isSavingClip = false
+    @State private var showGlassesPreview = false
+    @State private var showNoVideoFramesMessage = false
+    @State private var showStreamErrorMessage = false
+    @State private var streamErrorText = ""
     @Namespace private var namespace
 
     var body: some View {
@@ -32,13 +36,56 @@ struct RootView: View {
                 GlassesStatusCard(
                     isListening: captureCoordinator.isCapturing,
                     connectionState: glassesManager.connectionState,
-                    batteryLevel: glassesManager.batteryLevel,
                     deviceName: glassesManager.deviceName,
-                    isMockMode: glassesManager.isMockMode,
                     debugStatus: glassesManager.sdkDebugStatus,
+                    isPreviewVisible: showGlassesPreview,
                     onRetryTap: {
                         Task {
                             try? await glassesManager.connect()
+                        }
+                    },
+                    onCardTap: {
+                        Task {
+                            do {
+                                // Start video stream if not already streaming
+                                if !glassesManager.isVideoStreaming {
+                                    try await glassesManager.startVideoStream()
+                                }
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                    showGlassesPreview.toggle()
+                                }
+                            } catch {
+                                // Show error to user
+                                print("Failed to start video stream: \(error)")
+                                HapticManager.playError()
+                                streamErrorText = error.localizedDescription
+                                withAnimation {
+                                    showStreamErrorMessage = true
+                                }
+                                // Auto-dismiss after 3 seconds
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+                                    withAnimation {
+                                        showStreamErrorMessage = false
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    onReauthorizeTap: {
+                        Task {
+                            print("[RootView] Reauthorize button tapped")
+                            let result = await glassesManager.reauthorize()
+                            print("[RootView] Reauthorize result: \(result)")
+                            HapticManager.playLight()
+                            streamErrorText = result
+                            withAnimation {
+                                showStreamErrorMessage = true
+                            }
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) {
+                                withAnimation {
+                                    showStreamErrorMessage = false
+                                }
+                            }
                         }
                     }
                 )
@@ -75,13 +122,18 @@ struct RootView: View {
             }
             
             // Live glasses preview (top-right corner)
-            if glassesManager.isVideoStreaming && selectedClip == nil && !showSearch {
+            if showGlassesPreview && selectedClip == nil && !showSearch {
                 VStack {
                     HStack {
                         Spacer()
                         GlassesPreviewView()
                             .padding(.top, 70)
                             .padding(.trailing, 16)
+                            .onTapGesture {
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                    showGlassesPreview = false
+                                }
+                            }
                     }
                     Spacer()
                 }
@@ -117,6 +169,61 @@ struct RootView: View {
                                     .fill(.black.opacity(0.8))
                             }
                             .glassEffect(.regular, in: .rect(cornerRadius: 12))
+                        Spacer()
+                    }
+                    .padding(.bottom, 100)
+                }
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+            
+            // No video frames message
+            if showNoVideoFramesMessage {
+                VStack {
+                    Spacer()
+                    HStack {
+                        Spacer()
+                        VStack(spacing: 8) {
+                            Image(systemName: "video.slash")
+                                .font(.system(size: 20, weight: .medium))
+                            Text("No video feed. Tap glasses card to start.")
+                                .font(.system(size: 14, weight: .medium))
+                        }
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 12)
+                        .background {
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(.black.opacity(0.8))
+                        }
+                        .glassEffect(.regular, in: .rect(cornerRadius: 12))
+                        Spacer()
+                    }
+                    .padding(.bottom, 100)
+                }
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+            
+            // Stream error message
+            if showStreamErrorMessage {
+                VStack {
+                    Spacer()
+                    HStack {
+                        Spacer()
+                        VStack(spacing: 8) {
+                            Image(systemName: "exclamationmark.triangle")
+                                .font(.system(size: 20, weight: .medium))
+                            Text(streamErrorText.isEmpty ? "Failed to start video stream" : streamErrorText)
+                                .font(.system(size: 14, weight: .medium))
+                                .multilineTextAlignment(.center)
+                        }
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 12)
+                        .background {
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(.red.opacity(0.8))
+                        }
+                        .glassEffect(.regular, in: .rect(cornerRadius: 12))
                         Spacer()
                     }
                     .padding(.bottom, 100)
@@ -456,15 +563,31 @@ struct RootView: View {
                 
                 // Show user-friendly error message
                 await MainActor.run {
-                    if case .bufferTooShort = error {
+                    switch error {
+                    case .bufferTooShort:
                         HapticManager.playError()
-                        showBufferTooShortMessage = true
+                        withAnimation {
+                            showBufferTooShortMessage = true
+                        }
                         // Auto-dismiss after 2 seconds
                         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
                             withAnimation {
                                 showBufferTooShortMessage = false
                             }
                         }
+                    case .noVideoFrames:
+                        HapticManager.playError()
+                        withAnimation {
+                            showNoVideoFramesMessage = true
+                        }
+                        // Auto-dismiss after 3 seconds
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+                            withAnimation {
+                                showNoVideoFramesMessage = false
+                            }
+                        }
+                    default:
+                        break
                     }
                 }
             } catch {
@@ -598,11 +721,13 @@ struct RootView: View {
 struct GlassesStatusCard: View {
     var isListening: Bool = false
     var connectionState: GlassesConnectionState = .connected
-    var batteryLevel: Int = 82
     var deviceName: String = "Ray-Ban Meta"
     var isMockMode: Bool = false
     var debugStatus: String = ""
+    var isPreviewVisible: Bool = false
     var onRetryTap: (() -> Void)? = nil
+    var onCardTap: (() -> Void)? = nil
+    var onReauthorizeTap: (() -> Void)? = nil
     
     private var statusColor: Color {
         switch connectionState {
@@ -670,9 +795,34 @@ struct GlassesStatusCard: View {
                 ListeningIndicator()
             }
 
-            // Right: Battery with visual indicator (only show when connected)
+            // Right: Preview pill and Re-auth button when connected, Retry button when not
             if connectionState.isConnected {
-                GlassesBatteryView(level: batteryLevel)
+                HStack(spacing: 8) {
+                    // Re-authorize button
+                    Button(action: { onReauthorizeTap?() }) {
+                        Image(systemName: "arrow.triangle.2.circlepath")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(.orange)
+                            .padding(6)
+                            .background(.orange.opacity(0.15))
+                            .clipShape(Circle())
+                    }
+                    
+                    // Preview button
+                    Button(action: { onCardTap?() }) {
+                        HStack(spacing: 4) {
+                            Image(systemName: isPreviewVisible ? "eye.fill" : "eye")
+                                .font(.system(size: 12, weight: .medium))
+                            Text("Preview")
+                                .font(.system(size: 12, weight: .semibold))
+                        }
+                        .foregroundStyle(isPreviewVisible ? .white : AppColors.accent)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(isPreviewVisible ? AppColors.accent : AppColors.accent.opacity(0.15))
+                        .clipShape(Capsule())
+                    }
+                }
             } else {
                 // Retry button when not connected
                 Button(action: { onRetryTap?() }) {
@@ -691,7 +841,11 @@ struct GlassesStatusCard: View {
         .glassEffect(in: .rect(cornerRadius: 18))
         .overlay {
             RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(AppColors.timelineLine.opacity(0.5), lineWidth: 1)
+                .stroke(isPreviewVisible ? AppColors.accent.opacity(0.6) : AppColors.timelineLine.opacity(0.5), lineWidth: isPreviewVisible ? 2 : 1)
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            onCardTap?()
         }
     }
 }
@@ -770,47 +924,6 @@ struct StylizedGlassesIcon: View {
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
                         .stroke(Color(.systemGray3), lineWidth: 1.5)
                 }
-        }
-    }
-}
-
-// MARK: - Glasses Battery View
-
-struct GlassesBatteryView: View {
-    let level: Int
-
-    private var batteryColor: Color {
-        switch level {
-        case 0..<20: return .red
-        case 20..<50: return .orange
-        default: return .green
-        }
-    }
-
-    var body: some View {
-        HStack(spacing: 10) {
-            // Circular battery indicator
-            ZStack {
-                // Background track
-                Circle()
-                    .stroke(Color(.systemGray5), lineWidth: 4)
-                    .frame(width: 36, height: 36)
-
-                // Progress arc
-                Circle()
-                    .trim(from: 0, to: CGFloat(level) / 100)
-                    .stroke(
-                        batteryColor,
-                        style: StrokeStyle(lineWidth: 4, lineCap: .round)
-                    )
-                    .frame(width: 36, height: 36)
-                    .rotationEffect(.degrees(-90))
-
-                // Percentage text
-                Text("\(level)")
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
-                    .foregroundStyle(.primary)
-            }
         }
     }
 }

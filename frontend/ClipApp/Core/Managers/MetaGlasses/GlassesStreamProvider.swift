@@ -47,7 +47,7 @@ enum GlassesConnectionState: Equatable, Sendable {
 // MARK: - Errors
 
 /// Errors that can occur during glasses operations
-enum GlassesError: Error, Equatable, Sendable {
+enum GlassesError: Error, LocalizedError, Equatable, Sendable {
     case notConnected
     case connectionFailed(String)
     case streamFailed(String)
@@ -56,7 +56,7 @@ enum GlassesError: Error, Equatable, Sendable {
     case sdkNotAvailable
     case audioNotSupported
     
-    var localizedDescription: String {
+    var errorDescription: String? {
         switch self {
         case .notConnected:
             return "Glasses not connected"
@@ -65,7 +65,7 @@ enum GlassesError: Error, Equatable, Sendable {
         case .streamFailed(let reason):
             return "Stream failed: \(reason)"
         case .permissionDenied:
-            return "Permission denied"
+            return "Camera permission denied by glasses"
         case .deviceNotFound:
             return "No glasses found"
         case .sdkNotAvailable:
@@ -79,7 +79,7 @@ enum GlassesError: Error, Equatable, Sendable {
 // MARK: - Stream Provider Protocol
 
 /// Protocol defining the interface for glasses stream providers.
-/// Both mock and real SDK implementations conform to this protocol.
+/// SDK implementations conform to this protocol.
 protocol GlassesStreamProvider: AnyObject {
     
     // MARK: - Connection

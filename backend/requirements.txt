@@ -7,3 +7,11 @@ ffmpeg-python
 elevenlabs
 python-dotenv
 google-genai
+# CLIP dependencies
+torch
+torchvision
+ftfy
+regex
+git+https://github.com/openai/CLIP.git
+Pillow
+numpy

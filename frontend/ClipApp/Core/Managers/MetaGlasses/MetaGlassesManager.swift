@@ -3,7 +3,7 @@ import Combine
 import CoreVideo
 
 /// Main manager for Meta Glasses integration.
-/// Provides a unified interface that automatically selects between mock and real SDK providers.
+/// Provides a unified interface for the Meta Wearables DAT SDK.
 ///
 /// ## Usage
 /// ```swift
@@ -18,25 +18,17 @@ import CoreVideo
 ///     }
 ///     .store(in: &cancellables)
 /// ```
-///
-/// ## Configuration
-/// - Set `USE_MOCK_GLASSES=1` environment variable to use mock mode
-/// - In Xcode: Edit Scheme → Run → Arguments → Environment Variables
-/// - Or use `MetaGlassesManager(useMock: true)` directly
 @MainActor
 final class MetaGlassesManager: ObservableObject {
     
     // MARK: - Singleton
     
-    /// Shared instance configured based on environment
+    /// Shared instance
     static let shared = MetaGlassesManager()
     
     // MARK: - Provider
     
     private let provider: GlassesStreamProvider
-    
-    /// Whether the manager is using mock mode
-    let isMockMode: Bool
     
     // MARK: - Published State
     
@@ -80,26 +72,9 @@ final class MetaGlassesManager: ObservableObject {
     
     // MARK: - Initialization
     
-    /// Initialize with automatic provider selection based on environment
-    convenience init() {
-        // Check for USE_MOCK_GLASSES environment variable
-        let useMock = ProcessInfo.processInfo.environment["USE_MOCK_GLASSES"] != nil
-        self.init(useMock: useMock)
-    }
-    
-    /// Initialize with explicit provider selection
-    /// - Parameter useMock: If true, uses mock provider; otherwise uses real SDK
-    init(useMock: Bool) {
-        self.isMockMode = useMock
-        
-        if useMock {
-            self.provider = MockGlassesProvider()
-            print("🕶️ MetaGlassesManager: Using MOCK provider")
-        } else {
-            self.provider = MetaSDKProvider()
-            print("🕶️ MetaGlassesManager: Using REAL SDK provider")
-        }
-        
+    init() {
+        self.provider = MetaSDKProvider()
+        print("🕶️ MetaGlassesManager: Initialized with SDK provider")
         setupBindings()
     }
     
@@ -129,7 +104,9 @@ final class MetaGlassesManager: ObservableObject {
     }
     
     private func updateDeviceInfo() {
-        guard connectionState.isConnected else { return }
+        // Read connection state directly from provider to avoid race condition
+        // (the manager's connectionState is updated async via Combine)
+        guard provider.connectionState.isConnected else { return }
         
         batteryLevel = provider.batteryLevel
         deviceName = provider.deviceName
@@ -145,6 +122,9 @@ final class MetaGlassesManager: ObservableObject {
         
         do {
             try await provider.connect()
+            // Sync connection state immediately from provider to avoid race condition
+            // (the Combine subscription updates async, but we need state now)
+            connectionState = provider.connectionState
             updateDeviceInfo()
         } catch let error as GlassesError {
             lastError = error
@@ -170,6 +150,15 @@ final class MetaGlassesManager: ObservableObject {
             return false
         }
         return await sdkProvider.handleURL(url)
+    }
+    
+    /// Re-request camera permission from the SDK
+    /// Returns a status message for the UI
+    func reauthorize() async -> String {
+        guard let sdkProvider = provider as? MetaSDKProvider else {
+            return "SDK not available"
+        }
+        return await sdkProvider.reauthorize()
     }
     
     // MARK: - Video Streaming
@@ -241,7 +230,6 @@ extension MetaGlassesManager {
     var debugDescription: String {
         """
         MetaGlassesManager:
-          Mode: \(isMockMode ? "Mock" : "Real SDK")
           Connection: \(connectionState.statusText)
           Video: \(isVideoStreaming ? "Streaming" : "Stopped")
           Audio: \(isAudioStreaming ? "Streaming" : "Stopped")
@@ -258,7 +246,7 @@ extension MetaGlassesManager {
     /// Get SDK debug status for UI display
     var sdkDebugStatus: String {
         guard let sdkProvider = provider as? MetaSDKProvider else {
-            return "Mock Mode"
+            return ""
         }
         return sdkProvider.debugStatus
     }

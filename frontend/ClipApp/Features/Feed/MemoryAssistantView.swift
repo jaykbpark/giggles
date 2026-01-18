@@ -662,6 +662,7 @@ struct MemoryAssistantView: View {
                 .padding(.horizontal, 20)
             }
         }
+        .padding(.top, 24)
         .padding(.bottom, isEmbedded ? 0 : 24)
     }
     

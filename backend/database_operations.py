@@ -88,6 +88,14 @@ class DatabaseOperations():
         ) 
         self.sqlite_conn.commit()
     
+    def query_tags_table_by_video_id(self, video_id):
+        self.cursor.execute(
+            "SELECT tag FROM tags WHERE video_id = ?",
+            (video_id,)
+        )
+        res = self.cursor.fetchall()
+        return [data[0] for data in res]
+    
     def get_videos_from_tags(self,tag):
         self.cursor.execute(
             "SELECT videos.id, videos.title, videos.transcript, videos.timestamp FROM videos LEFT JOIN tags ON videos.id = tags.video_id WHERE tags.tag = ?",

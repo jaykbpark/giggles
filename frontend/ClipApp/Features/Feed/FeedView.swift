@@ -110,6 +110,10 @@ struct FeedView: View {
                 }
                 .coordinateSpace(name: "feedScroll")
                 .scrollIndicators(.hidden)
+                .refreshable {
+                    await viewState.loadClipsFromBackend()
+                    await viewState.refreshAvailableTags()
+                }
                 .onPreferenceChange(ScrollOffsetKey.self) { value in
                     showScrollTop = value < -280
                 }

@@ -522,6 +522,13 @@ struct RootView: View {
                 await handleMemoryQuestion(question)
             }
         }
+
+        // Wake phrase without a question - open Ask tab
+        captureCoordinator.onAssistantInvoked = { [self] in
+            Task { @MainActor in
+                openAssistantFromWakeword()
+            }
+        }
         
         // Set up Memory Assistant completion callback
         memoryAssistant.onComplete = { [self] in
@@ -593,10 +600,12 @@ struct RootView: View {
     private func handleTrimComplete(sourceURL: URL, startTime: CMTime, endTime: CMTime, transcript: String) async {
         do {
             let exporter = ClipExporter()
-            let trimmedURL = try await exporter.trimClip(
+            // Re-encode to avoid A/V sync issues when trimming mid-GOP
+            let trimmedURL = try await exporter.trimClipWithReencode(
                 sourceURL: sourceURL,
                 startTime: startTime,
-                endTime: endTime
+                endTime: endTime,
+                preset: AVAssetExportPresetHighestQuality
             )
             
             // Calculate trimmed duration
@@ -887,8 +896,19 @@ struct RootView: View {
         HapticManager.playLight()
         print("🧠 Memory question asked: \"\(question)\"")
         
+        openAssistantFromWakeword()
+        
         // Use all clips for context
         await memoryAssistant.askQuestion(question, clips: viewState.clips)
+    }
+
+    private func openAssistantFromWakeword() {
+        if showSearch {
+            dismissSearch()
+        }
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+            selectedTab = .ask
+        }
     }
     
     /// Complete import after user enters title
@@ -1769,7 +1789,7 @@ struct SearchResultCard: View {
                         .foregroundStyle(AppColors.textPrimary)
                         .lineLimit(1)
 
-                    Text(clip.capturedAt.formatted(date: .abbreviated, time: .shortened))
+                    Text(clip.capturedAt.formatted(date: .long, time: .shortened))
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(AppColors.textSecondary.opacity(0.7))
                 }

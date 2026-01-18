@@ -130,7 +130,8 @@ struct ClipMetadata: Identifiable, Codable, Hashable, Sendable {
             return "Yesterday"
         } else {
             let formatter = DateFormatter()
-            formatter.dateFormat = "EEEE, MMM d"
+            // Include year for older dates
+            formatter.dateFormat = "MMM d, yyyy"
             return formatter.string(from: capturedAt)
         }
     }

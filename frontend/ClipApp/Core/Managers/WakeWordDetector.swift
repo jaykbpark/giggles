@@ -28,6 +28,9 @@ final class WakeWordDetector: ObservableObject {
     /// Called when "Hey Clip" is detected, passes the question that follows
     var onQuestionAsked: ((String) -> Void)?
     
+    /// Called when "Hey Clip" wake phrase is detected (no question yet)
+    var onAssistantInvoked: (() -> Void)?
+    
     // MARK: - Transcript Buffer
     
     /// Rolling buffer of transcript segments
@@ -302,6 +305,7 @@ final class WakeWordDetector: ObservableObject {
                 waitingForQuestion = true
                 waitingForQuestionStartTime = Date()
                 isProcessingQuestion = true  // Show UI feedback
+                onAssistantInvoked?()
             }
             return
         }
@@ -322,6 +326,7 @@ final class WakeWordDetector: ObservableObject {
         waitingForQuestion = false
         waitingForQuestionStartTime = nil
         isProcessingQuestion = true
+        onAssistantInvoked?()
         
         // Fire callback with the question
         onQuestionAsked?(afterPhrase)

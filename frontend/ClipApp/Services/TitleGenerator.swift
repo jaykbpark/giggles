@@ -80,6 +80,7 @@ final class TitleGenerator {
                 - Use 2-4 words only
                 - Be descriptive but concise
                 - Capture the main topic or mood
+                - Consider the full transcript, not just the first sentence
                 - Don't use quotes or punctuation
                 - Don't include any explanations or prefixes
                 - Output only the title text

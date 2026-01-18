@@ -27,6 +27,9 @@ final class ElevenLabsSTTService: NSObject, ObservableObject {
     /// Called when specific phrases are detected (for wake word detection)
     var onPhraseDetected: ((DetectedPhrase) -> Void)?
     
+    /// Called when "Hey Clip" wake phrase is detected without a question
+    var onAssistantInvoked: (() -> Void)?
+    
     // MARK: - Configuration
     
     private let apiKey: String?
@@ -53,6 +56,10 @@ final class ElevenLabsSTTService: NSObject, ObservableObject {
     /// Track last phrase detection to prevent duplicates
     private var lastPhraseDetectionTime: Date?
     private let phraseCooldown: TimeInterval = 2.0
+    
+    /// Track last assistant invocation to prevent repeated wake triggers
+    private var lastAssistantInvokeTime: Date?
+    private let assistantCooldown: TimeInterval = 3.0
     
     // MARK: - Initialization
     
@@ -371,7 +378,16 @@ final class ElevenLabsSTTService: NSObject, ObservableObject {
             // Extract the question (everything after "hey clip")
             if let range = lowercased.range(of: questionPhrase) {
                 let question = String(transcript[range.upperBound...]).trimmingCharacters(in: .whitespaces)
-                if !question.isEmpty {
+                if question.isEmpty {
+                    // Wake phrase without a question yet - invoke assistant
+                    if let lastInvoke = lastAssistantInvokeTime,
+                       Date().timeIntervalSince(lastInvoke) < assistantCooldown {
+                        return
+                    }
+                    lastAssistantInvokeTime = Date()
+                    onAssistantInvoked?()
+                    print("🎤 ElevenLabs STT: Detected 'hey clip' wake phrase")
+                } else {
                     lastPhraseDetectionTime = Date()
                     onPhraseDetected?(.heyClip(question: question))
                     print("🎤 ElevenLabs STT: Detected 'hey clip' with question: \(question)")

@@ -1,4 +1,5 @@
 from pydantic import BaseModel
+from typing import List
 
 class ResponseTagsObject(BaseModel):
     def __init__(self, tags):
@@ -9,3 +10,4 @@ class ResponseVideoObject(BaseModel):
     title: str
     transcript: str
     timestamp: str
+    tags: List[str] = []

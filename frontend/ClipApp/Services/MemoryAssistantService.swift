@@ -63,14 +63,25 @@ final class MemoryAssistantService: ObservableObject {
         print("🧠 Memory Assistant: Processing question: \"\(question)\"")
         
         do {
-            // Step 1: Find relevant clips via semantic search
-            let relevantClips = findRelevantClips(for: question, in: clips)
-            print("🧠 Memory Assistant: Found \(relevantClips.count) relevant clips")
+            // Fetch ALL clips from backend to get full transcripts
+            var allClips = clips
+            do {
+                let backendClips = try await APIService.shared.fetchAllClips()
+                if !backendClips.isEmpty {
+                    allClips = backendClips
+                    print("🧠 Memory Assistant: Using \(backendClips.count) clips from backend")
+                }
+            } catch {
+                print("⚠️ Memory Assistant: Backend fetch failed, using local clips")
+            }
             
-            // Step 2: Generate response using Gemini
+            // Pass ALL clips to Gemini - let Gemini figure out what's relevant
+            print("🧠 Memory Assistant: Sending \(allClips.count) clips to Gemini")
+            
+            // Step 2: Generate response using Gemini with ALL context
             let response = try await GeminiService.shared.generateResponse(
                 question: question,
-                clips: relevantClips
+                clips: allClips
             )
             print("🧠 Memory Assistant: Generated response: \"\(response)\"")
             
@@ -78,8 +89,6 @@ final class MemoryAssistantService: ObservableObject {
             
             // Step 3: Speak the response using ElevenLabs
             state = .speaking
-            print("🔊 Text to display: \"\(response)\"")
-            print("🔊 Text to speak:   \"\(response)\"")  // Should be identical
             try await speakResponse(response)
             
             // Success - return to idle

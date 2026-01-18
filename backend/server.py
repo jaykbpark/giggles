@@ -87,11 +87,13 @@ def get_videos(limit: int = 50, offset: int = 0):
         # format: [(id, title, transcript, timestamp), (), ()]
         all_video_objects = []
         for (id, title, transcript, timestamp) in all_videos:
+            tags = db.query_tags_table_by_video_id(id)
             video_object = ResponseVideoObject(
                 videoId=id,
                 title=title,
                 transcript=transcript,
-                timestamp=timestamp
+                timestamp=timestamp,
+                tags=tags
             )
             all_video_objects.append(video_object)
         db.close()
@@ -116,11 +118,13 @@ def get_video(videoId):
     db = DatabaseOperations()
     try:
         id, title, transcript, timestamp = db.query_video_table(videoId)
+        tags = db.query_tags_table_by_video_id(id)
         result = ResponseVideoObject(
             videoId=id,
             title=title,
             transcript=transcript,
-            timestamp=timestamp
+            timestamp=timestamp,
+            tags=tags
         )
         db.close()
         return {"success": True, "result": result}
@@ -135,11 +139,13 @@ def search(type,input):
             videos = db.get_videos_from_tags(input)
             video_objects = []
             for (id, title, transcript, timestamp) in videos:
+                tags = db.query_tags_table_by_video_id(id)
                 video_object = ResponseVideoObject(
                     videoId=id,
                     title=title,
                     transcript=transcript,
-                    timestamp=timestamp
+                    timestamp=timestamp,
+                    tags=tags
                 )
                 video_objects.append(video_object)
             return video_objects

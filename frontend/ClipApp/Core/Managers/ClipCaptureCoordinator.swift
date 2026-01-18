@@ -128,6 +128,9 @@ final class ClipCaptureCoordinator: ObservableObject {
     /// Called when a question is asked via "Hey Clip" (Memory Assistant)
     var onQuestionAsked: ((String) -> Void)?
     
+    /// Called when "Hey Clip" wake phrase is detected (no question yet)
+    var onAssistantInvoked: (() -> Void)?
+    
     // MARK: - Rolling Buffers
     
     private var videoBuffer: [(frame: TimestampedVideoFrame, timestamp: Date)] = []
@@ -220,6 +223,12 @@ final class ClipCaptureCoordinator: ObservableObject {
                 self?.onQuestionAsked?(question)
             }
         }
+        
+        wakeWordDetector.onAssistantInvoked = { [weak self] in
+            Task { @MainActor in
+                self?.onAssistantInvoked?()
+            }
+        }
     }
     
     /// Notify that question processing is complete (call from Memory Assistant)
@@ -285,6 +294,12 @@ final class ClipCaptureCoordinator: ObservableObject {
                     print("🎤 [ElevenLabs] Question asked: \(question)")
                     self.onQuestionAsked?(question)
                 }
+            }
+        }
+        
+        elevenLabsSTT.onAssistantInvoked = { [weak self] in
+            Task { @MainActor in
+                self?.onAssistantInvoked?()
             }
         }
     }

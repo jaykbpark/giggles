@@ -745,26 +745,36 @@ struct ClipDetailView: View {
     private func shareClip() async {
         var itemsToShare: [Any] = []
         
-        // Try to get video from Photo Library
-        if let asset = photoManager.fetchAsset(for: currentClip.localIdentifier) {
+        // Prefer local master file if available
+        if let localPath = currentClip.localFileURL,
+           FileManager.default.fileExists(atPath: localPath) {
+            itemsToShare.append(URL(fileURLWithPath: localPath))
+        } else if let asset = photoManager.fetchAsset(for: currentClip.localIdentifier) {
+            // Fallback to Photo Library
             do {
                 let videoURL = try await photoManager.getVideoURL(for: asset)
                 itemsToShare.append(videoURL)
             } catch {
                 print("⚠️ Could not get video URL: \(error.localizedDescription)")
-                // Fallback to text
             }
         }
         
         // Always include text metadata as fallback or additional context
-        let shareText = """
-        \(currentClip.title)
+        let title = currentClip.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let transcript = currentClip.transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+        var textParts: [String] = []
+        if !title.isEmpty { textParts.append(title) }
+        if !transcript.isEmpty { textParts.append(transcript) }
+        textParts.append(currentClip.formattedDate)
+        let shareText = textParts.joined(separator: "\n\n")
         
-        \(currentClip.transcript)
+        if !shareText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            itemsToShare.append(shareText)
+        }
         
-        \(currentClip.formattedDate)
-        """
-        itemsToShare.append(shareText)
+        if itemsToShare.isEmpty {
+            itemsToShare.append("Clip • \(currentClip.formattedDate)")
+        }
         
         shareItems = itemsToShare
         showShareSheet = true

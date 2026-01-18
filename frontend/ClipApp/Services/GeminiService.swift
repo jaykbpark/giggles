@@ -79,8 +79,17 @@ actor GeminiService {
     }
     
     private func buildPrompt(question: String, context: String) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone.current
+        formatter.dateFormat = "EEEE, MMM d, yyyy 'at' h:mm a zzz"
+        let nowString = formatter.string(from: Date())
+        
         return """
         You are a smart, casual personal assistant that helps recall information from captured video clips.
+        
+        CURRENT DATE/TIME: \(nowString)
+        Use this to interpret relative time words like "today", "yesterday", or "this morning".
         
         RULES:
         1. Keep responses brief (2-3 sentences max) - they will be spoken aloud

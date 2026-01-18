@@ -6,9 +6,16 @@ from backend.objects.RequestObjects import RequestSearchObject, RequestVideoObje
 from backend.objects.ResponseObjects import ResponseTagsObject, ResponseVideoObject
 from backend.database_operations import DatabaseOperations
 from backend.preprocessing.processing_manager import ProcessingManager
-from backend.vectorizer import Vectorizer
+from backend.vectorizer import Vectorizer, get_vectorizer
 import uvicorn
 app = FastAPI()
+
+# Preload the vectorizer model at startup so first search is fast
+@app.on_event("startup")
+async def startup_event():
+    print("🚀 Preloading CLIP model...")
+    get_vectorizer()  # This caches the model
+    print("✅ CLIP model ready!")
 
 # Allow CORS for iOS app
 app.add_middleware(
@@ -48,7 +55,7 @@ async def create_video(
     pm = ProcessingManager(video)
     db = DatabaseOperations()
     try:
-        vectorizer = Vectorizer()
+        vectorizer = get_vectorizer()  # Use cached singleton
         # preprocessing
         tags = db.query_tags_table_get_tags()
         ((transcription, tags), condensed_transcript) = pm.create_transcript_from_audio(tags)
@@ -126,7 +133,7 @@ def search(type,input):
                 video_objects.append(video_object)
             return video_objects
         else:
-            vectorizer = Vectorizer()
+            vectorizer = get_vectorizer()  # Use cached singleton instead of loading model each time
             encoded_vector = vectorizer.encode_text(input)
             result = db.search_vector_table(encoded_vector)
             seen = set()

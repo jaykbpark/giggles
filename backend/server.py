@@ -7,7 +7,7 @@ from backend.objects.ResponseObjects import ResponseTagsObject, ResponseVideoObj
 from backend.database_operations import DatabaseOperations
 from backend.preprocessing.processing_manager import ProcessingManager
 from backend.vectorizer import Vectorizer
-
+import uvicorn
 app = FastAPI()
 
 # Allow CORS for iOS app
@@ -47,89 +47,100 @@ async def create_video(
     )
     pm = ProcessingManager(video)
     db = DatabaseOperations()
-    vectorizer = Vectorizer()
-    # preprocessing
-    tags = db.query_tags_table_get_tags()
-    ((transcription, tags), condensed_transcript) = pm.create_transcript_from_audio(tags)
-    # video _ tags table insertion
-    
-    db.insert_video_table(video.videoId, video.title, transcription, video.timestamp)
-    for tag in tags:
-        db.insert_tags_table(tag, video.videoId)
-    # vectorizing table insertion
-    frames = pm.split_video_to_frames(3)
-    image_vectors = vectorizer.encode_images(frames)
-    
-    for image_vector in image_vectors:
-        db.insert_vector_table(image_vector,videoId)
+    try:
+        vectorizer = Vectorizer()
+        # preprocessing
+        tags = db.query_tags_table_get_tags()
+        ((transcription, tags), condensed_transcript) = pm.create_transcript_from_audio(tags)
+        # video _ tags table insertion
         
-    transcription_vector = vectorizer.encode_text(condensed_transcript)
-    db.insert_vector_table(transcription_vector,videoId)
-    db.close()
-    return {"message": "Item created"}
+        db.insert_video_table(video.videoId, video.title, transcription, video.timestamp)
+        for tag in tags:
+            db.insert_tags_table(tag, video.videoId)
+        # vectorizing table insertion
+        frames = pm.split_video_to_frames(3)
+        image_vectors = vectorizer.encode_images(frames)
+        
+        for image_vector in image_vectors:
+            db.insert_vector_table(image_vector,videoId)
+            
+        transcription_vector = vectorizer.encode_text(condensed_transcript)
+        db.insert_vector_table(transcription_vector,videoId)
+        db.close()
+        return {"message": "Item created"}
+    finally:
+        db.close()
 
 # get all videos, PAGINATION NOT IMPLEMENTED YET
 @app.get("/api/videos")
 def get_videos(limit: int = 50, offset: int = 0):
     db = DatabaseOperations()
-    all_videos = db.query_video_table_all() # need this to be in the proper format
-    # format: [(id, title, transcript, timestamp), (), ()]
-    all_video_objects = []
-    for (id, title, transcript, timestamp) in all_videos:
-        video_object = ResponseVideoObject(
-            videoId=id,
-            title=title,
-            transcript=transcript,
-            timestamp=timestamp
-        )
-        all_video_objects.append(video_object)
-    db.close()
-    return {"success": True, "result": all_video_objects}
-
-# retrieve full metadata + transcript for a specific video
-@app.get("/api/videos/{videoId}")
-def get_video(videoId):
-    db = DatabaseOperations()
-    id, title, transcript, timestamp = db.query_video_table(videoId)
-    result = ResponseVideoObject(
-        videoId=id,
-        title=title,
-        transcript=transcript,
-        timestamp=timestamp
-    )
-    db.close()
-    return {"success": True, "result": result}
-
-@app.get("/api/search/")
-def search(type,input):
-    db = DatabaseOperations()
-    if type == "tag":
-        videos = db.get_videos_from_tags(input)
-        video_objects = []
-        for (id, title, transcript, timestamp) in videos:
+    try:
+        all_videos = db.query_video_table_all() # need this to be in the proper format
+        # format: [(id, title, transcript, timestamp), (), ()]
+        all_video_objects = []
+        for (id, title, transcript, timestamp) in all_videos:
             video_object = ResponseVideoObject(
                 videoId=id,
                 title=title,
                 transcript=transcript,
                 timestamp=timestamp
             )
-            video_objects.append(video_object)
-        return video_objects
-    else:
-        vectorizer = Vectorizer()
-        encoded_vector = vectorizer.encode_text(input)
-        result = db.search_vector_table(encoded_vector)
-        seen = set()
-        unique_video_ids = [
-            item['entity']['video_id'] 
-            for item in result[0] 
-            if item['entity']['video_id'] not in seen and not seen.add(item['entity']['video_id'])
-        ][:3]
-        
-        video_objs = []
-        for video_id in unique_video_ids:
-            video_objs.append(get_video(video_id)["result"])
-        return video_objs
+            all_video_objects.append(video_object)
+        db.close()
+        return {"success": True, "result": all_video_objects}
+    finally:
+        db.close()
 
-def __main__():
-    app.run(host="0.0.0.0", port=8080)
+# retrieve full metadata + transcript for a specific video
+@app.get("/api/videos/{videoId}")
+def get_video(videoId):
+    db = DatabaseOperations()
+    try:
+        id, title, transcript, timestamp = db.query_video_table(videoId)
+        result = ResponseVideoObject(
+            videoId=id,
+            title=title,
+            transcript=transcript,
+            timestamp=timestamp
+        )
+        db.close()
+        return {"success": True, "result": result}
+    finally:
+        db.close()
+
+@app.get("/api/search/")
+def search(type,input):
+    db = DatabaseOperations()
+    try:
+        if type == "tag":
+            videos = db.get_videos_from_tags(input)
+            video_objects = []
+            for (id, title, transcript, timestamp) in videos:
+                video_object = ResponseVideoObject(
+                    videoId=id,
+                    title=title,
+                    transcript=transcript,
+                    timestamp=timestamp
+                )
+                video_objects.append(video_object)
+            return video_objects
+        else:
+            vectorizer = Vectorizer()
+            encoded_vector = vectorizer.encode_text(input)
+            result = db.search_vector_table(encoded_vector)
+            seen = set()
+            unique_video_ids = [
+                item['entity']['video_id'] 
+                for item in result[0] 
+                if item['entity']['video_id'] not in seen and not seen.add(item['entity']['video_id'])
+            ][:3]
+            
+            video_objs = []
+            for video_id in unique_video_ids:
+                video_objs.append(get_video(video_id)["result"])
+            return video_objs
+    finally:
+        db.close()
+if __name__ == "__main__":
+    uvicorn.run(app, port=8000)

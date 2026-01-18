@@ -1,5 +1,7 @@
 import SwiftUI
 import AVKit
+import AVFoundation
+import Photos
 
 struct ClipDetailView: View {
     let clip: ClipMetadata
@@ -10,6 +12,18 @@ struct ClipDetailView: View {
     @State private var isPlaying = true
     @State private var showControls = true
     @State private var controlsTimer: Timer?
+    
+    // Audio narration state
+    @State private var audioPlayer: AVPlayer?
+    @State private var isPlayingAudio = false
+    @State private var isGeneratingAudio = false
+    @State private var audioError: String?
+    
+    // Share state
+    @State private var showShareSheet = false
+    @State private var shareItems: [Any] = []
+    
+    private let photoManager = PhotoManager()
 
     private var currentClip: ClipMetadata {
         viewState.clips.first(where: { $0.id == clip.id }) ?? clip
@@ -43,6 +57,10 @@ struct ClipDetailView: View {
         }
         .onDisappear {
             controlsTimer?.invalidate()
+            stopAudio()
+        }
+        .sheet(isPresented: $showShareSheet) {
+            ShareSheet(items: shareItems)
         }
     }
     
@@ -140,6 +158,44 @@ struct ClipDetailView: View {
                 // Top bar
                 HStack(spacing: 10) {
                     Spacer()
+                    
+                    // Share button
+                    Button {
+                        HapticManager.playLight()
+                        Task {
+                            await shareClip()
+                        }
+                    } label: {
+                        Image(systemName: "square.and.arrow.up")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(width: 40, height: 40)
+                            .glassEffect(.regular.interactive(), in: .circle)
+                    }
+                    .accessibilityLabel("Share clip")
+                    
+                    // Listen button (audio narration)
+                    Button {
+                        HapticManager.playLight()
+                        Task {
+                            await toggleAudioNarration()
+                        }
+                    } label: {
+                        Group {
+                            if isGeneratingAudio {
+                                ProgressView()
+                                    .tint(.white)
+                            } else {
+                                Image(systemName: isPlayingAudio ? "speaker.wave.2.fill" : "speaker.wave.2")
+                            }
+                        }
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 40, height: 40)
+                        .glassEffect(.regular.interactive(), in: .circle)
+                    }
+                    .accessibilityLabel(isPlayingAudio ? "Stop narration" : "Listen to narration")
+                    .disabled(isGeneratingAudio)
 
                     Button {
                         HapticManager.playLight()
@@ -187,6 +243,10 @@ struct ClipDetailView: View {
                         .font(.system(size: 20, weight: .semibold))
                         .foregroundStyle(.white)
 
+                    if let state = currentClip.clipState {
+                        stateRow(state)
+                    }
+
                     if let context = currentClip.context {
                         contextRow(context)
                     }
@@ -221,6 +281,147 @@ struct ClipDetailView: View {
         .lineLimit(1)
     }
 
+    private func stateRow(_ state: ClipState) -> some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(stateColor(state))
+                .frame(width: 6, height: 6)
+            Text(state.stateSummary)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.white.opacity(0.8))
+                .lineLimit(1)
+        }
+    }
+
+    private func stateColor(_ state: ClipState) -> Color {
+        switch state.stressLevel {
+        case 0..<0.34:
+            return Color.green.opacity(0.9)
+        case 0.34..<0.67:
+            return Color.orange.opacity(0.9)
+        default:
+            return Color.red.opacity(0.9)
+        }
+    }
+    
+    // MARK: - Audio Narration
+    
+    @MainActor
+    private func toggleAudioNarration() async {
+        if isPlayingAudio {
+            // Stop audio
+            audioPlayer?.pause()
+            audioPlayer = nil
+            isPlayingAudio = false
+            return
+        }
+        
+        // Generate and play audio
+        isGeneratingAudio = true
+        audioError = nil
+        
+        do {
+            let audioURL = try await ElevenLabsService.shared.generateNarration(
+                transcript: currentClip.transcript,
+                clipId: currentClip.id,
+                state: currentClip.clipState
+            )
+            
+            let player = AVPlayer(url: audioURL)
+            audioPlayer = player
+            
+            // Play audio
+            player.play()
+            isPlayingAudio = true
+            
+            // Listen for completion
+            NotificationCenter.default.addObserver(
+                forName: .AVPlayerItemDidPlayToEndTime,
+                object: player.currentItem,
+                queue: .main
+            ) { _ in
+                isPlayingAudio = false
+                audioPlayer = nil
+            }
+            
+        } catch {
+            audioError = error.localizedDescription
+            print("❌ Failed to generate audio narration: \(error)")
+        }
+        
+        isGeneratingAudio = false
+    }
+    
+    private func stopAudio() {
+        audioPlayer?.pause()
+        audioPlayer = nil
+        isPlayingAudio = false
+    }
+    
+    // MARK: - Share
+    
+    @MainActor
+    private func shareClip() async {
+        var itemsToShare: [Any] = []
+        
+        // Try to get video from Photo Library
+        if let asset = photoManager.fetchAsset(for: currentClip.localIdentifier) {
+            do {
+                let videoURL = try await photoManager.getVideoURL(for: asset)
+                itemsToShare.append(videoURL)
+            } catch {
+                print("⚠️ Could not get video URL: \(error.localizedDescription)")
+                // Fallback to text
+            }
+        }
+        
+        // Always include text metadata as fallback or additional context
+        let shareText = """
+        \(currentClip.title)
+        
+        \(currentClip.transcript)
+        
+        \(currentClip.formattedDate)
+        """
+        itemsToShare.append(shareText)
+        
+        shareItems = itemsToShare
+        showShareSheet = true
+    }
+
+}
+
+// MARK: - Share Sheet
+
+struct ShareSheet: UIViewControllerRepresentable {
+    let items: [Any]
+    @Environment(\.dismiss) var dismiss
+    
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        let controller = UIActivityViewController(
+            activityItems: items,
+            applicationActivities: nil
+        )
+        
+        // Don't exclude any activity types - show all native options
+        controller.excludedActivityTypes = nil
+        
+        // Configure for iPad (needs popover)
+        if let popover = controller.popoverPresentationController {
+            popover.sourceView = UIView()
+            popover.sourceRect = CGRect(x: UIScreen.main.bounds.width / 2, y: UIScreen.main.bounds.height / 2, width: 0, height: 0)
+            popover.permittedArrowDirections = []
+        }
+        
+        // Handle completion
+        controller.completionWithItemsHandler = { _, completed, _, _ in
+            dismiss()
+        }
+        
+        return controller
+    }
+    
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
 // MARK: - Play Button Style

@@ -18,6 +18,10 @@
 		4EC031A62F18000000552603 /* MockAudioProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031A72F18000000552603 /* MockAudioProvider.swift */; };
 		4EC031A82F18000000552603 /* ClipExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031A92F18000000552603 /* ClipExporter.swift */; };
 		4EC031AA2F18000000552603 /* ClipCaptureCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031AB2F18000000552603 /* ClipCaptureCoordinator.swift */; };
+		4EC031B32F19000000552603 /* StateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031B22F19000000552603 /* StateView.swift */; };
+		4EC031B52F19000000552603 /* PresageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031B42F19000000552603 /* PresageService.swift */; };
+		4EC031B92F1A000000552603 /* ElevenLabsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031BA2F1A000000552603 /* ElevenLabsService.swift */; };
+		4EC031B72F19000000552603 /* SmartSpectraSwiftSDK in Frameworks */ = {isa = PBXBuildFile; productRef = 4EC031B82F19000000552603 /* SmartSpectraSwiftSDK */; };
 		4EC031532F16242C00552603 /* Colors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC0313D2F16242C00552603 /* Colors.swift */; };
 		4EC031542F16242C00552603 /* APIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC0314F2F16242C00552603 /* APIService.swift */; };
 		4EC031552F16242C00552603 /* ClipApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031372F16242C00552603 /* ClipApp.swift */; };
@@ -85,6 +89,9 @@
 		4EC031A72F18000000552603 /* MockAudioProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockAudioProvider.swift; sourceTree = "<group>"; };
 		4EC031A92F18000000552603 /* ClipExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipExporter.swift; sourceTree = "<group>"; };
 		4EC031AB2F18000000552603 /* ClipCaptureCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipCaptureCoordinator.swift; sourceTree = "<group>"; };
+		4EC031B22F19000000552603 /* StateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StateView.swift; sourceTree = "<group>"; };
+		4EC031B42F19000000552603 /* PresageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PresageService.swift; sourceTree = "<group>"; };
+		4EC031BA2F1A000000552603 /* ElevenLabsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElevenLabsService.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -95,6 +102,7 @@
 				EDE0E54B2F1C414600788AE2 /* MWDATCamera in Frameworks */,
 				EDE0E54F2F1C414600788AE2 /* MWDATMockDevice in Frameworks */,
 				EDE0E54D2F1C414600788AE2 /* MWDATCore in Frameworks */,
+				4EC031B72F19000000552603 /* SmartSpectraSwiftSDK in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -216,10 +224,19 @@
 			path = Feed;
 			sourceTree = "<group>";
 		};
+		4EC031B62F19000000552603 /* State */ = {
+			isa = PBXGroup;
+			children = (
+				4EC031B22F19000000552603 /* StateView.swift */,
+			);
+			path = State;
+			sourceTree = "<group>";
+		};
 		4EC0314B2F16242C00552603 /* Features */ = {
 			isa = PBXGroup;
 			children = (
 				4EC0314A2F16242C00552603 /* Feed */,
+				4EC031B62F19000000552603 /* State */,
 			);
 			path = Features;
 			sourceTree = "<group>";
@@ -239,6 +256,8 @@
 				4EC0314F2F16242C00552603 /* APIService.swift */,
 				4EC031502F16242C00552603 /* MockData.swift */,
 				4EC031912F17800000552603 /* TitleGenerator.swift */,
+				4EC031B42F19000000552603 /* PresageService.swift */,
+				4EC031BA2F1A000000552603 /* ElevenLabsService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -276,6 +295,7 @@
 				EDE0E54A2F1C414600788AE2 /* MWDATCamera */,
 				EDE0E54C2F1C414600788AE2 /* MWDATCore */,
 				EDE0E54E2F1C414600788AE2 /* MWDATMockDevice */,
+				4EC031B82F19000000552603 /* SmartSpectraSwiftSDK */,
 			);
 			productName = nw2025;
 			productReference = 4EC030E82F161BD600552603 /* nw2025.app */;
@@ -307,6 +327,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				EDE0E5492F1C414600788AE2 /* XCRemoteSwiftPackageReference "meta-wearables-dat-ios" */,
+				4EC031B92F19000000552603 /* XCRemoteSwiftPackageReference "SmartSpectra" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 4EC030E92F161BD600552603 /* Products */;
@@ -368,6 +389,9 @@
 				4EC031A62F18000000552603 /* MockAudioProvider.swift in Sources */,
 				4EC031A82F18000000552603 /* ClipExporter.swift in Sources */,
 				4EC031AA2F18000000552603 /* ClipCaptureCoordinator.swift in Sources */,
+				4EC031B32F19000000552603 /* StateView.swift in Sources */,
+				4EC031B52F19000000552603 /* PresageService.swift in Sources */,
+				4EC031B92F1A000000552603 /* ElevenLabsService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -595,6 +619,14 @@
 				minimumVersion = 0.3.0;
 			};
 		};
+		4EC031B92F19000000552603 /* XCRemoteSwiftPackageReference "SmartSpectra" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/Presage-Security/SmartSpectra";
+			requirement = {
+				kind = branch;
+				branch = main;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -612,6 +644,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = EDE0E5492F1C414600788AE2 /* XCRemoteSwiftPackageReference "meta-wearables-dat-ios" */;
 			productName = MWDATMockDevice;
+		};
+		4EC031B82F19000000552603 /* SmartSpectraSwiftSDK */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 4EC031B92F19000000552603 /* XCRemoteSwiftPackageReference "SmartSpectra" */;
+			productName = SmartSpectraSwiftSDK;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

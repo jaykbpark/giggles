@@ -55,6 +55,12 @@ final class ClipCaptureCoordinator: ObservableObject {
     /// Number of audio buffers in the buffer
     @Published private(set) var audioBufferCount: Int = 0
     
+    /// Current buffer duration in seconds (calculated from timestamps)
+    @Published private(set) var currentBufferDuration: TimeInterval = 0.0
+    
+    /// Minimum buffer duration required to record (default: 1 second)
+    let minimumBufferDuration: TimeInterval = 1.0
+    
     // MARK: - Callbacks
     
     /// Called when a clip is successfully exported
@@ -192,6 +198,8 @@ final class ClipCaptureCoordinator: ObservableObject {
         videoBuffer.append((frame: frame, timestamp: now))
         pruneVideoBuffer(before: now.addingTimeInterval(-bufferDuration))
         
+        updateBufferDuration()
+        
         Task { @MainActor in
             self.videoBufferCount = self.videoBuffer.count
         }
@@ -202,8 +210,35 @@ final class ClipCaptureCoordinator: ObservableObject {
         audioBuffer.append((buffer: buffer, timestamp: now))
         pruneAudioBuffer(before: now.addingTimeInterval(-bufferDuration))
         
+        updateBufferDuration()
+        
         Task { @MainActor in
             self.audioBufferCount = self.audioBuffer.count
+        }
+    }
+    
+    private func updateBufferDuration() {
+        bufferQueue.async { [weak self] in
+            guard let self = self else { return }
+            
+            let now = Date()
+            var minTimestamp = now
+            
+            // Find the oldest timestamp in video buffer
+            if let oldestVideo = self.videoBuffer.min(by: { $0.timestamp < $1.timestamp }) {
+                minTimestamp = min(minTimestamp, oldestVideo.timestamp)
+            }
+            
+            // Find the oldest timestamp in audio buffer
+            if let oldestAudio = self.audioBuffer.min(by: { $0.timestamp < $1.timestamp }) {
+                minTimestamp = min(minTimestamp, oldestAudio.timestamp)
+            }
+            
+            let duration = now.timeIntervalSince(minTimestamp)
+            
+            Task { @MainActor in
+                self.currentBufferDuration = min(duration, self.bufferDuration)
+            }
         }
     }
     
@@ -222,6 +257,7 @@ final class ClipCaptureCoordinator: ObservableObject {
         }
         videoBufferCount = 0
         audioBufferCount = 0
+        currentBufferDuration = 0.0
     }
     
     // MARK: - Clip Export
@@ -291,6 +327,11 @@ final class ClipCaptureCoordinator: ObservableObject {
             throw ClipExportError.alreadyExporting
         }
         
+        // Check if buffer has enough content
+        guard currentBufferDuration >= minimumBufferDuration else {
+            throw ClipExportError.bufferTooShort(currentBufferDuration, minimumBufferDuration)
+        }
+        
         isExporting = true
         defer { isExporting = false }
         
@@ -305,6 +346,7 @@ final class ClipCaptureCoordinator: ObservableObject {
 enum ClipExportError: Error, LocalizedError {
     case noVideoFrames
     case alreadyExporting
+    case bufferTooShort(TimeInterval, TimeInterval)
     case exportFailed(String)
     
     var errorDescription: String? {
@@ -313,6 +355,9 @@ enum ClipExportError: Error, LocalizedError {
             return "No video frames in buffer"
         case .alreadyExporting:
             return "Export already in progress"
+        case .bufferTooShort(let current, let minimum):
+            let remaining = max(0, minimum - current)
+            return String(format: "Buffer too short. Need %.1f more seconds.", remaining)
         case .exportFailed(let reason):
             return "Export failed: \(reason)"
         }

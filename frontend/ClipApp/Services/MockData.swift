@@ -15,7 +15,8 @@ struct MockData {
                 calendarTitle: "Coffee catch-up",
                 locationName: "Cafe Luna",
                 weatherSummary: "72°F"
-            )
+            ),
+            clipState: ClipState(stressLevel: 0.25, focusLevel: 0.45, emotionLabel: "Calm")
         ),
         ClipMetadata(
             id: UUID(),
@@ -30,7 +31,8 @@ struct MockData {
                 calendarTitle: "Demo Day",
                 locationName: "Main Hall",
                 weatherSummary: "68°F"
-            )
+            ),
+            clipState: ClipState(stressLevel: 0.6, focusLevel: 0.82, emotionLabel: "Focused")
         ),
         ClipMetadata(
             id: UUID(),
@@ -44,7 +46,8 @@ struct MockData {
                 calendarTitle: nil,
                 locationName: "Ocean Point",
                 weatherSummary: "Golden hour"
-            )
+            ),
+            clipState: ClipState(stressLevel: 0.12, focusLevel: 0.4, emotionLabel: "Peaceful")
         ),
         ClipMetadata(
             id: UUID(),
@@ -58,7 +61,8 @@ struct MockData {
                 calendarTitle: "Daily Standup",
                 locationName: "Studio A",
                 weatherSummary: nil
-            )
+            ),
+            clipState: ClipState(stressLevel: 0.55, focusLevel: 0.66, emotionLabel: "Alert")
         ),
         ClipMetadata(
             id: UUID(),
@@ -72,7 +76,8 @@ struct MockData {
                 calendarTitle: nil,
                 locationName: "Market Street",
                 weatherSummary: "Breezy"
-            )
+            ),
+            clipState: ClipState(stressLevel: 0.35, focusLevel: 0.5, emotionLabel: "Happy")
         ),
         ClipMetadata(
             id: UUID(),
@@ -86,7 +91,8 @@ struct MockData {
                 calendarTitle: nil,
                 locationName: "Riverside Trail",
                 weatherSummary: "Cool morning"
-            )
+            ),
+            clipState: ClipState(stressLevel: 0.7, focusLevel: 0.62, emotionLabel: "Energized")
         )
     ]
 }

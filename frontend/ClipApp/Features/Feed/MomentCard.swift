@@ -167,6 +167,7 @@ struct MomentCard: View {
         .foregroundStyle(AppColors.textSecondary)
         .lineLimit(1)
     }
+
 }
 
 // MARK: - Moment Card Button Style

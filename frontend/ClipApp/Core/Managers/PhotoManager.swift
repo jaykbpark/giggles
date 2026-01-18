@@ -52,6 +52,26 @@ final class PhotoManager: ObservableObject {
             }
         }
     }
+    
+    /// Get video URL from PHAsset for sharing
+    func getVideoURL(for asset: PHAsset) async throws -> URL {
+        try await withCheckedThrowingContinuation { continuation in
+            let options = PHVideoRequestOptions()
+            options.deliveryMode = .highQualityFormat
+            options.isNetworkAccessAllowed = true
+            
+            PHImageManager.default().requestAVAsset(
+                forVideo: asset,
+                options: options
+            ) { avAsset, _, _ in
+                guard let avAsset = avAsset as? AVURLAsset else {
+                    continuation.resume(throwing: PhotoManagerError.assetNotFound)
+                    return
+                }
+                continuation.resume(returning: avAsset.url)
+            }
+        }
+    }
 }
 
 enum PhotoManagerError: Error {

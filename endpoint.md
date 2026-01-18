@@ -108,22 +108,21 @@ Retrieve full metadata + transcript for a specific video.
 
 ### 4. GET /api/search - Search Videos
 
-Search by natural text OR filter by tags (single endpoint).
+Search by natural text OR filter by tag.
 
 **Query Parameters:**
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `q` | string | Natural language search query |
-| `tags` | JSON array | Tags to filter by |
-| `limit` | integer | Max results (default: 20) |
+| `type` | string | `"tag"` or `"stringsearch"` |
+| `input` | string | The tag name or search query |
 
 **Examples:**
 
 ```
-GET /api/search?q=coffee with sarah
-GET /api/search?tags=["coffee","friends"]
-GET /api/search?q=meeting&tags=["work"]
+GET /api/search?type=stringsearch&input=coffee with sarah
+GET /api/search?type=tag&input=coffee
+GET /api/search?type=stringsearch&input=hackathon demo
 ```
 
 **Response:**

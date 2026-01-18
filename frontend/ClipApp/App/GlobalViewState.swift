@@ -41,6 +41,7 @@ final class GlobalViewState: ObservableObject {
     @Published var clips: [ClipMetadata] = MockData.clips
     @Published var isLoading: Bool = false
     @Published var selectedFeedTab: FeedTab = .all
+    @Published var currentState: ClipState? = nil
     
     // Filter & Sort
     @Published var sortOrder: SortOrder = .recent

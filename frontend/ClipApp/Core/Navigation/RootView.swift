@@ -1,6 +1,7 @@
 import SwiftUI
 import AVFoundation
 import Combine
+import Photos
 
 struct RootView: View {
     @StateObject private var viewState = GlobalViewState()
@@ -14,6 +15,8 @@ struct RootView: View {
     @State private var recordPulse = false
     @State private var recordProgress: Double = 0
     @State private var cancellables = Set<AnyCancellable>()
+    @State private var showBufferTooShortMessage = false
+    @State private var isSavingClip = false
     @Namespace private var namespace
 
     var body: some View {
@@ -24,10 +27,8 @@ struct RootView: View {
             
             // Main content
             VStack(spacing: 0) {
-                // Header
                 headerBar
-                
-                // Glasses Status Card
+
                 GlassesStatusCard(
                     isListening: captureCoordinator.isCapturing,
                     connectionState: glassesManager.connectionState,
@@ -37,12 +38,10 @@ struct RootView: View {
                 )
                 .padding(.horizontal, 20)
                 .padding(.bottom, 8)
-                
-                // Filter Bar
+
                 FilterBar(viewState: viewState)
                     .padding(.bottom, 4)
-                
-                // Feed
+
                 FeedView(
                     viewState: viewState,
                     clips: viewState.filteredClips,
@@ -81,6 +80,29 @@ struct RootView: View {
                     .zIndex(100)
             }
             
+            // Buffer too short message
+            if showBufferTooShortMessage {
+                VStack {
+                    Spacer()
+                    HStack {
+                        Spacer()
+                        Text("Buffer too short. Wait a moment...")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 12)
+                            .background {
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .fill(.black.opacity(0.8))
+                            }
+                            .glassEffect(.regular, in: .rect(cornerRadius: 12))
+                        Spacer()
+                    }
+                    .padding(.bottom, 100)
+                }
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+            
             // Search overlay
             if showSearch {
                 searchOverlay
@@ -115,6 +137,10 @@ struct RootView: View {
     // MARK: - Capture Coordinator Setup
     
     private func setupCaptureCoordinator() async {
+        // Request Photo Library permission for saving clips
+        let photoManager = PhotoManager()
+        await photoManager.requestAuthorization()
+        
         // Set up callback when a clip is exported
         captureCoordinator.onClipExported = { [self] url in
             Task { @MainActor in
@@ -174,14 +200,41 @@ struct RootView: View {
     }
     
     private func handleExportedClip(url: URL) async {
-        // TODO: Save to photo library or upload to backend
         print("📼 Clip exported to: \(url.path)")
         
-        // For now, just log the file size
+        // Log file size
         if let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
            let fileSize = attributes[.size] as? Int64 {
             let sizeInMB = Double(fileSize) / (1024 * 1024)
             print("📼 Clip size: \(String(format: "%.2f", sizeInMB)) MB")
+        }
+        
+        // Save to Photo Library
+        do {
+            let photoManager = PhotoManager()
+            let localIdentifier = try await photoManager.saveVideo(from: url)
+            print("✅ Saved to Photo Library: \(localIdentifier)")
+            
+            // Update the clip's localIdentifier so it can load the thumbnail
+            if let index = viewState.clips.firstIndex(where: { $0.localIdentifier == url.lastPathComponent }) {
+                var updatedClip = viewState.clips[index]
+                updatedClip = ClipMetadata(
+                    id: updatedClip.id,
+                    localIdentifier: localIdentifier,
+                    title: updatedClip.title,
+                    transcript: updatedClip.transcript,
+                    topics: updatedClip.topics,
+                    capturedAt: updatedClip.capturedAt,
+                    duration: updatedClip.duration,
+                    isStarred: updatedClip.isStarred
+                )
+                viewState.clips[index] = updatedClip
+            }
+            
+            // Clean up temp file
+            try? FileManager.default.removeItem(at: url)
+        } catch {
+            print("❌ Failed to save to Photo Library: \(error.localizedDescription)")
         }
     }
     
@@ -292,6 +345,10 @@ struct RootView: View {
                         .font(.system(size: 24, weight: .bold))
                         .foregroundStyle(.white)
                         .transition(.scale.combined(with: .opacity))
+                } else if isSavingClip {
+                    ProgressView()
+                        .tint(.white)
+                        .scaleEffect(0.9)
                 } else {
                     Circle()
                         .fill(.white)
@@ -311,48 +368,76 @@ struct RootView: View {
     }
     
     private func triggerRecording() {
-        HapticManager.playSuccess()
+        // Prevent double-tap
+        guard !isRecording else { return }
+        
+        // Prevent double-tap while saving
+        guard !isSavingClip else { return }
+
+        HapticManager.playLight()
+        
+        // Set recording state immediately
+        isRecording = true
         recordProgress = 0
         recordPulse = false
 
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-            isRecording = true
-        }
-
+        // Animate progress ring
         withAnimation(.linear(duration: 1.0)) {
             recordProgress = 1
         }
 
+        // Pulse animation
         withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) {
             recordPulse = true
         }
         
+        // Reset the UI ring/checkmark after 1s regardless of export time
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
+                isRecording = false
+            }
+            recordPulse = false
+            recordProgress = 0
+        }
+
         // Export the last 30 seconds from the rolling buffer
         Task {
+            await MainActor.run {
+                isSavingClip = true
+            }
+            
             do {
+                if !captureCoordinator.isCapturing {
+                    try await captureCoordinator.startCapture()
+                }
                 let url = try await captureCoordinator.triggerClipExport()
                 await MainActor.run {
-                    addClipToTimeline(exportedURL: url)
+                    captureClip(exportedURL: url)
                 }
                 print("✅ Clip exported: \(url.lastPathComponent)")
+            } catch let error as ClipExportError {
+                print("❌ Export failed: \(error.localizedDescription)")
+                
+                // Show user-friendly error message
+                await MainActor.run {
+                    if case .bufferTooShort = error {
+                        HapticManager.playError()
+                        showBufferTooShortMessage = true
+                        // Auto-dismiss after 2 seconds
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                            withAnimation {
+                                showBufferTooShortMessage = false
+                            }
+                        }
+                    }
+                }
             } catch {
                 print("❌ Export failed: \(error.localizedDescription)")
             }
             
+            // Always reset saving state
             await MainActor.run {
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                    isRecording = false
-                    showRecordConfirmation = true
-                }
-                recordPulse = false
-                recordProgress = 0
-                
-                // Auto-dismiss confirmation
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                    withAnimation(.spring(response: 0.3)) {
-                        showRecordConfirmation = false
-                    }
-                }
+                isSavingClip = false
             }
         }
     }

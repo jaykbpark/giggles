@@ -1,4 +1,5 @@
 import SwiftUI
+import Photos
 
 struct FeedView: View {
     @ObservedObject var viewState: GlobalViewState
@@ -140,10 +141,13 @@ struct ClipCard: View {
     var namespace: Namespace.ID
     let onToggleStar: () -> Void
     
+    @State private var thumbnail: UIImage?
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Thumbnail area
             ZStack {
+                // Background/placeholder
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .fill(
                         LinearGradient(
@@ -153,14 +157,27 @@ struct ClipCard: View {
                         )
                     )
                     .aspectRatio(16/9, contentMode: .fit)
-                    .overlay {
+                
+                // Real thumbnail if loaded
+                if let thumbnail = thumbnail {
+                    Image(uiImage: thumbnail)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(maxWidth: .infinity)
+                        .aspectRatio(16/9, contentMode: .fit)
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                }
+                
+                // Gradient overlay
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(
                         LinearGradient(
                             colors: [.clear, Color.black.opacity(0.35)],
                             startPoint: .center,
                             endPoint: .bottom
                         )
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    }
+                    )
+                    .aspectRatio(16/9, contentMode: .fit)
                 
                 // Play icon
                 Image(systemName: "play.fill")
@@ -168,6 +185,9 @@ struct ClipCard: View {
                     .foregroundStyle(.white.opacity(0.9))
             }
             .matchedGeometryEffect(id: clip.id, in: namespace)
+            .task {
+                await loadThumbnail()
+            }
             .overlay(alignment: .topTrailing) {
                 Button {
                     HapticManager.playLight()
@@ -261,6 +281,37 @@ struct ClipCard: View {
         .font(.system(size: 11, weight: .medium))
         .foregroundStyle(AppColors.textSecondary)
         .lineLimit(1)
+    }
+    
+    private func loadThumbnail() async {
+        // Check if it's a valid Photo Library identifier (contains "/" like "UUID/L0/001")
+        guard clip.localIdentifier.contains("/") || clip.localIdentifier.count > 30 else {
+            // Not a PHAsset identifier (probably a temp filename)
+            return
+        }
+        
+        let result = PHAsset.fetchAssets(withLocalIdentifiers: [clip.localIdentifier], options: nil)
+        guard let asset = result.firstObject else { return }
+        
+        let size = CGSize(width: 400, height: 225) // 16:9 aspect
+        
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            let options = PHImageRequestOptions()
+            options.deliveryMode = .opportunistic
+            options.isNetworkAccessAllowed = true
+            
+            PHImageManager.default().requestImage(
+                for: asset,
+                targetSize: size,
+                contentMode: .aspectFill,
+                options: options
+            ) { image, _ in
+                Task { @MainActor in
+                    self.thumbnail = image
+                }
+                continuation.resume()
+            }
+        }
     }
 }
 

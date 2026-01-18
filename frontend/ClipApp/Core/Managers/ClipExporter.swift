@@ -57,6 +57,8 @@ final class ClipExporter {
         case noVideoFrames
         case invalidPixelBuffer
         case cancelled
+        case trimFailed(String)
+        case exportSessionFailed(String)
         
         var errorDescription: String? {
             switch self {
@@ -72,6 +74,10 @@ final class ClipExporter {
                 return "Invalid pixel buffer"
             case .cancelled:
                 return "Export was cancelled"
+            case .trimFailed(let reason):
+                return "Trim failed: \(reason)"
+            case .exportSessionFailed(let reason):
+                return "Export session failed: \(reason)"
             }
         }
     }
@@ -206,6 +212,113 @@ final class ClipExporter {
             audioBuffers: convertedAudioBuffers,
             config: config
         )
+    }
+    
+    // MARK: - Trim
+    
+    /// Trim a video file to a specific time range using passthrough (no re-encoding)
+    /// - Parameters:
+    ///   - sourceURL: URL of the source video file
+    ///   - startTime: Start time of the trim
+    ///   - endTime: End time of the trim
+    /// - Returns: URL of the trimmed video file
+    func trimClip(sourceURL: URL, startTime: CMTime, endTime: CMTime) async throws -> URL {
+        let asset = AVAsset(url: sourceURL)
+        
+        // Validate time range
+        let duration = try await asset.load(.duration)
+        let clampedStart = CMTimeClampToRange(startTime, range: CMTimeRange(start: .zero, end: duration))
+        let clampedEnd = CMTimeClampToRange(endTime, range: CMTimeRange(start: clampedStart, end: duration))
+        
+        // Create export session with passthrough preset for fast, lossless trim
+        guard let exportSession = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetPassthrough) else {
+            throw ExportError.trimFailed("Could not create export session")
+        }
+        
+        // Create output URL
+        let outputURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("trimmed_\(UUID().uuidString)")
+            .appendingPathExtension("mov")
+        
+        // Remove existing file if any
+        try? FileManager.default.removeItem(at: outputURL)
+        
+        // Configure export session
+        exportSession.outputURL = outputURL
+        exportSession.outputFileType = .mov
+        exportSession.timeRange = CMTimeRange(start: clampedStart, end: clampedEnd)
+        
+        // Export
+        await exportSession.export()
+        
+        // Check for errors
+        switch exportSession.status {
+        case .completed:
+            print("✂️ Trimmed clip to: \(outputURL.lastPathComponent)")
+            return outputURL
+        case .failed:
+            throw ExportError.exportSessionFailed(exportSession.error?.localizedDescription ?? "Unknown error")
+        case .cancelled:
+            throw ExportError.cancelled
+        default:
+            throw ExportError.exportSessionFailed("Unexpected export status: \(exportSession.status.rawValue)")
+        }
+    }
+    
+    /// Trim a video file and optionally re-encode with specific quality settings
+    /// - Parameters:
+    ///   - sourceURL: URL of the source video file
+    ///   - startTime: Start time of the trim
+    ///   - endTime: End time of the trim
+    ///   - preset: Export preset (default: high quality)
+    /// - Returns: URL of the trimmed video file
+    func trimClipWithReencode(
+        sourceURL: URL,
+        startTime: CMTime,
+        endTime: CMTime,
+        preset: String = AVAssetExportPresetHighestQuality
+    ) async throws -> URL {
+        let asset = AVAsset(url: sourceURL)
+        
+        // Validate time range
+        let duration = try await asset.load(.duration)
+        let clampedStart = CMTimeClampToRange(startTime, range: CMTimeRange(start: .zero, end: duration))
+        let clampedEnd = CMTimeClampToRange(endTime, range: CMTimeRange(start: clampedStart, end: duration))
+        
+        // Create export session
+        guard let exportSession = AVAssetExportSession(asset: asset, presetName: preset) else {
+            throw ExportError.trimFailed("Could not create export session with preset: \(preset)")
+        }
+        
+        // Create output URL
+        let outputURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("trimmed_\(UUID().uuidString)")
+            .appendingPathExtension("mp4")
+        
+        // Remove existing file if any
+        try? FileManager.default.removeItem(at: outputURL)
+        
+        // Configure export session
+        exportSession.outputURL = outputURL
+        exportSession.outputFileType = .mp4
+        exportSession.timeRange = CMTimeRange(start: clampedStart, end: clampedEnd)
+        exportSession.shouldOptimizeForNetworkUse = true
+        
+        // Export
+        await exportSession.export()
+        
+        // Check for errors
+        switch exportSession.status {
+        case .completed:
+            print("✂️ Trimmed and re-encoded clip to: \(outputURL.lastPathComponent)")
+            return outputURL
+        case .failed:
+            throw ExportError.exportSessionFailed(exportSession.error?.localizedDescription ?? "Unknown error")
+        case .cancelled:
+            throw ExportError.cancelled
+        default:
+            throw ExportError.exportSessionFailed("Unexpected export status: \(exportSession.status.rawValue)")
+        }
     }
     
     // MARK: - Private Methods

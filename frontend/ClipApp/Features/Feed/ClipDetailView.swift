@@ -13,6 +13,13 @@ struct ClipDetailView: View {
     @State private var showControls = true
     @State private var controlsTimer: Timer?
     
+    // Video player state
+    @State private var player: AVPlayer?
+    @State private var videoURL: URL?
+    @State private var isLoadingVideo = true
+    @State private var videoLoadError: String?
+    @State private var timeObserver: Any?
+    
     // Audio narration state
     @State private var audioPlayer: AVPlayer?
     @State private var isPlayingAudio = false
@@ -22,6 +29,11 @@ struct ClipDetailView: View {
     // Share state
     @State private var showShareSheet = false
     @State private var shareItems: [Any] = []
+    
+    // Caption state
+    @State private var showCaptions = true
+    @State private var currentPlaybackTime: TimeInterval = 0
+    @State private var playbackTimer: Timer?
     
     private let photoManager = PhotoManager()
 
@@ -52,10 +64,11 @@ struct ClipDetailView: View {
         .ignoresSafeArea(.all)
         .statusBarHidden(true)
         .onAppear {
-            isPlaying = true
             startControlsTimer()
+            loadVideo()
         }
         .onDisappear {
+            cleanupPlayer()
             controlsTimer?.invalidate()
             stopAudio()
         }
@@ -89,21 +102,146 @@ struct ClipDetailView: View {
         }
     }
     
+    // MARK: - Video Loading
+    
+    private func loadVideo() {
+        isLoadingVideo = true
+        videoLoadError = nil
+        
+        Task {
+            do {
+                // For mock clips (no Photo Library entry), simulate playback
+                if currentClip.localIdentifier.hasPrefix("mock-") || currentClip.localIdentifier.hasSuffix(".mov") {
+                    await MainActor.run {
+                        isLoadingVideo = false
+                        isPlaying = true
+                        startPlaybackTimer()
+                    }
+                    return
+                }
+                
+                // Fetch video from Photo Library
+                guard let asset = photoManager.fetchAsset(for: currentClip.localIdentifier) else {
+                    throw PhotoManagerError.assetNotFound
+                }
+                let url = try await photoManager.getVideoURL(for: asset)
+                await MainActor.run {
+                    videoURL = url
+                    setupPlayer(with: url)
+                }
+            } catch {
+                await MainActor.run {
+                    videoLoadError = error.localizedDescription
+                    isLoadingVideo = false
+                    // Start simulated playback for testing
+                    startPlaybackTimer()
+                }
+            }
+        }
+    }
+    
+    private func setupPlayer(with url: URL) {
+        let playerItem = AVPlayerItem(url: url)
+        player = AVPlayer(playerItem: playerItem)
+        
+        // Add time observer for captions
+        timeObserver = player?.addPeriodicTimeObserver(
+            forInterval: CMTime(seconds: 0.1, preferredTimescale: 600),
+            queue: .main
+        ) { [self] time in
+            currentPlaybackTime = time.seconds
+        }
+        
+        // Loop video
+        NotificationCenter.default.addObserver(
+            forName: .AVPlayerItemDidPlayToEndTime,
+            object: playerItem,
+            queue: .main
+        ) { _ in
+            player?.seek(to: .zero)
+            player?.play()
+        }
+        
+        isLoadingVideo = false
+        isPlaying = true
+        player?.play()
+    }
+    
+    private func cleanupPlayer() {
+        if let observer = timeObserver {
+            player?.removeTimeObserver(observer)
+            timeObserver = nil
+        }
+        player?.pause()
+        player = nil
+        playbackTimer?.invalidate()
+        playbackTimer = nil
+    }
+    
+    private func startPlaybackTimer() {
+        // Simulated playback for clips without actual video
+        playbackTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
+            if isPlaying {
+                currentPlaybackTime += 0.1
+                if currentPlaybackTime >= currentClip.duration {
+                    currentPlaybackTime = 0
+                }
+            }
+        }
+    }
+    
+    private func togglePlayback() {
+        isPlaying.toggle()
+        if isPlaying {
+            player?.play()
+        } else {
+            player?.pause()
+        }
+    }
+    
 
     private var videoPlayerArea: some View {
         ZStack {
-            // Dark gradient background (placeholder for actual video)
+            // Dark gradient background
             LinearGradient(
                 colors: [Color(white: 0.1), Color(white: 0.05)],
                 startPoint: .top,
                 endPoint: .bottom
             )
             
-            // Placeholder content - replace with actual AVPlayer
-            VStack(spacing: 16) {
-                Image(systemName: "video.fill")
-                    .font(.system(size: 48, weight: .light))
-                    .foregroundStyle(.white.opacity(0.3))
+            // Video player or placeholder
+            if isLoadingVideo {
+                ProgressView()
+                    .progressViewStyle(.circular)
+                    .tint(.white)
+                    .scaleEffect(1.5)
+            } else if let player = player {
+                VideoPlayer(player: player)
+                    .disabled(true) // Disable default controls
+            } else {
+                // Fallback placeholder for clips without video
+                VStack(spacing: 16) {
+                    Image(systemName: "video.fill")
+                        .font(.system(size: 48, weight: .light))
+                        .foregroundStyle(.white.opacity(0.3))
+                    
+                    if let error = videoLoadError {
+                        Text(error)
+                            .font(.caption)
+                            .foregroundStyle(.white.opacity(0.5))
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal)
+                    }
+                }
+            }
+            
+            // Caption overlay
+            if showCaptions, let segments = currentClip.captionSegments, !segments.isEmpty {
+                CaptionOverlayView(
+                    segments: segments,
+                    currentTime: currentPlaybackTime,
+                    style: currentClip.captionStyle ?? CaptionStyle()
+                )
             }
         }
     }
@@ -135,7 +273,7 @@ struct ClipDetailView: View {
             // Center play/pause button - absolutely centered
             Button {
                 HapticManager.playLight()
-                isPlaying.toggle()
+                togglePlayback()
                 startControlsTimer()
             } label: {
                 ZStack {
@@ -208,6 +346,21 @@ struct ClipDetailView: View {
                             .glassEffect(.regular.interactive(), in: .circle)
                     }
                     .accessibilityLabel(currentClip.isStarred ? "Remove star" : "Star clip")
+                    
+                    // Caption toggle button
+                    if currentClip.captionSegments != nil {
+                        Button {
+                            HapticManager.playLight()
+                            showCaptions.toggle()
+                        } label: {
+                            Image(systemName: showCaptions ? "captions.bubble.fill" : "captions.bubble")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(showCaptions ? AppColors.accent : .white)
+                                .frame(width: 40, height: 40)
+                                .glassEffect(.regular.interactive(), in: .circle)
+                        }
+                        .accessibilityLabel(showCaptions ? "Hide captions" : "Show captions")
+                    }
 
                     // Close button
                     Button(action: close) {

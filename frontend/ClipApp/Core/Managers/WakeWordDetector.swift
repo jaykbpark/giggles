@@ -8,7 +8,7 @@ struct TranscriptSegment {
     let timestamp: Date
 }
 
-/// Detects "Clip That" wake word from an audio stream using iOS Speech Recognition
+/// Detects "Clip That" and "Hey Clip" wake phrases from an audio stream using iOS Speech Recognition
 /// and maintains a rolling 30-second transcript buffer
 @MainActor
 final class WakeWordDetector: ObservableObject {
@@ -18,11 +18,15 @@ final class WakeWordDetector: ObservableObject {
     @Published private(set) var authorizationStatus: SFSpeechRecognizerAuthorizationStatus = .notDetermined
     @Published private(set) var currentTranscript: String = ""
     @Published private(set) var error: WakeWordError?
+    @Published private(set) var isProcessingQuestion: Bool = false
     
-    // MARK: - Callback
+    // MARK: - Callbacks
     
     /// Called when "Clip That" is detected, passes the last 30 seconds of transcript
     var onClipTriggered: ((String) -> Void)?
+    
+    /// Called when "Hey Clip" is detected, passes the question that follows
+    var onQuestionAsked: ((String) -> Void)?
     
     // MARK: - Transcript Buffer
     
@@ -51,8 +55,14 @@ final class WakeWordDetector: ObservableObject {
     private var sessionRestartTimer: Timer?
     private let sessionDuration: TimeInterval = 50.0
     
-    /// The wake phrase to detect (case-insensitive)
-    private let wakePhrase = "clip that"
+    /// The wake phrase for clip capture (case-insensitive)
+    private let clipPhrase = "clip that"
+    
+    /// The wake phrase for asking questions (case-insensitive)
+    private let questionPhrase = "hey clip"
+    
+    /// Track if we've already processed the current question to avoid duplicates
+    private var lastProcessedQuestion: String = ""
     
     // MARK: - Initialization
     
@@ -159,8 +169,14 @@ final class WakeWordDetector: ObservableObject {
         // Update the transcript buffer with the current session's transcript
         updateTranscriptBuffer(with: transcription)
         
-        // Check for wake phrase (case-insensitive)
-        if transcription.lowercased().contains(wakePhrase) {
+        let lowercased = transcription.lowercased()
+        
+        // Check for "Hey Clip" question phrase first (higher priority)
+        if lowercased.contains(questionPhrase) {
+            triggerQuestion(from: transcription)
+        }
+        // Check for "Clip That" capture phrase
+        else if lowercased.contains(clipPhrase) {
             triggerClip()
         }
     }
@@ -195,7 +211,7 @@ final class WakeWordDetector: ObservableObject {
         
         // Remove the wake phrase from the end if present
         let lowercased = fullTranscript.lowercased()
-        if let range = lowercased.range(of: wakePhrase, options: .backwards) {
+        if let range = lowercased.range(of: clipPhrase, options: .backwards) {
             let startIndex = fullTranscript.index(fullTranscript.startIndex, offsetBy: lowercased.distance(from: lowercased.startIndex, to: range.lowerBound))
             fullTranscript = String(fullTranscript[..<startIndex]).trimmingCharacters(in: .whitespaces)
         }
@@ -223,6 +239,46 @@ final class WakeWordDetector: ObservableObject {
         
         // Fire callback with the transcript
         onClipTriggered?(transcript)
+    }
+    
+    private func triggerQuestion(from transcription: String) {
+        // Extract the question (everything after "hey clip")
+        let lowercased = transcription.lowercased()
+        guard let range = lowercased.range(of: questionPhrase) else { return }
+        
+        // Get text after "hey clip"
+        let afterPhrase = String(transcription[range.upperBound...]).trimmingCharacters(in: .whitespaces)
+        
+        // Don't process empty questions or the same question twice
+        guard !afterPhrase.isEmpty else { return }
+        guard afterPhrase != lastProcessedQuestion else { return }
+        
+        // Check cooldown
+        if let lastTrigger = lastTriggerTime,
+           Date().timeIntervalSince(lastTrigger) < triggerCooldown {
+            return
+        }
+        
+        lastTriggerTime = Date()
+        lastProcessedQuestion = afterPhrase
+        isProcessingQuestion = true
+        
+        // Fire callback with the question
+        onQuestionAsked?(afterPhrase)
+        
+        // Reset processing state after a delay (will be set to false when response completes)
+        Task {
+            try? await Task.sleep(nanoseconds: 500_000_000) // 0.5s minimum
+        }
+    }
+    
+    /// Call this when question processing is complete
+    func questionProcessingComplete() {
+        isProcessingQuestion = false
+        lastProcessedQuestion = ""
+        
+        // Restart session to clear the transcription and listen fresh
+        restartRecognitionSession()
     }
     
     private func saveCurrentSessionTranscript() {

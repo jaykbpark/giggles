@@ -40,4 +40,4 @@ iOSInjectionProject/
 .cursor/
 .env
 # App-specific secrets
-**/Info.plist
+**/Info.Plist 

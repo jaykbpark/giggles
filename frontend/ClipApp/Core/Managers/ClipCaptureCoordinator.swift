@@ -218,6 +218,7 @@ final class ClipCaptureCoordinator: ObservableObject {
         
         // Set up subscriptions FIRST so we capture frames as soon as streams start
         setupVideoSubscription()
+        setupConnectionSubscription()
         
         // =====================================================================
         // CRITICAL: HFP/Audio MUST be configured BEFORE starting video stream
@@ -335,6 +336,31 @@ final class ClipCaptureCoordinator: ObservableObject {
         
         print("🎤 Audio subscriptions set up")
     }
+
+    /// Auto-start video stream when glasses finish connecting
+    private func setupConnectionSubscription() {
+        glassesManager.connectionStatePublisher
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] state in
+                guard let self else { return }
+                guard self.isCapturing else { return }
+
+                if case .connected = state {
+                    Task { @MainActor in
+                        if !self.glassesManager.isVideoStreaming {
+                            do {
+                                print("📹 [Stream] Connection established - starting video stream...")
+                                try await self.glassesManager.startVideoStream()
+                                print("📹 [Stream] Video stream started after connect")
+                            } catch {
+                                print("⚠️ [Stream] Auto-start after connect failed: \(error.localizedDescription)")
+                            }
+                        }
+                    }
+                }
+            }
+            .store(in: &cancellables)
+    }
     
     // MARK: - Buffer Management
     
@@ -367,6 +393,29 @@ final class ClipCaptureCoordinator: ObservableObject {
         let width = CVPixelBufferGetWidth(source)
         let height = CVPixelBufferGetHeight(source)
         let pixelFormat = CVPixelBufferGetPixelFormatType(source)
+        
+        guard width > 0, height > 0 else {
+            print("⚠️ Invalid pixel buffer dimensions: \(width)x\(height)")
+            return nil
+        }
+        
+        if CVPixelBufferIsPlanar(source) {
+            let planeCount = CVPixelBufferGetPlaneCount(source)
+            for plane in 0..<planeCount {
+                let planeHeight = CVPixelBufferGetHeightOfPlane(source, plane)
+                let bytesPerRow = CVPixelBufferGetBytesPerRowOfPlane(source, plane)
+                if planeHeight <= 0 || bytesPerRow <= 0 {
+                    print("⚠️ Invalid pixel buffer plane \(plane): height=\(planeHeight), bytesPerRow=\(bytesPerRow)")
+                    return nil
+                }
+            }
+        } else {
+            let bytesPerRow = CVPixelBufferGetBytesPerRow(source)
+            if bytesPerRow <= 0 {
+                print("⚠️ Invalid pixel buffer bytesPerRow: \(bytesPerRow)")
+                return nil
+            }
+        }
         
         var copy: CVPixelBuffer?
         let attrs: [CFString: Any] = [
@@ -427,6 +476,27 @@ final class ClipCaptureCoordinator: ObservableObject {
         }
         
         return destination
+    }
+    
+    private func isValidPixelBuffer(_ buffer: CVPixelBuffer) -> Bool {
+        let width = CVPixelBufferGetWidth(buffer)
+        let height = CVPixelBufferGetHeight(buffer)
+        guard width > 0, height > 0 else { return false }
+        
+        if CVPixelBufferIsPlanar(buffer) {
+            let planeCount = CVPixelBufferGetPlaneCount(buffer)
+            for plane in 0..<planeCount {
+                let planeHeight = CVPixelBufferGetHeightOfPlane(buffer, plane)
+                let bytesPerRow = CVPixelBufferGetBytesPerRowOfPlane(buffer, plane)
+                if planeHeight <= 0 || bytesPerRow <= 0 {
+                    return false
+                }
+            }
+        } else if CVPixelBufferGetBytesPerRow(buffer) <= 0 {
+            return false
+        }
+        
+        return true
     }
     
     private func appendAudioBuffer(_ buffer: TimestampedAudioBuffer) {
@@ -528,7 +598,7 @@ final class ClipCaptureCoordinator: ObservableObject {
     
     private func exportCurrentBuffer() async throws -> URL {
         // Capture current buffer contents on the buffer queue
-        let (videoFrames, _) = bufferQueue.sync {
+        let (videoFrames, audioBuffers) = bufferQueue.sync {
             (
                 videoBuffer.map { ($0.frame.pixelBuffer, $0.frame.hostTime) },
                 audioBuffer.map { $0.buffer }
@@ -539,26 +609,64 @@ final class ClipCaptureCoordinator: ObservableObject {
             throw ClipExportError.noVideoFrames
         }
         
-        print("🎬 Exporting \(videoFrames.count) frames...")
+        let validVideoFrames = videoFrames.filter { isValidPixelBuffer($0.0) }
+        if validVideoFrames.count != videoFrames.count {
+            print("⚠️ Dropped \(videoFrames.count - validVideoFrames.count) invalid video frames before export")
+        }
+        
+        guard !validVideoFrames.isEmpty else {
+            throw ClipExportError.noVideoFrames
+        }
+        
+        print("🎬 Exporting \(validVideoFrames.count) frames...")
+        let exportFrameRate = 15
+        let baseHostTime = min(
+            validVideoFrames.first?.1 ?? 0,
+            audioBuffers.first?.hostTime ?? UInt64.max
+        )
         
         // Try ProRes first (more lenient about formats)
         do {
             print("🎬 Trying ProRes export...")
             let videoURL = try await ffmpegExporter.exportWithProRes(
-                frames: videoFrames,
-                frameRate: 30
+                frames: validVideoFrames,
+                frameRate: exportFrameRate
             )
-            lastExportedIsPortrait = false
-            return videoURL
+            do {
+                // Save a master .mov with passthrough (minimal compression)
+                let masterURL = try await ffmpegExporter.muxVideoWithAudio(
+                    videoURL: videoURL,
+                    audioBuffers: audioBuffers,
+                    baseHostTime: baseHostTime,
+                    outputFileType: .mov,
+                    preset: AVAssetExportPresetPassthrough
+                )
+                print("✅ ProRes master created: \(masterURL.lastPathComponent)")
+                lastExportedIsPortrait = false
+                return masterURL
+            } catch {
+                print("⚠️ ProRes passthrough mux failed: \(error.localizedDescription)")
+                print("🎬 Falling back to MP4 highest quality...")
+                let muxedURL = try await ffmpegExporter.muxVideoWithAudio(
+                    videoURL: videoURL,
+                    audioBuffers: audioBuffers,
+                    baseHostTime: baseHostTime,
+                    outputFileType: .mp4,
+                    preset: AVAssetExportPresetHighestQuality
+                )
+                lastExportedIsPortrait = false
+                return muxedURL
+            }
         } catch {
             print("⚠️ ProRes failed: \(error.localizedDescription)")
             print("🎬 Falling back to JPEG sequence...")
         }
         
-        // Fallback to JPEG sequence
+        // Fallback to JPEG sequence (with audio mux)
         let videoURL = try await ffmpegExporter.exportAsImageSequence(
-            frames: videoFrames,
-            frameRate: 30
+            frames: validVideoFrames,
+            audioBuffers: audioBuffers,
+            frameRate: exportFrameRate
         )
         
         lastExportedIsPortrait = false

@@ -279,6 +279,9 @@ struct RootView: View {
     private var overlaysContent: some View {
         // Live glasses preview
         glassesPreviewOverlay
+
+        // Clip processing indicator
+        processingIndicator
         
         // Detail view overlay with vertical paging
         if let clip = selectedClip {
@@ -312,6 +315,44 @@ struct RootView: View {
         
         // Toast messages
         toastMessages
+    }
+
+    private var processingIndicator: some View {
+        VStack {
+            if isSavingClip || captureCoordinator.isExporting {
+                HStack(spacing: 10) {
+                    ProgressView(value: captureCoordinator.exportProgress)
+                        .progressViewStyle(.linear)
+                        .frame(width: 80)
+                    
+                    Text("Processing clip")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(AppColors.textPrimary)
+                    
+                    if captureCoordinator.exportTotalFrames > 0 {
+                        Text("\(Int(captureCoordinator.exportProgress * 100))%")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(AppColors.textSecondary)
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(AppColors.warmSurface)
+                .glassEffect(in: .rect(cornerRadius: 14))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(AppColors.timelineLine.opacity(0.35), lineWidth: 1)
+                }
+                .shadow(color: .black.opacity(0.08), radius: 10, y: 6)
+                .transition(.move(edge: .top).combined(with: .opacity))
+                .padding(.top, 12)
+            }
+            
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .zIndex(250)
+        .animation(.easeInOut(duration: 0.2), value: isSavingClip || captureCoordinator.isExporting)
     }
     
     @ViewBuilder
@@ -528,10 +569,18 @@ struct RootView: View {
             print("📼 Clip size: \(String(format: "%.2f", sizeInMB)) MB")
         }
         
+        // Persist master file in app sandbox for high-quality playback
+        let localURL = persistClipToDocuments(from: url)
+        if let localURL {
+            print("✅ Saved master to local storage: \(localURL.lastPathComponent)")
+        } else {
+            print("⚠️ Failed to save master locally, proceeding with temp file")
+        }
+        
         // Save to Photo Library
         do {
             let photoManager = PhotoManager()
-            let localIdentifier = try await photoManager.saveVideo(from: url)
+            let localIdentifier = try await photoManager.saveVideo(from: localURL ?? url)
             print("✅ Saved to Photo Library: \(localIdentifier)")
             
             // Update the clip's localIdentifier so it can load the thumbnail
@@ -557,8 +606,15 @@ struct RootView: View {
                     capturedAt: updatedClip.capturedAt,
                     duration: updatedClip.duration,
                     isStarred: updatedClip.isStarred,
+                    context: updatedClip.context,
+                    audioNarrationURL: updatedClip.audioNarrationURL,
+                    clipState: updatedClip.clipState,
+                    thumbnailBase64: updatedClip.thumbnailBase64,
+                    isPortrait: updatedClip.isPortrait,
+                    localFileURL: localURL?.path ?? updatedClip.localFileURL,
                     captionSegments: captionSegments,
-                    showCaptions: true
+                    showCaptions: true,
+                    captionStyle: updatedClip.captionStyle
                 )
                 viewState.clips[index] = updatedClip
             }
@@ -573,8 +629,10 @@ struct RootView: View {
                 }
             }
             
-            // Clean up temp file
-            try? FileManager.default.removeItem(at: url)
+            // Clean up temp file if we copied to local storage
+            if let localURL, localURL != url {
+                try? FileManager.default.removeItem(at: url)
+            }
         } catch {
             print("❌ Failed to save to Photo Library: \(error.localizedDescription)")
             
@@ -589,6 +647,54 @@ struct RootView: View {
                     showPhotoSaveError = false
                 }
             }
+            
+            // Even if Photos save fails, keep local master for playback
+            if let localURL,
+               let index = viewState.clips.firstIndex(where: { $0.localIdentifier == url.lastPathComponent }) {
+                let updatedClip = viewState.clips[index]
+                viewState.clips[index] = ClipMetadata(
+                    id: updatedClip.id,
+                    localIdentifier: updatedClip.localIdentifier,
+                    title: updatedClip.title,
+                    transcript: updatedClip.transcript,
+                    topics: updatedClip.topics,
+                    capturedAt: updatedClip.capturedAt,
+                    duration: updatedClip.duration,
+                    isStarred: updatedClip.isStarred,
+                    context: updatedClip.context,
+                    audioNarrationURL: updatedClip.audioNarrationURL,
+                    clipState: updatedClip.clipState,
+                    thumbnailBase64: updatedClip.thumbnailBase64,
+                    isPortrait: updatedClip.isPortrait,
+                    localFileURL: localURL.path,
+                    captionSegments: updatedClip.captionSegments,
+                    showCaptions: updatedClip.showCaptions,
+                    captionStyle: updatedClip.captionStyle
+                )
+            }
+        }
+    }
+    
+    private func persistClipToDocuments(from url: URL) -> URL? {
+        do {
+            let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
+            guard let docs else { return nil }
+            
+            let clipsDir = docs.appendingPathComponent("Clips", isDirectory: true)
+            try FileManager.default.createDirectory(at: clipsDir, withIntermediateDirectories: true)
+            
+            let ext = url.pathExtension.isEmpty ? "mov" : url.pathExtension
+            let destURL = clipsDir.appendingPathComponent("clip_\(UUID().uuidString).\(ext)")
+            
+            if FileManager.default.fileExists(atPath: destURL.path) {
+                try FileManager.default.removeItem(at: destURL)
+            }
+            
+            try FileManager.default.copyItem(at: url, to: destURL)
+            return destURL
+        } catch {
+            print("⚠️ Failed to persist clip locally: \(error.localizedDescription)")
+            return nil
         }
     }
     
@@ -627,6 +733,7 @@ struct RootView: View {
             topics: ["Clip"],
             capturedAt: Date(),
             duration: duration,
+            localFileURL: exportedURL.path,
             captionSegments: captionSegments,
             showCaptions: captionSegments != nil
         )
@@ -968,7 +1075,7 @@ struct RootView: View {
         buttonBounceScale = 1.0
 
         // Animate progress ring
-        withAnimation(.linear(duration: 1.0)) {
+        withAnimation(.linear(duration: 3.0)) {
             recordProgress = 1
         }
 
@@ -977,8 +1084,8 @@ struct RootView: View {
             recordPulse = true
         }
         
-        // Reset the UI ring/checkmark after 1s regardless of export time
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+        // Reset the UI ring/checkmark after 3s regardless of export time
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
             // Trigger completion burst animation
             showCompletionBurst = true
             completionOpacity = 1.0

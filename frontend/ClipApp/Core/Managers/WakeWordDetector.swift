@@ -33,6 +33,10 @@ final class WakeWordDetector: ObservableObject {
     /// Rolling buffer of transcript segments
     private var transcriptBuffer: [TranscriptSegment] = []
     
+    /// Track segments already appended for the current recognition session
+    private var lastSegmentIndex: Int = 0
+    private var currentSessionStartTime: Date?
+    
     /// How long to keep transcript segments (30 seconds)
     private let bufferDuration: TimeInterval = 30.0
     
@@ -139,6 +143,8 @@ final class WakeWordDetector: ObservableObject {
         }
         
         recognitionRequest = request
+        currentSessionStartTime = Date()
+        lastSegmentIndex = 0
         
         // Start recognition task
         recognitionTask = speechRecognizer?.recognitionTask(with: request) { [weak self] result, error in
@@ -166,8 +172,9 @@ final class WakeWordDetector: ObservableObject {
         let transcription = result.bestTranscription.formattedString
         currentTranscript = transcription
         
-        // Update the transcript buffer with the current session's transcript
-        updateTranscriptBuffer(with: transcription)
+        // Append new transcript segments and prune old ones
+        appendTranscriptSegments(from: result)
+        pruneTranscriptBuffer()
         
         let lowercased = transcription.lowercased()
         
@@ -181,33 +188,41 @@ final class WakeWordDetector: ObservableObject {
         }
     }
     
-    private func updateTranscriptBuffer(with currentSessionTranscript: String) {
+    private func appendTranscriptSegments(from result: SFSpeechRecognitionResult) {
+        guard let sessionStart = currentSessionStartTime else { return }
+        
+        let segments = result.bestTranscription.segments
+        if segments.count < lastSegmentIndex {
+            // Recognition session reset or corrected significantly; start fresh for this session
+            lastSegmentIndex = 0
+        }
+        
+        guard lastSegmentIndex < segments.count else { return }
+        
+        for segment in segments[lastSegmentIndex...] {
+            let segmentTime = sessionStart.addingTimeInterval(segment.timestamp)
+            transcriptBuffer.append(
+                TranscriptSegment(text: segment.substring, timestamp: segmentTime)
+            )
+        }
+        
+        lastSegmentIndex = segments.count
+    }
+    
+    private func pruneTranscriptBuffer() {
         // Clean up old segments beyond 30 seconds
         let cutoffTime = Date().addingTimeInterval(-bufferDuration)
         transcriptBuffer.removeAll { $0.timestamp < cutoffTime }
-        
-        // Also remove previous session transcript if it's too old
-        if previousSessionTimestamp < cutoffTime {
-            previousSessionTranscript = ""
-        }
     }
     
     private func buildTranscriptFromBuffer() -> String {
-        var fullTranscript = ""
-        
-        // Add previous session transcript if still within window
         let cutoffTime = Date().addingTimeInterval(-bufferDuration)
-        if previousSessionTimestamp >= cutoffTime && !previousSessionTranscript.isEmpty {
-            fullTranscript = previousSessionTranscript
-        }
+        let recentSegments = transcriptBuffer
+            .filter { $0.timestamp >= cutoffTime }
+            .map { $0.text.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
         
-        // Add current session transcript
-        if !currentTranscript.isEmpty {
-            if !fullTranscript.isEmpty {
-                fullTranscript += " "
-            }
-            fullTranscript += currentTranscript
-        }
+        var fullTranscript = recentSegments.joined(separator: " ")
         
         // Remove the wake phrase from the end if present
         let lowercased = fullTranscript.lowercased()
@@ -313,7 +328,7 @@ final class WakeWordDetector: ObservableObject {
         stopSessionRestartTimer()
         
         sessionRestartTimer = Timer.scheduledTimer(withTimeInterval: sessionDuration, repeats: true) { [weak self] _ in
-            Task { @MainActor in
+            Task { @MainActor [weak self] in
                 self?.restartRecognitionSession()
             }
         }

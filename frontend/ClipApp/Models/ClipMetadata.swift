@@ -88,6 +88,9 @@ struct ClipMetadata: Identifiable, Codable, Hashable, Sendable {
     // Video orientation - portrait clips are center-cropped from landscape
     var isPortrait: Bool = false
     
+    // Local file URL for master-quality playback (saved in app sandbox)
+    var localFileURL: String? = nil
+    
     // Caption support
     var captionSegments: [CaptionSegment]? = nil // Timed caption chunks
     var showCaptions: Bool = true // User preference for showing captions

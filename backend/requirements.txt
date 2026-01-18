@@ -3,3 +3,4 @@ pymilvus[milvus_lite]
 pydantic
 fastapi
 fastapi[standard]
+ffmpeg-python

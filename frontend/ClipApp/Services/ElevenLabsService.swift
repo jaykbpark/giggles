@@ -12,9 +12,9 @@ actor ElevenLabsService {
     private let baseURL = URL(string: "https://api.elevenlabs.io/v1")!
     
     // Voice ID for Memory Assistant
-    // "Charlotte" - warm, calm, nurturing voice - ideal for Alzheimer's/memory care
+    // "Charlotte" - clear, friendly voice
     // Alternative: "Rachel" (21m00Tcm4TlvDq8ikWAM) - neutral, versatile
-    private let defaultVoiceId = "XB0fDUnXU5powFXDhCwa" // Charlotte - warm & caring
+    private let defaultVoiceId = "XB0fDUnXU5powFXDhCwa" // Charlotte
     
     // MARK: - Cache
     
@@ -112,13 +112,14 @@ actor ElevenLabsService {
             throw ElevenLabsError.apiKeyMissing
         }
         
-        // Use multilingual_v2 for highest quality (warm, natural voice for memory assistant)
-        // Trade-off: slightly higher latency but much better quality for care context
+        // Use turbo_v2_5 for faster, more accurate/literal TTS
+        // multilingual_v2 can sometimes paraphrase or change words
+        print("🔊 ElevenLabs speakText: Sending exact text: \"\(text)\"")
         let audioURL = try await generateAudio(
             text: text,
             voiceId: defaultVoiceId,
-            modelId: "eleven_multilingual_v2",
-            voiceSettings: VoiceSettings.warmCaring  // Optimized for gentle delivery
+            modelId: "eleven_turbo_v2_5",  // More literal/accurate than multilingual_v2
+            voiceSettings: VoiceSettings.accurate  // Optimized for accuracy
         )
         
         // Cache if key provided
@@ -297,14 +298,22 @@ private struct VoiceSettings {
         speed: 1.0
     )
     
-    // Optimized for warm, caring delivery (Alzheimer's/memory care context)
-    // Slightly faster (1.15x) for more natural conversational pace
+    // Conversational, natural delivery
     static let warmCaring = VoiceSettings(
-        stability: 0.60,        // Slightly less stable for more natural variation
-        similarityBoost: 0.80,  // Clear voice reproduction
-        style: 0.15,            // Slight expressiveness without being dramatic
+        stability: 0.60,        // Natural variation
+        similarityBoost: 0.80,  // Clear voice
+        style: 0.15,            // Slight expressiveness
         useSpeakerBoost: true,
-        speed: 1.15             // 15% faster - more conversational
+        speed: 1.15             // Conversational pace
+    )
+    
+    // Optimized for accurate, literal speech (less creative interpretation)
+    static let accurate = VoiceSettings(
+        stability: 0.85,        // High stability = more consistent/literal
+        similarityBoost: 0.90,  // High similarity = clearer reproduction
+        style: 0.0,             // No style variation = more literal
+        useSpeakerBoost: true,
+        speed: 1.0              // Normal speed for clarity
     )
 }
 

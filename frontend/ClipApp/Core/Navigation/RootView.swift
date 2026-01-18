@@ -2,6 +2,7 @@ import SwiftUI
 import AVFoundation
 import Combine
 import Photos
+import PhotosUI
 import CoreMedia
 
 struct RootView: View {
@@ -34,7 +35,16 @@ struct RootView: View {
     @State private var photoSaveErrorText = ""
     @State private var showExportErrorMessage = false
     @State private var exportErrorText = ""
+    @State private var showImportErrorMessage = false
+    @State private var importErrorText = ""
     @State private var selectedTab: AppTab = .clips
+    @State private var selectedVideoItem: PhotosPickerItem?
+    
+    // Import flow state
+    @State private var showImportTitleSheet = false
+    @State private var importTitle = ""
+    @State private var pendingImportClip: ClipMetadata?
+    @State private var pendingImportURL: URL?
     
     // Trim view state
     @State private var showTrimView = false
@@ -127,6 +137,9 @@ struct RootView: View {
         // The Ask tab uses its own audio session for speech recognition,
         // so we need to reclaim the audio session for wake word detection
         .onChange(of: selectedTab) { oldTab, newTab in
+            if oldTab == .clips && newTab == .ask {
+                captureCoordinator.pauseAudioCapture()
+            }
             if oldTab == .ask && newTab == .clips {
                 // Wait for tab switch animation to complete (350ms spring + buffer)
                 Task {
@@ -134,6 +147,28 @@ struct RootView: View {
                     await captureCoordinator.resumeAudioCapture()
                 }
             }
+        }
+        .onChange(of: selectedVideoItem) { _, newItem in
+            guard let newItem else { return }
+            Task { @MainActor in
+                await importVideoFromLibrary(item: newItem)
+            }
+        }
+        .sheet(isPresented: $showImportTitleSheet) {
+            ImportTitleSheet(
+                title: $importTitle,
+                onSave: {
+                    showImportTitleSheet = false
+                    completeImport()
+                },
+                onCancel: {
+                    showImportTitleSheet = false
+                    pendingImportClip = nil
+                    pendingImportURL = nil
+                    importTitle = ""
+                }
+            )
+            .presentationDetents([.height(220)])
         }
     }
     
@@ -430,6 +465,11 @@ struct RootView: View {
         if showExportErrorMessage {
             toastView(icon: "xmark.circle", text: exportErrorText.isEmpty ? "Export failed" : exportErrorText, color: .red.opacity(0.8))
         }
+
+        // Import error message
+        if showImportErrorMessage {
+            toastView(icon: "xmark.circle", text: importErrorText.isEmpty ? "Import failed" : importErrorText, color: .red.opacity(0.8))
+        }
     }
     
     private func toastView(icon: String?, text: String, color: Color) -> some View {
@@ -523,8 +563,9 @@ struct RootView: View {
                 
                 Task {
                     let actualDuration = await getVideoDuration(from: url)
+                    let cappedDuration = min(actualDuration, captureCoordinator.bufferDuration)
                     await MainActor.run {
-                        addClipToTimeline(exportedURL: url, transcript: transcript, duration: actualDuration)
+                        addClipToTimeline(exportedURL: url, transcript: transcript, duration: cappedDuration)
                     }
                     await handleExportedClip(url: url, transcript: transcript)
                 }
@@ -647,7 +688,7 @@ struct RootView: View {
                     isPortrait: updatedClip.isPortrait,
                     localFileURL: localURL?.path ?? updatedClip.localFileURL,
                     captionSegments: captionSegments,
-                    showCaptions: true,
+                    showCaptions: false,
                     captionStyle: updatedClip.captionStyle
                 )
                 
@@ -754,6 +795,83 @@ struct RootView: View {
             return nil
         }
     }
+
+    @MainActor
+    private func importVideoFromLibrary(item: PhotosPickerItem) async {
+        selectedVideoItem = nil
+        
+        let photoManager = PhotoManager()
+
+        do {
+            // Try to get from Photos library first using itemIdentifier
+            if let localIdentifier = item.itemIdentifier,
+               let asset = photoManager.fetchAsset(for: localIdentifier) {
+                // Check if already imported
+                if let existing = viewState.clips.first(where: { $0.localIdentifier == localIdentifier }) {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                        selectedClip = existing
+                    }
+                    return
+                }
+
+                let capturedAt = asset.creationDate ?? Date()
+                let duration = asset.duration
+
+                var newClip = ClipMetadata(
+                    id: UUID(),
+                    localIdentifier: localIdentifier,
+                    title: "",
+                    transcript: "",
+                    topics: [],
+                    capturedAt: capturedAt,
+                    duration: duration
+                )
+
+                // Try to get thumbnail
+                if let thumbnailImage = await photoManager.fetchThumbnail(
+                    for: asset,
+                    size: CGSize(width: 400, height: 225)
+                ) {
+                    newClip = newClip.withThumbnail(thumbnailImage)
+                }
+                
+                // Get video URL for upload (don't crash if this fails)
+                do {
+                    let videoURL = try await photoManager.getVideoURL(for: asset)
+                    pendingImportURL = videoURL
+                } catch {
+                    print("⚠️ Could not get video URL: \(error.localizedDescription)")
+                    // Continue without URL - upload will be skipped
+                }
+
+                // Show title input sheet
+                pendingImportClip = newClip
+                importTitle = ""
+                showImportTitleSheet = true
+                return
+            }
+            
+            // Fallback: No valid Photos asset found
+            print("⚠️ Could not find Photos asset for selected item")
+            HapticManager.playError()
+            importErrorText = "Could not access selected video"
+            withAnimation {
+                showImportErrorMessage = true
+            }
+        } catch {
+            print("❌ Import failed: \(error.localizedDescription)")
+            HapticManager.playError()
+            importErrorText = error.localizedDescription
+            withAnimation {
+                showImportErrorMessage = true
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+                withAnimation {
+                    showImportErrorMessage = false
+                }
+            }
+        }
+    }
     
     private func sendClipToBackend(transcript: String) async {
         // TODO: Implement backend API call
@@ -768,6 +886,54 @@ struct RootView: View {
         
         // Use all clips for context
         await memoryAssistant.askQuestion(question, clips: viewState.clips)
+    }
+    
+    /// Complete import after user enters title
+    private func completeImport() {
+        guard var clip = pendingImportClip else { return }
+        
+        let title = importTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        clip = ClipMetadata(
+            id: clip.id,
+            localIdentifier: clip.localIdentifier,
+            title: title.isEmpty ? "Untitled Clip" : title,
+            transcript: clip.transcript,
+            topics: clip.topics,
+            capturedAt: clip.capturedAt,
+            duration: clip.duration,
+            thumbnailBase64: clip.thumbnailBase64,
+            isPortrait: clip.isPortrait,
+            localFileURL: clip.localFileURL
+        )
+        
+        // Add to UI immediately
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+            viewState.clips.insert(clip, at: 0)
+        }
+        
+        // Upload to backend
+        if let uploadURL = pendingImportURL {
+            Task {
+                do {
+                    try await APIService.shared.uploadClip(
+                        videoURL: uploadURL,
+                        videoId: clip.localIdentifier,
+                        title: clip.title,
+                        timestamp: clip.capturedAt
+                    )
+                    print("✅ Uploaded imported clip to backend: \(clip.localIdentifier)")
+                    HapticManager.playSuccess()
+                } catch {
+                    print("❌ Upload failed: \(error.localizedDescription)")
+                    HapticManager.playError()
+                }
+            }
+        }
+        
+        // Clear pending state
+        pendingImportClip = nil
+        pendingImportURL = nil
+        importTitle = ""
     }
     
     /// Get the actual duration of a video file
@@ -805,7 +971,7 @@ struct RootView: View {
             duration: duration,
             localFileURL: exportedURL.path,
             captionSegments: captionSegments,
-            showCaptions: captionSegments != nil
+            showCaptions: false  // Default to off
         )
         
         // Add to local clips immediately for UI feedback
@@ -830,11 +996,26 @@ struct RootView: View {
             // Compact glasses status indicator
             compactGlassesStatus
             
-            // Audio/Buffer debug indicator (only visible when capturing)
-            audioBufferDebugIndicator
-            
             Spacer()
             
+            // Upload button
+            PhotosPicker(
+                selection: $selectedVideoItem,
+                matching: .videos,
+                photoLibrary: .shared()
+            ) {
+                Image(systemName: "arrow.up.doc")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(AppColors.textPrimary)
+                    .frame(width: 40, height: 40)
+                    .background {
+                        Circle()
+                            .fill(.white.opacity(0.9))
+                            .shadow(color: .black.opacity(0.08), radius: 8, y: 2)
+                    }
+            }
+            .accessibilityLabel("Upload video")
+
             // Search button
             Button {
                 HapticManager.playLight()
@@ -1579,14 +1760,7 @@ struct SearchResultCard: View {
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(AppColors.textPrimary)
                         .lineLimit(1)
-                    
-                    if !clip.transcript.isEmpty {
-                        Text(clip.transcript)
-                            .font(.system(size: 13))
-                            .foregroundStyle(AppColors.textSecondary)
-                            .lineLimit(2)
-                    }
-                    
+
                     Text(clip.capturedAt.formatted(date: .abbreviated, time: .shortened))
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(AppColors.textSecondary.opacity(0.7))
@@ -2079,6 +2253,61 @@ struct PulseAnimation: ViewModifier {
             .onAppear {
                 isPulsing = true
             }
+    }
+}
+
+// MARK: - Import Title Sheet
+
+struct ImportTitleSheet: View {
+    @Binding var title: String
+    let onSave: () -> Void
+    let onCancel: () -> Void
+    @FocusState private var isFocused: Bool
+    
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 24) {
+                // Title input
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Clip Title")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(.secondary)
+                    
+                    TextField("Enter title...", text: $title)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(size: 16))
+                        .focused($isFocused)
+                        .submitLabel(.done)
+                        .onSubmit {
+                            onSave()
+                        }
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 20)
+                
+                Spacer()
+            }
+            .navigationTitle("Import Video")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        onCancel()
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        onSave()
+                    }
+                    .fontWeight(.semibold)
+                }
+            }
+        }
+        .onAppear {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                isFocused = true
+            }
+        }
     }
 }
 

@@ -78,6 +78,8 @@ final class MemoryAssistantService: ObservableObject {
             
             // Step 3: Speak the response using ElevenLabs
             state = .speaking
+            print("🔊 Text to display: \"\(response)\"")
+            print("🔊 Text to speak:   \"\(response)\"")  // Should be identical
             try await speakResponse(response)
             
             // Success - return to idle
@@ -102,6 +104,16 @@ final class MemoryAssistantService: ObservableObject {
     func stopSpeaking() {
         audioPlayer?.pause()
         audioPlayer = nil
+        
+        // Clean up observer
+        if let observer = playerObserver {
+            NotificationCenter.default.removeObserver(observer)
+            playerObserver = nil
+        }
+        
+        // Deactivate audio session
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        
         if state == .speaking {
             state = .idle
         }

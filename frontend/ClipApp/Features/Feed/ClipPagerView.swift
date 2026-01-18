@@ -36,9 +36,11 @@ struct ClipPagerView: View {
                     .ignoresSafeArea()
                     .onAppear {
                         // Set initial index before any ClipDetailView is created
-                        if let initialIndex = clips.firstIndex(where: { $0.id == initialClip.id }) {
+                        let initialIndex = clips.firstIndex(where: { $0.id == initialClip.id })
+                            ?? clips.firstIndex(where: { $0.localIdentifier == initialClip.localIdentifier })
+                        if let initialIndex {
                             currentIndex = initialIndex
-                            scrolledID = initialClip.id
+                            scrolledID = clips[initialIndex].id
                         } else {
                             // Fallback to first clip if not found
                             currentIndex = 0

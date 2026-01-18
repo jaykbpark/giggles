@@ -63,17 +63,24 @@ final class GlobalViewState: ObservableObject {
     }
     
     init() {
-        loadClips()
+        // Don't load local clips - backend is source of truth
+        // loadClips() -- disabled, backend is authoritative
+        
         Task {
             await refreshAvailableTags()
         }
-        // Sync with backend on app launch after a short delay
-        // This prevents the "flash" where clips load, then reload after sync
+        // Load from backend on app launch
         Task {
-            // Wait for initial UI render to complete
-            try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
-            await syncWithBackend()
+            try? await Task.sleep(nanoseconds: 300_000_000) // 0.3 seconds
+            await loadClipsFromBackend()
         }
+    }
+    
+    /// Clear all local storage (clips.json)
+    func clearLocalStorage() {
+        try? FileManager.default.removeItem(at: clipsFileURL)
+        clips = []
+        print("🗑️ Local storage cleared")
     }
     
     // MARK: - Backend Sync
@@ -273,7 +280,36 @@ final class GlobalViewState: ObservableObject {
         defer { isLoading = false }
         do {
             let fetched = try await APIService.shared.fetchAllClips()
-            clips = fetched
+            print("📡 Backend returned \(fetched.count) clips")
+            
+            // Backend is source of truth - use backend data directly
+            // Only preserve local metadata (thumbnails, local files) if we have matching clips
+            let merged = fetched.map { remote in
+                guard let local = clips.first(where: { $0.localIdentifier == remote.localIdentifier }) else {
+                    return remote
+                }
+                return ClipMetadata(
+                    id: local.id,
+                    localIdentifier: remote.localIdentifier,
+                    serverVideoId: local.serverVideoId,
+                    title: remote.title,
+                    transcript: remote.transcript,
+                    topics: remote.topics,
+                    capturedAt: remote.capturedAt,
+                    duration: local.duration > 0 ? local.duration : remote.duration,
+                    isStarred: local.isStarred,
+                    context: local.context,
+                    audioNarrationURL: local.audioNarrationURL,
+                    clipState: local.clipState,
+                    thumbnailBase64: local.thumbnailBase64,
+                    isPortrait: local.isPortrait,
+                    localFileURL: local.localFileURL,
+                    captionSegments: local.captionSegments,
+                    showCaptions: local.showCaptions,
+                    captionStyle: local.captionStyle
+                )
+            }
+            clips = merged
             semanticResults = []
             tagResults = []
         } catch {

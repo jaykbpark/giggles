@@ -94,7 +94,7 @@ struct ClipMetadata: Identifiable, Codable, Hashable, Sendable {
     
     // Caption support
     var captionSegments: [CaptionSegment]? = nil // Timed caption chunks
-    var showCaptions: Bool = true // User preference for showing captions
+    var showCaptions: Bool = false // User preference for showing captions (default off)
     var captionStyle: CaptionStyle? = nil // Custom caption styling
 
     var formattedDuration: String {

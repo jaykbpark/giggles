@@ -2,6 +2,7 @@ import SwiftUI
 import AVKit
 import AVFoundation
 import Photos
+import UIKit
 
 struct ClipDetailView: View {
     let clip: ClipMetadata
@@ -38,9 +39,10 @@ struct ClipDetailView: View {
     // Share state
     @State private var showShareSheet = false
     @State private var shareItems: [Any] = []
+    @State private var showTranscriptSheet = false
     
-    // Caption state
-    @State private var showCaptions = true
+    // Caption state - default to off
+    @State private var showCaptions = false
     @State private var currentPlaybackTime: TimeInterval = 0
     @State private var playbackTimer: Timer?
     
@@ -142,6 +144,13 @@ struct ClipDetailView: View {
         }
         .sheet(isPresented: $showShareSheet) {
             ShareSheet(items: shareItems)
+        }
+        .sheet(isPresented: $showTranscriptSheet) {
+            TranscriptSheetView(
+                title: currentClip.title,
+                transcript: currentClip.transcript,
+                capturedAt: currentClip.formattedDate
+            )
         }
     }
     
@@ -506,6 +515,19 @@ struct ClipDetailView: View {
                             .glassEffect(.regular.interactive(), in: .circle)
                     }
                     .accessibilityLabel("Share clip")
+
+                    // Transcript button
+                    Button {
+                        HapticManager.playLight()
+                        showTranscriptSheet = true
+                    } label: {
+                        Image(systemName: "doc.text")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(width: 40, height: 40)
+                            .glassEffect(.regular.interactive(), in: .circle)
+                    }
+                    .accessibilityLabel("View transcript")
                     
                     // Listen button (audio narration)
                     Button {
@@ -781,6 +803,75 @@ struct ShareSheet: UIViewControllerRepresentable {
     }
     
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+}
+
+// MARK: - Transcript Sheet
+
+struct TranscriptSheetView: View {
+    let title: String
+    let transcript: String
+    let capturedAt: String
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var didCopy = false
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text(title)
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundStyle(AppColors.textPrimary)
+
+                    Text(capturedAt)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(AppColors.textSecondary)
+
+                    Divider()
+
+                    if transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        Text("No transcript yet.")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(AppColors.textSecondary)
+                            .padding(.top, 8)
+                    } else {
+                        Text(transcript)
+                            .font(.system(size: 15))
+                            .foregroundStyle(AppColors.textPrimary)
+                            .lineSpacing(4)
+                            .textSelection(.enabled)
+                    }
+                }
+                .padding(20)
+            }
+            .background(AppColors.warmBackground.ignoresSafeArea())
+            .navigationTitle("Transcript")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        UIPasteboard.general.string = transcript
+                        HapticManager.playLight()
+                        didCopy = true
+
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                            didCopy = false
+                        }
+                    } label: {
+                        Label(didCopy ? "Copied" : "Copy", systemImage: didCopy ? "checkmark" : "doc.on.doc")
+                    }
+                    .disabled(transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+    }
 }
 
 // MARK: - Play Button Style

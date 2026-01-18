@@ -19,8 +19,11 @@ final class PhotoManager: ObservableObject {
     func fetchThumbnail(for asset: PHAsset, size: CGSize) async -> UIImage? {
         await withCheckedContinuation { continuation in
             let options = PHImageRequestOptions()
-            options.deliveryMode = .opportunistic
+            options.deliveryMode = .highQualityFormat // Single callback, not opportunistic
             options.isNetworkAccessAllowed = true
+            
+            let lock = NSLock()
+            var hasResumed = false
 
             PHImageManager.default().requestImage(
                 for: asset,
@@ -28,6 +31,11 @@ final class PhotoManager: ObservableObject {
                 contentMode: .aspectFill,
                 options: options
             ) { image, _ in
+                lock.lock()
+                defer { lock.unlock() }
+                
+                guard !hasResumed else { return }
+                hasResumed = true
                 continuation.resume(returning: image)
             }
         }

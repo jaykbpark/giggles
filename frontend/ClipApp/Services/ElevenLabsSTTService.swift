@@ -135,12 +135,34 @@ final class ElevenLabsSTTService: NSObject, ObservableObject {
     /// Disconnect from WebSocket
     func disconnect() {
         stopPingTimer()
+        
+        // Cancel the WebSocket task
         webSocketTask?.cancel(with: .normalClosure, reason: nil)
         webSocketTask = nil
+        
+        // Clear state
         isConnected = false
         isTranscribing = false
         currentPartialTranscript = ""
-        print("🎤 ElevenLabs STT: Disconnected")
+        committedTranscript = ""
+        transcriptBuffer.removeAll()
+        
+        print("🎤 ElevenLabs STT: Disconnected and cleaned up")
+    }
+    
+    /// Full cleanup - call when the service is no longer needed
+    func cleanup() {
+        disconnect()
+        
+        // Invalidate the URLSession to break retain cycle with delegate
+        urlSession.invalidateAndCancel()
+        
+        // Clear callbacks
+        onPartialTranscript = nil
+        onCommittedTranscript = nil
+        onPhraseDetected = nil
+        
+        print("🎤 ElevenLabs STT: Full cleanup complete")
     }
     
     /// Send audio data to be transcribed

@@ -74,6 +74,11 @@ final class WakeWordDetector: ObservableObject {
     /// Track if we've already processed the current question to avoid duplicates
     private var lastProcessedQuestion: String = ""
     
+    /// Track if we're waiting for a question after "Hey Clip"
+    private var waitingForQuestion: Bool = false
+    private var waitingForQuestionStartTime: Date?
+    private let questionWaitTimeout: TimeInterval = 5.0  // Wait up to 5 seconds for question
+    
     // MARK: - Initialization
     
     init() {
@@ -184,6 +189,21 @@ final class WakeWordDetector: ObservableObject {
         
         let lowercased = transcription.lowercased()
         
+        // If we're waiting for a question after "Hey Clip", check for it
+        if waitingForQuestion {
+            // Check if timeout has passed
+            if let startTime = waitingForQuestionStartTime,
+               Date().timeIntervalSince(startTime) > questionWaitTimeout {
+                print("🎤 [WakeWord] Question wait timeout - resetting")
+                waitingForQuestion = false
+                waitingForQuestionStartTime = nil
+            } else {
+                // Try to extract question from current transcription
+                tryExtractQuestion(from: transcription)
+                return  // Don't check for other wake words while waiting
+            }
+        }
+        
         // Check for "Hey Clip" question phrase first (higher priority)
         if lowercased.contains(questionPhrase) {
             triggerQuestion(from: transcription)
@@ -275,8 +295,18 @@ final class WakeWordDetector: ObservableObject {
         // Get text after "hey clip"
         let afterPhrase = String(transcription[range.upperBound...]).trimmingCharacters(in: .whitespaces)
         
-        // Don't process empty questions or the same question twice
-        guard !afterPhrase.isEmpty else { return }
+        // If no question yet, start waiting for it
+        if afterPhrase.isEmpty {
+            if !waitingForQuestion {
+                print("🎤 [WakeWord] 'Hey Clip' detected - waiting for question...")
+                waitingForQuestion = true
+                waitingForQuestionStartTime = Date()
+                isProcessingQuestion = true  // Show UI feedback
+            }
+            return
+        }
+        
+        // Don't process the same question twice
         guard afterPhrase != lastProcessedQuestion else { return }
         
         // Check cooldown
@@ -285,23 +315,63 @@ final class WakeWordDetector: ObservableObject {
             return
         }
         
+        print("🎤 [WakeWord] Question detected: \"\(afterPhrase)\"")
+        
         lastTriggerTime = Date()
         lastProcessedQuestion = afterPhrase
+        waitingForQuestion = false
+        waitingForQuestionStartTime = nil
         isProcessingQuestion = true
         
         // Fire callback with the question
         onQuestionAsked?(afterPhrase)
+    }
+    
+    /// Try to extract a question from transcription while waiting for input
+    private func tryExtractQuestion(from transcription: String) {
+        let trimmed = transcription.trimmingCharacters(in: .whitespaces)
         
-        // Reset processing state after a delay (will be set to false when response completes)
-        Task {
-            try? await Task.sleep(nanoseconds: 500_000_000) // 0.5s minimum
-        }
+        // Need at least a few words to consider it a question
+        let wordCount = trimmed.components(separatedBy: .whitespaces).filter { !$0.isEmpty }.count
+        guard wordCount >= 3 else { return }
+        
+        // Check if this looks like a question (has question-like words or structure)
+        let lowercased = trimmed.lowercased()
+        let isQuestion = lowercased.contains("what") ||
+                        lowercased.contains("where") ||
+                        lowercased.contains("when") ||
+                        lowercased.contains("who") ||
+                        lowercased.contains("how") ||
+                        lowercased.contains("why") ||
+                        lowercased.contains("did") ||
+                        lowercased.contains("tell me") ||
+                        lowercased.contains("show me") ||
+                        lowercased.contains("find") ||
+                        lowercased.hasSuffix("?") ||
+                        wordCount >= 4  // Or just has enough words
+        
+        guard isQuestion else { return }
+        
+        // Don't process the same question twice
+        guard trimmed != lastProcessedQuestion else { return }
+        
+        print("🎤 [WakeWord] Question captured: \"\(trimmed)\"")
+        
+        lastTriggerTime = Date()
+        lastProcessedQuestion = trimmed
+        waitingForQuestion = false
+        waitingForQuestionStartTime = nil
+        
+        // Fire callback with the question
+        onQuestionAsked?(trimmed)
     }
     
     /// Call this when question processing is complete
     func questionProcessingComplete() {
         isProcessingQuestion = false
         lastProcessedQuestion = ""
+        waitingForQuestion = false
+        waitingForQuestionStartTime = nil
         
         // Restart session to clear the transcription and listen fresh
         restartRecognitionSession()

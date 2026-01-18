@@ -95,13 +95,14 @@ struct FeedView: View {
                                 namespace: namespace,
                                 onToggleStar: { viewState.toggleStar(for: clip.id) }
                             )
-                                .onTapGesture {
-                                    HapticManager.playLight()
-                                    withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) {
-                                        selectedClip = clip
-                                    }
+                            .contentShape(Rectangle()) // Ensures tap area matches visual bounds
+                            .onTapGesture {
+                                HapticManager.playLight()
+                                withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) {
+                                    selectedClip = clip
                                 }
-                                .padding(.horizontal, 20)
+                            }
+                            .padding(.horizontal, 20)
                         }
                     }
                     .padding(.top, 12)

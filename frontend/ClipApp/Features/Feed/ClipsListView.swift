@@ -143,11 +143,6 @@ struct ModernListRow: View {
                     .fontWeight(.semibold)
                     .lineLimit(1)
 
-                Text(clip.transcript)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-
                 Text(timeString(from: clip.capturedAt))
                     .font(.caption)
                     .foregroundStyle(.tertiary)

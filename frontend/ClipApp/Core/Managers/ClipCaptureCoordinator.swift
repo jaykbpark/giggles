@@ -196,6 +196,16 @@ final class ClipCaptureCoordinator: ObservableObject {
         setupElevenLabsSTTCallback()
     }
     
+    deinit {
+        // Clean up subscriptions
+        cancellables.removeAll()
+        audioSubscriptions.removeAll()
+        
+        // Note: Can't call async cleanup from deinit, but the singleton pattern
+        // means this rarely gets called. stopCapture() handles normal cleanup.
+        print("🎬 ClipCaptureCoordinator: Deinit called")
+    }
+    
     // MARK: - Setup
     
     private func setupWakeWordCallback() {
@@ -460,6 +470,22 @@ final class ClipCaptureCoordinator: ObservableObject {
         } catch {
             print("❌ [Resume] Failed to resume audio capture: \(error.localizedDescription)")
         }
+    }
+
+    /// Pause audio capture (wake word + STT) when another feature needs the mic
+    func pauseAudioCapture() {
+        guard isCapturing else { return }
+
+        audioSubscriptions.removeAll()
+        wakeWordDetector.stopListening()
+        laughterDetector.stopListening()
+        audioManager.stopCapture()
+
+        // Disconnect ElevenLabs STT to free the audio session
+        elevenLabsSTT.disconnect()
+        realtimeTranscript = ""
+
+        print("🎤 [Pause] Audio capture paused (Ask mode active)")
     }
     
     // MARK: - Stream Subscriptions
@@ -767,6 +793,13 @@ final class ClipCaptureCoordinator: ObservableObject {
         audioBufferCount = 0
         currentBufferDuration = 0.0
     }
+
+    private func hostTimeToSeconds(_ hostTime: UInt64) -> Double {
+        var timebaseInfo = mach_timebase_info_data_t()
+        mach_timebase_info(&timebaseInfo)
+        let nanoseconds = hostTime * UInt64(timebaseInfo.numer) / UInt64(timebaseInfo.denom)
+        return Double(nanoseconds) / 1_000_000_000.0
+    }
     
     // MARK: - Clip Export
     
@@ -838,17 +871,38 @@ final class ClipCaptureCoordinator: ObservableObject {
             throw ClipExportError.noVideoFrames
         }
         
-        print("🎬 Exporting \(validVideoFrames.count) video frames with \(audioBuffers.count) audio buffers...")
+        // Enforce max duration based on host time (protects against long gaps/stalls)
+        let sortedVideoFrames = validVideoFrames.sorted { $0.1 < $1.1 }
+        let sortedAudioBuffers = audioBuffers.sorted { $0.hostTime < $1.hostTime }
+
+        let latestVideoHostTime = sortedVideoFrames.last?.1 ?? 0
+        let latestVideoSeconds = hostTimeToSeconds(latestVideoHostTime)
+        let cutoffSeconds = latestVideoSeconds - bufferDuration
+
+        let trimmedVideoFrames = sortedVideoFrames.filter { hostTimeToSeconds($0.1) >= cutoffSeconds }
+        let trimmedAudioBuffers = sortedAudioBuffers.filter {
+            let seconds = hostTimeToSeconds($0.hostTime)
+            return seconds >= cutoffSeconds && seconds <= latestVideoSeconds
+        }
+
+        let exportVideoFrames = trimmedVideoFrames.isEmpty ? sortedVideoFrames : trimmedVideoFrames
+        let exportAudioBuffers = trimmedAudioBuffers
+
+        if exportVideoFrames.count != validVideoFrames.count || exportAudioBuffers.count != audioBuffers.count {
+            print("🎬 [Export] Trimmed to last \(bufferDuration)s - frames: \(exportVideoFrames.count)/\(validVideoFrames.count), audio: \(exportAudioBuffers.count)/\(audioBuffers.count)")
+        }
+
+        print("🎬 Exporting \(exportVideoFrames.count) video frames with \(exportAudioBuffers.count) audio buffers...")
         let exportFrameRate = 15
         // Use video's first frame as base time so video always starts at 0 (no black frames)
         // Audio is synced relative to video's start; any audio before video gets clipped
-        let baseHostTime = validVideoFrames.first?.1 ?? 0
+        let baseHostTime = exportVideoFrames.first?.1 ?? 0
         
         // Try ProRes first (more lenient about formats)
         do {
             print("🎬 Trying ProRes export...")
             let videoURL = try await ffmpegExporter.exportWithProRes(
-                frames: validVideoFrames,
+                frames: exportVideoFrames,
                 frameRate: exportFrameRate,
                 baseHostTime: baseHostTime  // Pass consistent base time for A/V sync
             )
@@ -856,7 +910,7 @@ final class ClipCaptureCoordinator: ObservableObject {
                 // Save a master .mov with passthrough (minimal compression)
                 let masterURL = try await ffmpegExporter.muxVideoWithAudio(
                     videoURL: videoURL,
-                    audioBuffers: audioBuffers,
+                    audioBuffers: exportAudioBuffers,
                     baseHostTime: baseHostTime,
                     outputFileType: .mov,
                     preset: AVAssetExportPresetPassthrough
@@ -869,7 +923,7 @@ final class ClipCaptureCoordinator: ObservableObject {
                 print("🎬 Falling back to MP4 highest quality...")
                 let muxedURL = try await ffmpegExporter.muxVideoWithAudio(
                     videoURL: videoURL,
-                    audioBuffers: audioBuffers,
+                    audioBuffers: exportAudioBuffers,
                     baseHostTime: baseHostTime,
                     outputFileType: .mp4,
                     preset: AVAssetExportPresetHighestQuality
@@ -884,8 +938,8 @@ final class ClipCaptureCoordinator: ObservableObject {
         
         // Fallback to JPEG sequence (with audio mux)
         let videoURL = try await ffmpegExporter.exportAsImageSequence(
-            frames: validVideoFrames,
-            audioBuffers: audioBuffers,
+            frames: exportVideoFrames,
+            audioBuffers: exportAudioBuffers,
             frameRate: exportFrameRate
         )
         

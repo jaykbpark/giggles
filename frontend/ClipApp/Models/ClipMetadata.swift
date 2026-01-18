@@ -72,6 +72,7 @@ struct CaptionStyle: Codable, Hashable, Sendable {
 struct ClipMetadata: Identifiable, Codable, Hashable, Sendable {
     let id: UUID
     let localIdentifier: String
+    var serverVideoId: Int? = nil // Backend video ID for sync
     var title: String
     let transcript: String
     let topics: [String]

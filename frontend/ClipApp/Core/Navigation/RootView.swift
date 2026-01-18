@@ -103,6 +103,12 @@ struct RootView: View {
         }
         .task {
             await setupCaptureCoordinator()
+            await viewState.loadClipsFromBackend()
+        }
+        .onChange(of: viewState.searchText) { _, newValue in
+            Task { @MainActor in
+                await viewState.refreshSemanticSearch(query: newValue)
+            }
         }
         .onChange(of: showSearch) { _, newValue in
             if newValue {
@@ -1296,7 +1302,7 @@ struct RootView: View {
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 12)
-                    .glassEffect(in: .rect(cornerRadius: 18))
+                    .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 18))
                     .overlay {
                         RoundedRectangle(cornerRadius: 18, style: .continuous)
                             .stroke(AppColors.timelineLine.opacity(0.4), lineWidth: 1)
@@ -1362,7 +1368,6 @@ struct RootView: View {
     private func dismissSearch() {
         withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
             showSearch = false
-            viewState.searchText = ""
         }
     }
 }

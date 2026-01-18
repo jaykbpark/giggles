@@ -43,6 +43,8 @@ final class GlobalViewState: ObservableObject {
             saveClips()
         }
     }
+    @Published var semanticResults: [ClipMetadata] = []
+    @Published var tagResults: [ClipMetadata] = []
     @Published var isLoading: Bool = false
     @Published var selectedFeedTab: FeedTab = .all
     @Published var currentState: ClipState? = nil
@@ -175,14 +177,11 @@ final class GlobalViewState: ObservableObject {
     var filteredClips: [ClipMetadata] {
         var result = clips
 
-        // Apply search filter
+        // Use backend semantic search results when searching
         if !searchText.isEmpty {
-            let query = searchText.lowercased()
-            result = result.filter { clip in
-                clip.title.lowercased().contains(query) ||
-                clip.transcript.lowercased().contains(query) ||
-                clip.topics.contains { $0.lowercased().contains(query) }
-            }
+            result = semanticResults
+        } else if !selectedTags.isEmpty {
+            result = tagResults
         }
 
         // Apply legacy topic filter (single selection)
@@ -190,12 +189,7 @@ final class GlobalViewState: ObservableObject {
             result = result.filter { $0.topics.contains(topic) }
         }
         
-        // Apply tag filter (multi-selection)
-        if !selectedTags.isEmpty {
-            result = result.filter { clip in
-                !selectedTags.isDisjoint(with: Set(clip.topics))
-            }
-        }
+        // Tag filtering handled via backend search when selectedTags is not empty
 
         // Apply sorting
         switch sortOrder {
@@ -241,12 +235,25 @@ final class GlobalViewState: ObservableObject {
         } else {
             selectedTags.insert(tag)
         }
+        
+        // Ensure tag filtering is not blocked by an active semantic query
+        if !searchText.isEmpty {
+            searchText = ""
+            semanticResults = []
+        }
+        
+        let tags = selectedTags
+        Task { @MainActor in
+            await refreshTagSearch(tags: tags)
+        }
     }
 
     func clearFilters() {
         searchText = ""
         selectedTopic = nil
         selectedTags = []
+        semanticResults = []
+        tagResults = []
         sortOrder = .recent
         selectedFeedTab = .all
     }
@@ -262,5 +269,61 @@ final class GlobalViewState: ObservableObject {
         var clip = clips[index]
         update(&clip)
         clips[index] = clip
+    }
+
+    // MARK: - Backend Data
+
+    func loadClipsFromBackend() async {
+        isLoading = true
+        defer { isLoading = false }
+        do {
+            let fetched = try await APIService.shared.fetchAllClips()
+            clips = fetched
+            semanticResults = []
+            tagResults = []
+        } catch {
+            print("❌ Failed to load clips from backend: \(error.localizedDescription)")
+        }
+    }
+
+    func refreshSemanticSearch(query: String) async {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            semanticResults = []
+            await loadClipsFromBackend()
+            return
+        }
+        isLoading = true
+        defer { isLoading = false }
+        do {
+            semanticResults = try await APIService.shared.searchSemantic(trimmed)
+        } catch {
+            semanticResults = []
+            print("❌ Semantic search failed: \(error.localizedDescription)")
+        }
+    }
+
+    func refreshTagSearch(tags: Set<String>) async {
+        guard !tags.isEmpty else {
+            tagResults = []
+            await loadClipsFromBackend()
+            return
+        }
+        isLoading = true
+        defer { isLoading = false }
+        var merged: [ClipMetadata] = []
+        var seen = Set<String>()
+        for tag in tags {
+            do {
+                let results = try await APIService.shared.searchTag(tag)
+                for clip in results where !seen.contains(clip.localIdentifier) {
+                    seen.insert(clip.localIdentifier)
+                    merged.append(clip)
+                }
+            } catch {
+                print("❌ Tag search failed for \(tag): \(error.localizedDescription)")
+            }
+        }
+        tagResults = merged
     }
 }

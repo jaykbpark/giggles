@@ -143,8 +143,8 @@ final class BluetoothAudioProvider: AudioCaptureProvider {
             // Set preferred buffer duration for low latency
             try audioSession.setPreferredIOBufferDuration(Double(bufferSize) / desiredSampleRate)
 
-            // Activate the session
-            try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
+            // Activate the session (retry to avoid transient HFP failures)
+            try activateSessionWithRetry(audioSession, options: .notifyOthersOnDeactivation)
             print("🎤 Audio session configured with Bluetooth support")
         } catch {
             // Fallback 1: Try without Bluetooth-specific options
@@ -155,7 +155,7 @@ final class BluetoothAudioProvider: AudioCaptureProvider {
                 try audioSession.setCategory(.playAndRecord, mode: .measurement, options: [.mixWithOthers, .defaultToSpeaker])
                 try audioSession.setPreferredSampleRate(desiredSampleRate)
                 try audioSession.setPreferredIOBufferDuration(Double(bufferSize) / desiredSampleRate)
-                try audioSession.setActive(true)
+                try activateSessionWithRetry(audioSession)
                 print("🎤 Fallback 1 succeeded: Using device mic")
             } catch {
                 // Fallback 2: Simplest config - just record mode
@@ -163,7 +163,7 @@ final class BluetoothAudioProvider: AudioCaptureProvider {
                 print("🎤 Trying minimal fallback...")
                 
                 try audioSession.setCategory(.record, mode: .default, options: [])
-                try audioSession.setActive(true)
+                try activateSessionWithRetry(audioSession)
                 print("🎤 Fallback 2 succeeded: Minimal config")
             }
         }
@@ -174,6 +174,33 @@ final class BluetoothAudioProvider: AudioCaptureProvider {
         } else {
             print("⚠️ No audio input available")
         }
+    }
+
+    private func activateSessionWithRetry(
+        _ audioSession: AVAudioSession,
+        options: AVAudioSession.SetActiveOptions = []
+    ) throws {
+        let delays: [TimeInterval] = [0, 0.25, 0.5]
+        var lastError: Error?
+
+        for (index, delay) in delays.enumerated() {
+            if delay > 0 {
+                Thread.sleep(forTimeInterval: delay)
+            }
+
+            do {
+                try audioSession.setActive(true, options: options)
+                if index > 0 {
+                    print("🎤 Audio session activated on retry \(index + 1)")
+                }
+                return
+            } catch {
+                lastError = error
+                print("⚠️ Audio session activation failed (attempt \(index + 1)): \(error.localizedDescription)")
+            }
+        }
+
+        throw lastError ?? AudioCaptureError.audioSessionFailed("Unknown activation error")
     }
     
     private func startAudioEngine() throws {

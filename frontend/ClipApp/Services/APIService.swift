@@ -59,6 +59,20 @@ actor APIService {
             }
         }
     }
+    
+    struct BackendVideo: Codable {
+        let videoId: String
+        let title: String
+        let transcript: String
+        let timestamp: String
+        let tags: [String]?
+    }
+    
+    struct BackendVideosResponse: Codable {
+        let success: Bool?
+        let result: [BackendVideo]?
+        let videos: [BackendVideo]?
+    }
 
     func processClip(audioData: Data, localIdentifier: String) async throws -> ClipMetadata {
         var request = URLRequest(url: Self.baseURL.appendingPathComponent("/api/process"))
@@ -119,15 +133,71 @@ actor APIService {
         }
     }
 
-    func search(query: String) async -> [ClipMetadata] {
-        // TODO: wire to backend search endpoint
+    func fetchAllClips() async throws -> [ClipMetadata] {
+        let url = Self.baseURL.appendingPathComponent("/api/videos")
+        let (data, _) = try await URLSession.shared.data(from: url)
+        let response = try JSONDecoder().decode(BackendVideosResponse.self, from: data)
+        let videos = response.result ?? response.videos ?? []
+        return videos.map { mapBackendVideo($0) }
+    }
+    
+    /// Fetch all videos from backend as raw BackendVideo objects (for sync)
+    func fetchAllVideos() async throws -> [BackendVideo] {
+        let url = Self.baseURL.appendingPathComponent("/api/videos")
+        let (data, _) = try await URLSession.shared.data(from: url)
+        let response = try JSONDecoder().decode(BackendVideosResponse.self, from: data)
+        return response.result ?? response.videos ?? []
+    }
+    
+    func searchSemantic(_ query: String) async throws -> [ClipMetadata] {
         guard !query.isEmpty else { return [] }
+        var components = URLComponents(url: Self.baseURL.appendingPathComponent("/api/search"), resolvingAgainstBaseURL: false)
+        components?.queryItems = [
+            URLQueryItem(name: "type", value: "stringsearch"),
+            URLQueryItem(name: "input", value: query)
+        ]
+        guard let url = components?.url else { return [] }
+        let (data, _) = try await URLSession.shared.data(from: url)
+        let videos = try decodeBackendVideos(from: data)
+        return videos.map { mapBackendVideo($0) }
+    }
+    
+    func searchTag(_ tag: String) async throws -> [ClipMetadata] {
+        guard !tag.isEmpty else { return [] }
+        var components = URLComponents(url: Self.baseURL.appendingPathComponent("/api/search"), resolvingAgainstBaseURL: false)
+        components?.queryItems = [
+            URLQueryItem(name: "type", value: "tag"),
+            URLQueryItem(name: "input", value: tag)
+        ]
+        guard let url = components?.url else { return [] }
+        let (data, _) = try await URLSession.shared.data(from: url)
+        let videos = try decodeBackendVideos(from: data)
+        return videos.map { mapBackendVideo($0) }
+    }
+    
+    private func decodeBackendVideos(from data: Data) throws -> [BackendVideo] {
+        let decoder = JSONDecoder()
+        if let wrapped = try? decoder.decode(BackendVideosResponse.self, from: data) {
+            return wrapped.result ?? wrapped.videos ?? []
+        }
+        if let raw = try? decoder.decode([BackendVideo].self, from: data) {
+            return raw
+        }
         return []
     }
-
-    func fetchMetadata(for localIdentifier: String) async throws -> ClipMetadata? {
-        // TODO: wire to backend metadata endpoint
-        return nil
+    
+    private func mapBackendVideo(_ video: BackendVideo) -> ClipMetadata {
+        let date = ISO8601DateFormatter().date(from: video.timestamp) ?? Date()
+        return ClipMetadata(
+            id: UUID(),
+            localIdentifier: video.videoId,
+            title: video.title,
+            transcript: video.transcript,
+            topics: video.tags ?? [],
+            capturedAt: date,
+            duration: 30.0,
+            isStarred: false
+        )
     }
 }
 

@@ -59,8 +59,14 @@ final class WakeWordDetector: ObservableObject {
     private var sessionRestartTimer: Timer?
     private let sessionDuration: TimeInterval = 50.0
     
-    /// The wake phrase for clip capture (case-insensitive)
-    private let clipPhrase = "clip that"
+    /// Wake phrases for clip capture (case-insensitive)
+    private let clipPhrases = [
+        "clip that",
+        "click that",
+        "clip dat",
+        "clip it",
+        "clip this"
+    ]
     
     /// The wake phrase for asking questions (case-insensitive)
     private let questionPhrase = "hey clip"
@@ -182,8 +188,8 @@ final class WakeWordDetector: ObservableObject {
         if lowercased.contains(questionPhrase) {
             triggerQuestion(from: transcription)
         }
-        // Check for "Clip That" capture phrase
-        else if lowercased.contains(clipPhrase) {
+        // Check for clip capture phrases
+        else if clipPhrases.contains(where: { lowercased.contains($0) }) {
             triggerClip()
         }
     }
@@ -226,8 +232,12 @@ final class WakeWordDetector: ObservableObject {
         
         // Remove the wake phrase from the end if present
         let lowercased = fullTranscript.lowercased()
-        if let range = lowercased.range(of: clipPhrase, options: .backwards) {
-            let startIndex = fullTranscript.index(fullTranscript.startIndex, offsetBy: lowercased.distance(from: lowercased.startIndex, to: range.lowerBound))
+        if let phrase = clipPhrases.first(where: { lowercased.contains($0) }),
+           let range = lowercased.range(of: phrase, options: .backwards) {
+            let startIndex = fullTranscript.index(
+                fullTranscript.startIndex,
+                offsetBy: lowercased.distance(from: lowercased.startIndex, to: range.lowerBound)
+            )
             fullTranscript = String(fullTranscript[..<startIndex]).trimmingCharacters(in: .whitespaces)
         }
         

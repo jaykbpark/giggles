@@ -1,8 +1,8 @@
 import ffmpeg 
 import numpy as np
 import tempfile
-from transcript_processor import TranscriptProcessor
-from objects.RequestObjects import RequestVideoObject
+from backend.preprocessing.transcript_processor import TranscriptProcessor
+from backend.objects.RequestObjects import RequestVideoObject
 class ProcessingManager():
     def __init__(self,requestVideoObject:RequestVideoObject):
         video_bytes = requestVideoObject.videoData

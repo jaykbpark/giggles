@@ -5,7 +5,7 @@ import requests
 from elevenlabs import ElevenLabs
 from google import genai
 from pathlib import Path
-from database_operations import DatabaseOperations
+from backend.database_operations import DatabaseOperations
 import json
 
 '''

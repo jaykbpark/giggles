@@ -2,10 +2,10 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
-from objects.RequestObjects import RequestSearchObject, RequestVideoObject
-from objects.ResponseObjects import ResponseTagsObject, ResponseVideoObject
-from database_operations import DatabaseOperations
-from preprocessing.processing_manager import ProcessingManager
+from backend.objects.RequestObjects import RequestSearchObject, RequestVideoObject
+from backend.objects.ResponseObjects import ResponseTagsObject, ResponseVideoObject
+from backend.database_operations import DatabaseOperations
+from backend.preprocessing.processing_manager import ProcessingManager
 
 app = FastAPI()
 

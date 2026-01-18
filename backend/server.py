@@ -87,19 +87,46 @@ def get_videos(limit: int = 50, offset: int = 0):
     return {"success": True, "result": all_video_objects}
 
 # retrieve full metadata + transcript for a specific video
-@app.get("/api/video/:videoId")
+@app.get("/api/videos/{videoId}")
 def get_video(videoId):
     db = DatabaseOperations()
-    (id, title, transcript, timestamp) = db.query_video_table(videoId)
+    id, title, transcript, timestamp = db.query_video_table(videoId)
     result = ResponseVideoObject(
         videoId=id,
         title=title,
         transcript=transcript,
         timestamp=timestamp
     )
+    db.close()
     return {"success": True, "result": result}
 
-@app.get("/api/search")
-def search(search: RequestSearchObject):
-    vect = Vectorizer()
-    return
+@app.get("/api/search/")
+def search(type,input):
+    db = DatabaseOperations()
+    if type == "tag":
+        videos = db.get_videos_from_tags(input)
+        video_objects = []
+        for (id, title, transcript, timestamp) in videos:
+            video_object = ResponseVideoObject(
+                videoId=id,
+                title=title,
+                transcript=transcript,
+                timestamp=timestamp
+            )
+            video_objects.append(video_object)
+        return video_objects
+    else:
+        vectorizer = Vectorizer()
+        encoded_vector = vectorizer.encode_text(input)
+        result = db.search_vector_table(encoded_vector)
+        seen = set()
+        unique_video_ids = [
+            item['entity']['video_id'] 
+            for item in result[0] 
+            if item['entity']['video_id'] not in seen and not seen.add(item['entity']['video_id'])
+        ][:3]
+        
+        video_objs = []
+        for video_id in unique_video_ids:
+            video_objs.append(get_video(video_id)["result"])
+        return video_objs

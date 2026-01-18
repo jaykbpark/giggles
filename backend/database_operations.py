@@ -14,7 +14,7 @@ class DatabaseOperations():
             collection_name=MILVUS_COLLECTION_NAME,
             anns_field= "embedding",
             data = [vector_data],
-            param = {"metric_type": "L2", "params": {"nprobe": 10}},
+            search_params= {"metric_type": "L2", "params": {"nprobe": 10}},
             limit=10,
             output_fields=["video_id"]
         )
@@ -44,7 +44,7 @@ class DatabaseOperations():
             "SELECT * FROM videos WHERE id = ?", 
             (video_id,)                         
         )
-        return self.cursor.fetchall()
+        return self.cursor.fetchall()[0]
     
     def query_video_table_all(self):
         self.cursor.execute(
@@ -83,7 +83,7 @@ class DatabaseOperations():
     
     def get_videos_from_tags(self,tag):
         self.cursor.execute(
-            "SELECT * FROM videos LEFT JOIN tags ON videos.id = tags.video_id WHERE tags.tag = ?",
+            "SELECT videos.id, videos.title, videos.transcript, videos.timestamp FROM videos LEFT JOIN tags ON videos.id = tags.video_id WHERE tags.tag = ?",
             (tag,)
         )
         return self.cursor.fetchall()

@@ -9,20 +9,28 @@ import sqlite3
 
 client = MilvusClient("./milvus_storage.db")
 
-fields = [
-    FieldSchema(name="id", dtype=DataType.INT64, is_primary=True, auto_id=True),
-    FieldSchema(name="embedding",dtype=DataType.FLOAT_VECTOR, dim=512),
-    FieldSchema(name="video_id",dtype=DataType.VARCHAR, max_length=64)
-]
+if not client.has_collection("clip_embeddings"):
+    fields = [
+        FieldSchema(name="id", dtype=DataType.INT64, is_primary=True, auto_id=True),
+        FieldSchema(name="embedding", dtype=DataType.FLOAT_VECTOR, dim=512),
+        FieldSchema(name="video_id", dtype=DataType.VARCHAR, max_length=64)
+    ]
+    schema = CollectionSchema(fields, "Milvus Schema")
 
-schema = CollectionSchema(fields,"Milvus Schema")
+    client.create_collection(
+        collection_name="clip_embeddings",
+        schema=schema
+    )
 
-client.create_collection(
-    collection_name="clip_embeddings",
-    schema=schema,
-    dimension=512
-)
+    index_params = client.prepare_index_params()
+    index_params.add_index(
+        field_name="embedding",
+        index_type="FLAT",  
+        metric_type="L2"
+    )
+    client.create_index("clip_embeddings", index_params)
 
+client.load_collection("clip_embeddings")
 
 db_conn = sqlite3.connect("sqlite.db")
 db_cursor = db_conn.cursor()

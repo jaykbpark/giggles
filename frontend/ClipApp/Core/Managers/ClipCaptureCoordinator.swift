@@ -509,9 +509,18 @@ final class ClipCaptureCoordinator: ObservableObject {
         return true
     }
     
+    /// Tracks whether we've logged the first audio buffer (for debugging)
+    private var hasLoggedFirstAudioBuffer: Bool = false
+    
     private func appendAudioBuffer(_ buffer: TimestampedAudioBuffer) {
         // Don't buffer audio until we have video frames to prevent black clips at stream startup
         guard hasReceivedFirstVideoFrame else { return }
+        
+        // Log first audio buffer for debugging
+        if !hasLoggedFirstAudioBuffer {
+            hasLoggedFirstAudioBuffer = true
+            print("🎤 [Buffer] First audio buffer received - audio buffering active")
+        }
         
         let now = Date()
         audioBuffer.append((buffer: buffer, timestamp: now))
@@ -561,8 +570,9 @@ final class ClipCaptureCoordinator: ObservableObject {
         bufferQueue.sync {
             videoBuffer.removeAll()
             audioBuffer.removeAll()
+            hasReceivedFirstVideoFrame = false  // Must be inside sync block to avoid race condition
+            hasLoggedFirstAudioBuffer = false   // Reset debug logging flag
         }
-        hasReceivedFirstVideoFrame = false
         videoBufferCount = 0
         audioBufferCount = 0
         currentBufferDuration = 0.0
@@ -619,6 +629,12 @@ final class ClipCaptureCoordinator: ObservableObject {
             )
         }
         
+        // Log buffer counts for debugging audio issues
+        print("🎬 [Export] Video frames: \(videoFrames.count), Audio buffers: \(audioBuffers.count)")
+        if audioBuffers.isEmpty {
+            print("⚠️ [Export] WARNING: No audio buffers to export! Recording will have no audio.")
+        }
+        
         guard !videoFrames.isEmpty else {
             throw ClipExportError.noVideoFrames
         }
@@ -632,7 +648,7 @@ final class ClipCaptureCoordinator: ObservableObject {
             throw ClipExportError.noVideoFrames
         }
         
-        print("🎬 Exporting \(validVideoFrames.count) frames...")
+        print("🎬 Exporting \(validVideoFrames.count) video frames with \(audioBuffers.count) audio buffers...")
         let exportFrameRate = 15
         let baseHostTime = min(
             validVideoFrames.first?.1 ?? 0,

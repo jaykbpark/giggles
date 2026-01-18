@@ -8,6 +8,7 @@ struct RootView: View {
     @StateObject private var viewState = GlobalViewState()
     @StateObject private var glassesManager = MetaGlassesManager.shared
     @StateObject private var captureCoordinator = ClipCaptureCoordinator.shared
+    @StateObject private var audioManager = AudioCaptureManager.shared
     @StateObject private var memoryAssistant = MemoryAssistantService()
     @State private var selectedClip: ClipMetadata?
     @State private var showSearch = false
@@ -640,15 +641,17 @@ struct RootView: View {
                 // Upload to backend asynchronously
                 let uploadURL = localURL ?? url
                 if FileManager.default.fileExists(atPath: uploadURL.path) {
+                    // Use existing serverVideoId or generate a new one
+                    let videoIdForUpload = updatedClip.serverVideoId ?? viewState.nextVideoId()
                     Task.detached(priority: .background) {
                         do {
                             try await APIService.shared.uploadClip(
                                 videoURL: uploadURL,
-                                videoId: localIdentifier,
+                                videoId: videoIdForUpload,
                                 title: finalTitle,
                                 timestamp: updatedClip.capturedAt
                             )
-                            print("✅ Uploaded clip to backend: \(localIdentifier)")
+                            print("✅ Uploaded clip to backend: \(videoIdForUpload)")
                         } catch {
                             print("❌ Upload failed: \(error.localizedDescription)")
                         }
@@ -703,15 +706,17 @@ struct RootView: View {
                 
                 // Upload to backend asynchronously if we still have a local file
                 if FileManager.default.fileExists(atPath: localURL.path) {
+                    // Use existing serverVideoId or generate a new one
+                    let videoIdForUpload = updatedClip.serverVideoId ?? viewState.nextVideoId()
                     Task.detached(priority: .background) {
                         do {
                             try await APIService.shared.uploadClip(
                                 videoURL: localURL,
-                                videoId: updatedClip.localIdentifier,
+                                videoId: videoIdForUpload,
                                 title: updatedClip.title,
                                 timestamp: updatedClip.capturedAt
                             )
-                            print("✅ Uploaded clip to backend (Photos failed): \(updatedClip.localIdentifier)")
+                            print("✅ Uploaded clip to backend (Photos failed): \(videoIdForUpload)")
                         } catch {
                             print("❌ Upload failed (Photos failed): \(error.localizedDescription)")
                         }
@@ -771,13 +776,19 @@ struct RootView: View {
             )
         }
         
+        // Get the next sequential videoId for backend sync
+        let nextId = viewState.nextVideoId()
+        let clipTitle = "Clip \(Date().formatted(date: .omitted, time: .shortened))"
+        let capturedAt = Date()
+        
         let newClip = ClipMetadata(
             id: UUID(),
             localIdentifier: exportedURL.lastPathComponent,
-            title: "Clip \(Date().formatted(date: .omitted, time: .shortened))",
+            serverVideoId: nextId,
+            title: clipTitle,
             transcript: finalTranscript,
             topics: ["Clip"],
-            capturedAt: Date(),
+            capturedAt: capturedAt,
             duration: duration,
             localFileURL: exportedURL.path,
             captionSegments: captionSegments,
@@ -785,6 +796,21 @@ struct RootView: View {
         )
         withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
             viewState.clips.insert(newClip, at: 0)
+        }
+        
+        // Upload to backend
+        Task {
+            do {
+                try await APIService.shared.uploadClip(
+                    videoURL: exportedURL,
+                    videoId: nextId,
+                    title: clipTitle,
+                    timestamp: capturedAt
+                )
+                print("✅ Uploaded clip with videoId: \(nextId)")
+            } catch {
+                print("⚠️ Failed to upload clip: \(error.localizedDescription)")
+            }
         }
     }
     
@@ -800,6 +826,9 @@ struct RootView: View {
             
             // Compact glasses status indicator
             compactGlassesStatus
+            
+            // Audio/Buffer debug indicator (only visible when capturing)
+            audioBufferDebugIndicator
             
             Spacer()
             
@@ -916,6 +945,60 @@ struct RootView: View {
             return "Connect"
         case .error:
             return "Retry"
+        }
+    }
+    
+    // MARK: - Audio/Buffer Debug Indicator
+    
+    /// Debug indicator showing audio status and buffer counts
+    /// Only visible when capturing is active
+    private var audioBufferDebugIndicator: some View {
+        Group {
+            if captureCoordinator.isCapturing {
+                HStack(spacing: 8) {
+                    // Audio status icon
+                    Image(systemName: audioStatusIcon)
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(audioStatusColor)
+                    
+                    // Buffer counts: Video | Audio
+                    Text("V:\(captureCoordinator.videoBufferCount) A:\(captureCoordinator.audioBufferCount)")
+                        .font(.system(size: 10, weight: .medium, design: .monospaced))
+                        .foregroundStyle(AppColors.textSecondary)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background {
+                    Capsule()
+                        .fill(.black.opacity(0.6))
+                }
+            }
+        }
+    }
+    
+    private var audioStatusIcon: String {
+        switch audioManager.captureState {
+        case .capturing:
+            return "mic.fill"
+        case .starting:
+            return "mic.badge.ellipsis"
+        case .error:
+            return "mic.slash.fill"
+        case .idle:
+            return "mic"
+        }
+    }
+    
+    private var audioStatusColor: Color {
+        switch audioManager.captureState {
+        case .capturing:
+            return .green
+        case .starting:
+            return .orange
+        case .error:
+            return .red
+        case .idle:
+            return .gray
         }
     }
 

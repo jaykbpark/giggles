@@ -152,6 +152,11 @@ final class GlobalViewState: ObservableObject {
         clips.compactMap { $0.serverVideoId }.max() ?? 0
     }
     
+    /// Get the next sequential videoId for a new clip
+    func nextVideoId() -> Int {
+        return maxServerVideoId + 1
+    }
+    
     private func loadClips() {
         guard FileManager.default.fileExists(atPath: clipsFileURL.path),
               let data = try? Data(contentsOf: clipsFileURL),

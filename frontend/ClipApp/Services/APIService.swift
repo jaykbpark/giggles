@@ -92,7 +92,7 @@ actor APIService {
     /// Upload a clip to the backend using multipart/form-data (POST /api/videos)
     func uploadClip(
         videoURL: URL,
-        videoId: String,
+        videoId: Int,
         title: String,
         timestamp: Date
     ) async throws {
@@ -110,7 +110,7 @@ actor APIService {
         let filename = videoURL.lastPathComponent
         
         var body = Data()
-        body.appendFormField(name: "videoId", value: videoId, boundary: boundary)
+        body.appendFormField(name: "videoId", value: String(videoId), boundary: boundary)
         body.appendFormField(name: "title", value: title, boundary: boundary)
         body.appendFormField(name: "timestamp", value: timestampString, boundary: boundary)
         body.appendFileField(

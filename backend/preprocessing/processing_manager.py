@@ -1,12 +1,16 @@
 import ffmpeg 
 import numpy as np
 import tempfile
+from transcript_processor import TranscriptProcessor
+from objects.RequestObjects import RequestVideoObject
 class ProcessingManager():
-    def __init__(self,video_bytes:bytes):
+    def __init__(self,requestVideoObject:RequestVideoObject):
+        video_bytes = requestVideoObject.videoData
         self.audio_bytes =  self.extract_audio(video_bytes)
         self.video_bytes = video_bytes
         self.width = 1920 #1920
         self.height = 1080 #1080
+        self.requestVideoObject = requestVideoObject
    
     def extract_audio(self, video_bytes: bytes):
         with tempfile.NamedTemporaryFile(suffix=".mp4") as tmp:
@@ -48,7 +52,10 @@ class ProcessingManager():
         
         
     def create_transcript_from_audio(self):
-        pass 
+        transcript_processer = TranscriptProcessor()
+        transcription, condensed_transcript, tags = transcript_processer.process_audio(self.audio_bytes)
+        return ((transcription, tags),condensed_transcript)        
+
     
     
 # with open('test.mp4', 'rb') as f:

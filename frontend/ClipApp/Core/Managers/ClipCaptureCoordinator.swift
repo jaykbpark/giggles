@@ -781,10 +781,9 @@ final class ClipCaptureCoordinator: ObservableObject {
         
         print("🎬 Exporting \(validVideoFrames.count) video frames with \(audioBuffers.count) audio buffers...")
         let exportFrameRate = 15
-        let baseHostTime = min(
-            validVideoFrames.first?.1 ?? 0,
-            audioBuffers.first?.hostTime ?? UInt64.max
-        )
+        // Use video's first frame as base time so video always starts at 0 (no black frames)
+        // Audio is synced relative to video's start; any audio before video gets clipped
+        let baseHostTime = validVideoFrames.first?.1 ?? 0
         
         // Try ProRes first (more lenient about formats)
         do {

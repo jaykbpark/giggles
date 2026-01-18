@@ -151,6 +151,14 @@ struct SpectacularClipCell: View {
                 Rectangle()
                     .fill(cellGradient)
 
+                // Real thumbnail if available
+                if let thumbnailImage = clip.thumbnailImage {
+                    Image(uiImage: thumbnailImage)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: geo.size.width, height: geo.size.width)
+                }
+
                 // Subtle vignette
                 RadialGradient(
                     colors: [Color.clear, Color.black.opacity(0.3)],

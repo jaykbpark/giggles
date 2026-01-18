@@ -26,6 +26,7 @@ struct ClipDetailView: View {
     @State private var timeObserver: Any?
     @State private var endTimeObserver: NSObjectProtocol?
     @State private var videoDuration: TimeInterval = 0
+    @State private var videoLoadTask: Task<Void, Never>?
     
     // Audio narration state
     @State private var audioEndObserver: NSObjectProtocol?
@@ -181,13 +182,19 @@ struct ClipDetailView: View {
         isLoadingVideo = true
         videoLoadError = nil
         
-        Task {
+        // Store task so it can be cancelled during cleanup
+        videoLoadTask = Task {
             do {
                 // Prefer local master file if available
                 if let localPath = currentClip.localFileURL,
                    FileManager.default.fileExists(atPath: localPath) {
                     let localURL = URL(fileURLWithPath: localPath)
+                    
+                    // Check if cancelled or inactive before setting up player
+                    guard !Task.isCancelled && isActive else { return }
+                    
                     await MainActor.run {
+                        guard isActive else { return }  // Double-check on main thread
                         videoURL = localURL
                         setupPlayer(with: localURL)
                     }
@@ -199,11 +206,17 @@ struct ClipDetailView: View {
                     throw PhotoManagerError.assetNotFound
                 }
                 let url = try await photoManager.getVideoURL(for: asset)
+                
+                // Check if cancelled or inactive before setting up player
+                guard !Task.isCancelled && isActive else { return }
+                
                 await MainActor.run {
+                    guard isActive else { return }  // Double-check on main thread
                     videoURL = url
                     setupPlayer(with: url)
                 }
             } catch {
+                guard !Task.isCancelled else { return }
                 await MainActor.run {
                     videoLoadError = error.localizedDescription
                     isLoadingVideo = false
@@ -260,6 +273,10 @@ struct ClipDetailView: View {
     }
     
     private func cleanupPlayer() {
+        // Cancel any pending video load task to prevent race conditions
+        videoLoadTask?.cancel()
+        videoLoadTask = nil
+        
         if let observer = timeObserver {
             player?.removeTimeObserver(observer)
             timeObserver = nil

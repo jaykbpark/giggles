@@ -8,7 +8,8 @@ struct ClipPagerView: View {
     @ObservedObject var viewState: GlobalViewState
     var namespace: Namespace.ID
     
-    @State private var currentIndex: Int = 0
+    // Start as nil to prevent the first clip from briefly being "active"
+    @State private var currentIndex: Int? = nil
     @State private var scrolledID: UUID?
     @State private var dragOffset: CGFloat = 0
     @State private var isDragging: Bool = false
@@ -25,56 +26,26 @@ struct ClipPagerView: View {
     
     var body: some View {
         ZStack(alignment: .leading) {
-            // Main content
-            GeometryReader { geometry in
-                ScrollView(.vertical, showsIndicators: false) {
-                    LazyVStack(spacing: 0) {
-                        ForEach(Array(clips.enumerated()), id: \.element.id) { index, clip in
-                            ClipDetailView(
-                                clip: clip,
-                                namespace: namespace,
-                                selectedClip: $selectedClip,
-                                viewState: viewState,
-                                isActive: index == currentIndex,
-                                onReachedEnd: {
-                                    // Trigger bounce hint when clip ends
-                                },
-                                onClose: {
-                                    withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-                                        selectedClip = nil
-                                    }
-                                }
-                            )
-                            .frame(width: geometry.size.width, height: geometry.size.height)
-                            .id(clip.id)
+            // Only render content once currentIndex is determined
+            // This prevents the first clip from briefly being active
+            if let activeIndex = currentIndex {
+                pagerContent(activeIndex: activeIndex)
+            } else {
+                // Placeholder while determining initial index
+                Color.black
+                    .ignoresSafeArea()
+                    .onAppear {
+                        // Set initial index before any ClipDetailView is created
+                        if let initialIndex = clips.firstIndex(where: { $0.id == initialClip.id }) {
+                            currentIndex = initialIndex
+                            scrolledID = initialClip.id
+                        } else {
+                            // Fallback to first clip if not found
+                            currentIndex = 0
+                            scrolledID = clips.first?.id
                         }
                     }
-                    .scrollTargetLayout()
-                }
-                .scrollTargetBehavior(.paging)
-                .scrollPosition(id: $scrolledID)
-                .scrollDisabled(clips.count <= 1)
-                .ignoresSafeArea()
-                .onChange(of: scrolledID) { _, newID in
-                    if let newID = newID,
-                       let newIndex = clips.firstIndex(where: { $0.id == newID }) {
-                        if newIndex != currentIndex {
-                            currentIndex = newIndex
-                            HapticManager.playLight()
-                        }
-                    }
-                }
-                .onAppear {
-                    // Set initial scroll position
-                    if let initialIndex = clips.firstIndex(where: { $0.id == initialClip.id }) {
-                        currentIndex = initialIndex
-                        scrolledID = initialClip.id
-                    }
-                }
             }
-            .background(Color.black)
-            .ignoresSafeArea()
-            .offset(x: dragOffset)
             
             // Stretchy back arrow indicator
             if isDragging && dragOffset > 10 {
@@ -108,6 +79,52 @@ struct ClipPagerView: View {
                     }
                 }
         )
+    }
+    
+    @ViewBuilder
+    private func pagerContent(activeIndex: Int) -> some View {
+        GeometryReader { geometry in
+            ScrollView(.vertical, showsIndicators: false) {
+                LazyVStack(spacing: 0) {
+                    ForEach(Array(clips.enumerated()), id: \.element.id) { index, clip in
+                        ClipDetailView(
+                            clip: clip,
+                            namespace: namespace,
+                            selectedClip: $selectedClip,
+                            viewState: viewState,
+                            isActive: index == activeIndex,
+                            onReachedEnd: {
+                                // Trigger bounce hint when clip ends
+                            },
+                            onClose: {
+                                withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                                    selectedClip = nil
+                                }
+                            }
+                        )
+                        .frame(width: geometry.size.width, height: geometry.size.height)
+                        .id(clip.id)
+                    }
+                }
+                .scrollTargetLayout()
+            }
+            .scrollTargetBehavior(.paging)
+            .scrollPosition(id: $scrolledID)
+            .scrollDisabled(clips.count <= 1)
+            .ignoresSafeArea()
+            .onChange(of: scrolledID) { _, newID in
+                if let newID = newID,
+                   let newIndex = clips.firstIndex(where: { $0.id == newID }) {
+                    if newIndex != currentIndex {
+                        currentIndex = newIndex
+                        HapticManager.playLight()
+                    }
+                }
+            }
+        }
+        .background(Color.black)
+        .ignoresSafeArea()
+        .offset(x: dragOffset)
     }
 }
 

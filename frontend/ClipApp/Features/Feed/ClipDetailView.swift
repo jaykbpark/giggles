@@ -435,8 +435,13 @@ struct ClipDetailView: View {
         }
         
         do {
-            // Now configure for video playback
-            try audioSession.setCategory(.playback, mode: .moviePlayback, options: [.allowAirPlay])
+            // Use playAndRecord to allow video playback while maintaining recording capability
+            // This is compatible with the Bluetooth audio capture configuration
+            try audioSession.setCategory(
+                .playAndRecord,
+                mode: .default,
+                options: [.defaultToSpeaker, .allowBluetooth, .allowBluetoothA2DP, .mixWithOthers]
+            )
             try audioSession.setActive(true)
         } catch {
             print("⚠️ Failed to configure audio session for playback: \(error)")

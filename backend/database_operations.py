@@ -13,6 +13,7 @@ class DatabaseOperations():
             collection_name=MILVUS_COLLECTION_NAME,
             anns_field= "embedding",
             data = [vector_data],
+            param = {"metric_type": "L2", "params": {"nprobe": 10}},
             limit=10,
             output_fields=["video_id"]
         )

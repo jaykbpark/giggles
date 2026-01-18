@@ -638,26 +638,18 @@ struct RootView: View {
                 )
                 viewState.clips[index] = updatedClip
                 
-                // Upload to backend asynchronously
+                // Upload to backend asynchronously using PHAsset localIdentifier as videoId
                 let uploadURL = localURL ?? url
                 if FileManager.default.fileExists(atPath: uploadURL.path) {
-                    let clipForUpload = updatedClip
                     Task {
-                        // Use existing serverVideoId or generate a new one from backend
-                        let videoIdForUpload: Int
-                        if let existingId = clipForUpload.serverVideoId {
-                            videoIdForUpload = existingId
-                        } else {
-                            videoIdForUpload = await viewState.nextVideoId()
-                        }
                         do {
                             try await APIService.shared.uploadClip(
                                 videoURL: uploadURL,
-                                videoId: videoIdForUpload,
+                                videoId: localIdentifier, // PHAsset ID from Photos library
                                 title: finalTitle,
-                                timestamp: clipForUpload.capturedAt
+                                timestamp: updatedClip.capturedAt
                             )
-                            print("✅ Uploaded clip to backend: \(videoIdForUpload)")
+                            print("✅ Uploaded clip to backend: \(localIdentifier)")
                         } catch {
                             print("❌ Upload failed: \(error.localizedDescription)")
                         }
@@ -710,30 +702,10 @@ struct RootView: View {
                     captionStyle: updatedClip.captionStyle
                 )
                 
-                // Upload to backend asynchronously if we still have a local file
-                if FileManager.default.fileExists(atPath: localURL.path) {
-                    let clipForUpload = updatedClip
-                    Task {
-                        // Use existing serverVideoId or generate a new one from backend
-                        let videoIdForUpload: Int
-                        if let existingId = clipForUpload.serverVideoId {
-                            videoIdForUpload = existingId
-                        } else {
-                            videoIdForUpload = await viewState.nextVideoId()
-                        }
-                        do {
-                            try await APIService.shared.uploadClip(
-                                videoURL: localURL,
-                                videoId: videoIdForUpload,
-                                title: clipForUpload.title,
-                                timestamp: clipForUpload.capturedAt
-                            )
-                            print("✅ Uploaded clip to backend (Photos failed): \(videoIdForUpload)")
-                        } catch {
-                            print("❌ Upload failed (Photos failed): \(error.localizedDescription)")
-                        }
-                    }
-                }
+                // Note: Not uploading to backend since Photos save failed
+                // Without a valid PHAsset localIdentifier, the clip won't sync properly
+                // The clip is kept locally but won't appear in backend-synced view
+                print("⚠️ Skipping backend upload: no valid PHAsset ID (Photos save failed)")
             }
         }
     }
@@ -791,45 +763,29 @@ struct RootView: View {
         let clipTitle = "Clip \(Date().formatted(date: .omitted, time: .shortened))"
         let capturedAt = Date()
         
-        // Fetch unique videoId from backend and upload
-        Task {
-            // Get the next sequential videoId from backend to ensure uniqueness
-            let nextId = await viewState.nextVideoId()
-            
-            let newClip = ClipMetadata(
-                id: UUID(),
-                localIdentifier: exportedURL.lastPathComponent,
-                serverVideoId: nextId,
-                title: clipTitle,
-                transcript: finalTranscript,
-                topics: ["Clip"],
-                capturedAt: capturedAt,
-                duration: duration,
-                localFileURL: exportedURL.path,
-                captionSegments: captionSegments,
-                showCaptions: captionSegments != nil
-            )
-            
-            // Add to local clips immediately for UI feedback
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                viewState.clips.insert(newClip, at: 0)
-            }
-            
-            // Upload to backend
-            do {
-                try await APIService.shared.uploadClip(
-                    videoURL: exportedURL,
-                    videoId: nextId,
-                    title: clipTitle,
-                    timestamp: capturedAt
-                )
-                print("✅ Uploaded clip with videoId: \(nextId)")
-            } catch {
-                print("⚠️ Failed to upload clip: \(error.localizedDescription)")
-                // Note: Clip is still in local storage but won't appear after restart
-                // until backend upload succeeds
-            }
+        // Create clip with temp filename as localIdentifier
+        // The localIdentifier will be updated to PHAsset ID when saved to Photos
+        // Backend upload happens in saveToPhotoLibrary() after we have the real PHAsset ID
+        let newClip = ClipMetadata(
+            id: UUID(),
+            localIdentifier: exportedURL.lastPathComponent, // Temp filename, updated after Photos save
+            title: clipTitle,
+            transcript: finalTranscript,
+            topics: ["Clip"],
+            capturedAt: capturedAt,
+            duration: duration,
+            localFileURL: exportedURL.path,
+            captionSegments: captionSegments,
+            showCaptions: captionSegments != nil
+        )
+        
+        // Add to local clips immediately for UI feedback
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+            viewState.clips.insert(newClip, at: 0)
         }
+        
+        // Note: Backend upload is NOT done here because we don't have the PHAsset ID yet
+        // The upload happens in saveToPhotoLibrary() after saving to Photos
     }
     
     // MARK: - Header Bar

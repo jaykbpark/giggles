@@ -16,6 +16,11 @@ struct RootView: View {
     @State private var showRecordConfirmation = false
     @State private var recordPulse = false
     @State private var recordProgress: Double = 0
+    @State private var showCompletionBurst = false
+    @State private var completionRingScale: CGFloat = 1.0
+    @State private var completionRingScale2: CGFloat = 1.0
+    @State private var completionOpacity: Double = 0
+    @State private var buttonBounceScale: CGFloat = 1.0
     @State private var cancellables = Set<AnyCancellable>()
     @State private var showBufferTooShortMessage = false
     @State private var isSavingClip = false
@@ -843,6 +848,23 @@ struct RootView: View {
             triggerRecording()
         } label: {
             ZStack {
+                // Completion burst rings (behind everything)
+                if showCompletionBurst {
+                    // Primary burst ring
+                    Circle()
+                        .stroke(AppColors.accent, lineWidth: 3)
+                        .frame(width: 80, height: 80)
+                        .scaleEffect(completionRingScale)
+                        .opacity(completionOpacity)
+                    
+                    // Secondary burst ring (slightly delayed feel via different scale)
+                    Circle()
+                        .stroke(AppColors.accent.opacity(0.6), lineWidth: 2)
+                        .frame(width: 80, height: 80)
+                        .scaleEffect(completionRingScale2)
+                        .opacity(completionOpacity * 0.7)
+                }
+                
                 if isRecording {
                     Circle()
                         .stroke(AppColors.accent.opacity(0.2), lineWidth: 1)
@@ -874,11 +896,13 @@ struct RootView: View {
                 Circle()
                     .fill(AppGradients.accent)
                     .frame(width: 56, height: 56)
+                    .scaleEffect(buttonBounceScale)
 
                 if isRecording {
                     Image(systemName: "checkmark")
                         .font(.system(size: 24, weight: .bold))
                         .foregroundStyle(.white)
+                        .scaleEffect(buttonBounceScale)
                         .transition(.scale.combined(with: .opacity))
                 } else if isSavingClip {
                     ProgressView()
@@ -895,7 +919,7 @@ struct RootView: View {
             .frame(width: 96, height: 96)
         }
         .buttonStyle(RecordButtonStyle())
-        .shadow(color: AppColors.accent.opacity(0.25), radius: 16, y: 10)
+        .shadow(color: AppColors.accent.opacity(showCompletionBurst ? 0.5 : 0.25), radius: showCompletionBurst ? 24 : 16, y: 10)
         .onLongPressGesture(minimumDuration: 0, pressing: { isPressing in
             if isPressing {
                 HapticManager.playLight()
@@ -917,6 +941,13 @@ struct RootView: View {
         isRecording = true
         recordProgress = 0
         recordPulse = false
+        
+        // Reset burst state
+        showCompletionBurst = false
+        completionRingScale = 1.0
+        completionRingScale2 = 1.0
+        completionOpacity = 0
+        buttonBounceScale = 1.0
 
         // Animate progress ring
         withAnimation(.linear(duration: 1.0)) {
@@ -930,11 +961,49 @@ struct RootView: View {
         
         // Reset the UI ring/checkmark after 1s regardless of export time
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            // Trigger completion burst animation
+            showCompletionBurst = true
+            completionOpacity = 1.0
+            
+            // Primary burst ring - expands outward
+            withAnimation(.easeOut(duration: 0.5)) {
+                completionRingScale = 2.2
+                completionOpacity = 0
+            }
+            
+            // Secondary burst ring - slightly delayed, different timing
+            withAnimation(.easeOut(duration: 0.6).delay(0.05)) {
+                completionRingScale2 = 2.0
+            }
+            
+            // Button bounce effect
+            withAnimation(.spring(response: 0.2, dampingFraction: 0.4)) {
+                buttonBounceScale = 1.15
+            }
+            
+            // Bounce back
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                withAnimation(.spring(response: 0.25, dampingFraction: 0.6)) {
+                    buttonBounceScale = 1.0
+                }
+            }
+            
+            // Success haptic
+            HapticManager.playSuccess()
+            
+            // Reset recording state
             withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
                 isRecording = false
             }
             recordPulse = false
             recordProgress = 0
+            
+            // Clean up burst state after animation completes
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                showCompletionBurst = false
+                completionRingScale = 1.0
+                completionRingScale2 = 1.0
+            }
         }
 
         // Export the last 30 seconds from the rolling buffer

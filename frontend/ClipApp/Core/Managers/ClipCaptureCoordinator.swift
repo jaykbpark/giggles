@@ -72,6 +72,10 @@ final class ClipCaptureCoordinator: ObservableObject {
     /// Number of audio buffers in the buffer
     @Published private(set) var audioBufferCount: Int = 0
     
+    /// Whether video stream is stale (no frames received for 2+ seconds)
+    /// Used by UI to show disconnected state in connection pill
+    @Published private(set) var isVideoStreamStale: Bool = false
+    
     /// Current buffer duration in seconds (calculated from timestamps)
     @Published private(set) var currentBufferDuration: TimeInterval = 0.0
     
@@ -134,6 +138,15 @@ final class ClipCaptureCoordinator: ObservableObject {
     /// Tracks whether we've received at least one video frame (gates audio buffering)
     /// This prevents buffering audio before video is ready, which would result in black clips
     private var hasReceivedFirstVideoFrame: Bool = false
+    
+    /// Last time a video frame was received (for stale detection)
+    private var lastVideoFrameTime: Date?
+    
+    /// Timer for checking video stream staleness
+    private var staleCheckTimer: Timer?
+    
+    /// Threshold for considering video stream stale (2 seconds)
+    private let videoStaleThreshold: TimeInterval = 2.0
     
     // MARK: - Subscriptions
     
@@ -344,6 +357,9 @@ final class ClipCaptureCoordinator: ObservableObject {
             }
         }
         
+        // 5️⃣ Start video stale detection timer
+        setupStaleCheckTimer()
+        
         isCapturing = true
         print("🎬 ClipCaptureCoordinator: Capture started (audio: \(audioAvailable ? "enabled" : "disabled"))")
     }
@@ -352,6 +368,12 @@ final class ClipCaptureCoordinator: ObservableObject {
     func stopCapture() {
         cancellables.removeAll()
         audioSubscriptions.removeAll()
+        
+        // Stop stale check timer
+        staleCheckTimer?.invalidate()
+        staleCheckTimer = nil
+        isVideoStreamStale = false
+        lastVideoFrameTime = nil
         
         wakeWordDetector.stopListening()
         laughterDetector.stopListening()
@@ -364,6 +386,38 @@ final class ClipCaptureCoordinator: ObservableObject {
         
         isCapturing = false
         print("🎬 ClipCaptureCoordinator: Capture stopped")
+    }
+    
+    /// Set up timer to check for stale video stream (no frames for 2+ seconds)
+    private func setupStaleCheckTimer() {
+        staleCheckTimer?.invalidate()
+        staleCheckTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self = self else { return }
+                self.checkVideoStreamStale()
+            }
+        }
+    }
+    
+    /// Check if video stream is stale and update state
+    private func checkVideoStreamStale() {
+        guard isCapturing else { return }
+        
+        if let lastTime = lastVideoFrameTime {
+            let elapsed = Date().timeIntervalSince(lastTime)
+            let wasStale = isVideoStreamStale
+            isVideoStreamStale = elapsed > videoStaleThreshold
+            
+            // Log state change
+            if isVideoStreamStale && !wasStale {
+                print("⚠️ [Stale] Video stream stale - no frames for \(String(format: "%.1f", elapsed))s")
+            } else if !isVideoStreamStale && wasStale {
+                print("✅ [Stale] Video stream recovered")
+            }
+        } else if hasReceivedFirstVideoFrame {
+            // We've received frames before but lastVideoFrameTime is nil - shouldn't happen
+            isVideoStreamStale = true
+        }
     }
     
     /// Resume audio capture after it was interrupted (e.g., by video playback)
@@ -526,6 +580,11 @@ final class ClipCaptureCoordinator: ObservableObject {
         
         Task { @MainActor in
             self.videoBufferCount = self.videoBuffer.count
+            // Update last frame time for stale detection
+            self.lastVideoFrameTime = Date()
+            if self.isVideoStreamStale {
+                self.isVideoStreamStale = false
+            }
         }
     }
     

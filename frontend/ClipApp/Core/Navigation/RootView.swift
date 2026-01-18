@@ -123,6 +123,18 @@ struct RootView: View {
                 showSearchSuggestions = false
             }
         }
+        // Resume audio capture when switching from Ask tab back to Clips tab
+        // The Ask tab uses its own audio session for speech recognition,
+        // so we need to reclaim the audio session for wake word detection
+        .onChange(of: selectedTab) { oldTab, newTab in
+            if oldTab == .ask && newTab == .clips {
+                // Wait for tab switch animation to complete (350ms spring + buffer)
+                Task {
+                    try? await Task.sleep(nanoseconds: 400_000_000) // 400ms
+                    await captureCoordinator.resumeAudioCapture()
+                }
+            }
+        }
     }
     
     // MARK: - Clips Tab Content
@@ -893,8 +905,8 @@ struct RootView: View {
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(AppColors.textSecondary)
                 
-                // Animated dot for live status
-                if glassesManager.connectionState == .connected && captureCoordinator.isCapturing {
+                // Animated dot for live status (only when actually receiving frames)
+                if glassesManager.connectionState == .connected && captureCoordinator.isCapturing && !captureCoordinator.isVideoStreamStale {
                     Circle()
                         .fill(AppColors.connected)
                         .frame(width: 6, height: 6)
@@ -916,6 +928,10 @@ struct RootView: View {
     }
     
     private var glassesStatusColor: Color {
+        // Show disconnected color if video stream is stale while capturing
+        if captureCoordinator.isCapturing && captureCoordinator.isVideoStreamStale {
+            return AppColors.textSecondary
+        }
         switch glassesManager.connectionState {
         case .connected:
             return captureCoordinator.isCapturing ? AppColors.connected : AppColors.accent
@@ -927,6 +943,10 @@ struct RootView: View {
     }
     
     private var glassesStatusText: String {
+        // Show reconnecting if video stream is stale while capturing
+        if captureCoordinator.isCapturing && captureCoordinator.isVideoStreamStale {
+            return "Reconnecting..."
+        }
         switch glassesManager.connectionState {
         case .connected:
             return captureCoordinator.isCapturing ? "Live" : "Connected"

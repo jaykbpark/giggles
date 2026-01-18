@@ -1351,6 +1351,9 @@ struct RootView: View {
                             .font(.system(size: 16))
                             .foregroundStyle(AppColors.textPrimary)
                             .autocorrectionDisabled()
+                            .onSubmit {
+                                // User pressed return/search - results already displayed
+                            }
                         
                         if !viewState.searchText.isEmpty {
                             Button {
@@ -1389,8 +1392,11 @@ struct RootView: View {
                     .foregroundStyle(AppColors.textSecondary)
                     .padding(.top, 10)
                 
-                // Suggestions with glass pills
-                if viewState.searchText.isEmpty {
+                // Show search results when we have them
+                if !viewState.searchText.isEmpty {
+                    searchResultsSection
+                } else {
+                    // Suggestions with glass pills
                     VStack(alignment: .leading, spacing: 16) {
                         Text("TRY SEARCHING")
                             .font(.system(size: 11, weight: .bold))
@@ -1420,9 +1426,72 @@ struct RootView: View {
                         }
                     }
                     .padding(.horizontal, 20)
+                    
+                    Spacer()
                 }
+            }
+        }
+    }
+    
+    // MARK: - Search Results Section
+    
+    @ViewBuilder
+    private var searchResultsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // Results header
+            HStack {
+                if viewState.isLoading {
+                    ProgressView()
+                        .scaleEffect(0.8)
+                    Text("Searching...")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(AppColors.textSecondary)
+                } else {
+                    Text("\(viewState.semanticResults.count) RESULT\(viewState.semanticResults.count == 1 ? "" : "S")")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(AppColors.textSecondary)
+                }
+                Spacer()
+            }
+            .padding(.top, 20)
+            .padding(.horizontal, 20)
+            
+            if viewState.semanticResults.isEmpty && !viewState.isLoading {
+                // No results state
+                VStack(spacing: 12) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 32, weight: .light))
+                        .foregroundStyle(AppColors.textSecondary.opacity(0.5))
+                    
+                    Text("No clips found")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundStyle(AppColors.textSecondary)
+                    
+                    Text("Try a different search term")
+                        .font(.system(size: 13))
+                        .foregroundStyle(AppColors.textSecondary.opacity(0.7))
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.top, 60)
                 
                 Spacer()
+            } else {
+                // Results list
+                ScrollView {
+                    LazyVStack(spacing: 12) {
+                        ForEach(viewState.semanticResults) { clip in
+                            SearchResultCard(clip: clip) {
+                                // Tap to view clip
+                                withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+                                    selectedClip = clip
+                                    showSearch = false
+                                }
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 100)
+                }
             }
         }
     }
@@ -1431,6 +1500,73 @@ struct RootView: View {
         withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
             showSearch = false
         }
+    }
+}
+
+// MARK: - Search Result Card
+
+struct SearchResultCard: View {
+    let clip: ClipMetadata
+    let onTap: () -> Void
+    
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: 14) {
+                // Thumbnail
+                Group {
+                    if let thumbnail = clip.thumbnailImage {
+                        Image(uiImage: thumbnail)
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                    } else {
+                        Rectangle()
+                            .fill(AppColors.cardBackground.opacity(0.5))
+                            .overlay {
+                                Image(systemName: "video.fill")
+                                    .font(.system(size: 16))
+                                    .foregroundStyle(AppColors.textSecondary.opacity(0.5))
+                            }
+                    }
+                }
+                .frame(width: 64, height: 64)
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                
+                // Text content
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(clip.title)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(AppColors.textPrimary)
+                        .lineLimit(1)
+                    
+                    if !clip.transcript.isEmpty {
+                        Text(clip.transcript)
+                            .font(.system(size: 13))
+                            .foregroundStyle(AppColors.textSecondary)
+                            .lineLimit(2)
+                    }
+                    
+                    Text(clip.capturedAt.formatted(date: .abbreviated, time: .shortened))
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(AppColors.textSecondary.opacity(0.7))
+                }
+                
+                Spacer()
+                
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(AppColors.textSecondary.opacity(0.5))
+            }
+            .padding(12)
+            .background {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(AppColors.cardBackground.opacity(0.6))
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(AppColors.timelineLine.opacity(0.3), lineWidth: 1)
+            }
+        }
+        .buttonStyle(.plain)
     }
 }
 

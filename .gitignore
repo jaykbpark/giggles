@@ -39,3 +39,5 @@ iOSInjectionProject/
 .claude/
 .cursor/
 .env
+# App-specific secrets
+**/Info.plist

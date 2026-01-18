@@ -73,6 +73,11 @@ actor APIService {
         let result: [BackendVideo]?
         let videos: [BackendVideo]?
     }
+    
+    struct BackendTagsResponse: Codable {
+        let success: Bool?
+        let result: [String]?
+    }
 
     func processClip(audioData: Data, localIdentifier: String) async throws -> ClipMetadata {
         var request = URLRequest(url: Self.baseURL.appendingPathComponent("/api/process"))
@@ -148,6 +153,19 @@ actor APIService {
         let (data, _) = try await URLSession.shared.data(from: url)
         let response = try JSONDecoder().decode(BackendVideosResponse.self, from: data)
         return response.result ?? response.videos ?? []
+    }
+    
+    func fetchTags() async throws -> [String] {
+        let url = Self.baseURL.appendingPathComponent("/api/tags")
+        let (data, _) = try await URLSession.shared.data(from: url)
+        let decoder = JSONDecoder()
+        if let wrapped = try? decoder.decode(BackendTagsResponse.self, from: data) {
+            return wrapped.result ?? []
+        }
+        if let raw = try? decoder.decode([String].self, from: data) {
+            return raw
+        }
+        return []
     }
     
     func searchSemantic(_ query: String) async throws -> [ClipMetadata] {

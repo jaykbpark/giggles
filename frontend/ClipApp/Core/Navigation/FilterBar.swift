@@ -51,7 +51,7 @@ struct FilterBar: View {
                 // Tag chips (scrollable)
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 6) {
-                        ForEach(viewState.allTopics, id: \.self) { tag in
+                        ForEach(viewState.filterTags, id: \.self) { tag in
                             TagChip(
                                 tag: tag,
                                 isSelected: viewState.selectedTags.contains(tag)

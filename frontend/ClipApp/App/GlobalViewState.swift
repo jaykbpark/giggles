@@ -53,6 +53,7 @@ final class GlobalViewState: ObservableObject {
     // Filter & Sort
     @Published var sortOrder: SortOrder = .recent
     @Published var selectedTags: Set<String> = []
+    @Published var availableTags: [String] = []
     
     // MARK: - Persistence
     
@@ -63,6 +64,9 @@ final class GlobalViewState: ObservableObject {
     
     init() {
         loadClips()
+        Task {
+            await refreshAvailableTags()
+        }
         // Sync with backend on app launch after a short delay
         // This prevents the "flash" where clips load, then reload after sync
         Task {
@@ -135,6 +139,8 @@ final class GlobalViewState: ObservableObject {
             print("⚠️ Backend sync failed: \(error.localizedDescription)")
             // On failure, keep local clips but warn user
         }
+        
+        await refreshAvailableTags()
     }
     
     private func loadClips() {
@@ -202,6 +208,10 @@ final class GlobalViewState: ObservableObject {
 
     var allTopics: [String] {
         Array(Set(clips.flatMap { $0.topics })).sorted()
+    }
+    
+    var filterTags: [String] {
+        availableTags.isEmpty ? allTopics : availableTags
     }
     
     var hasActiveFilters: Bool {
@@ -310,5 +320,30 @@ final class GlobalViewState: ObservableObject {
             }
         }
         tagResults = merged
+    }
+    
+    func refreshAvailableTags() async {
+        do {
+            let tags = try await APIService.shared.fetchTags()
+            await applyAvailableTags(tags)
+        } catch {
+            availableTags = []
+            print("❌ Failed to fetch tags: \(error.localizedDescription)")
+        }
+    }
+    
+    private func applyAvailableTags(_ tags: [String]) async {
+        let normalized = tags
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        let uniqueTags = Array(Set(normalized)).sorted()
+        availableTags = uniqueTags
+        
+        let availableSet = Set(uniqueTags)
+        let filteredSelection = selectedTags.intersection(availableSet)
+        if filteredSelection != selectedTags {
+            selectedTags = filteredSelection
+            await refreshTagSearch(tags: filteredSelection)
+        }
     }
 }

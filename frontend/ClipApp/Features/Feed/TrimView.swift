@@ -19,6 +19,8 @@ struct TrimView: View {
     @State private var isDraggingStart = false
     @State private var isDraggingEnd = false
     @State private var timeObserver: Any?
+    @State private var showControls = true
+    @State private var controlsHideTask: Task<Void, Never>?
     
     private let minimumDuration: TimeInterval = 1.0
     private let thumbnailCount = 10
@@ -130,6 +132,17 @@ struct TrimView: View {
                     }
             }
             
+            // Tap area to show controls or toggle playback
+            Color.clear
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    if showControls {
+                        togglePlayback()
+                    } else {
+                        showControlsTemporarily()
+                    }
+                }
+            
             // Play/Pause overlay
             Button {
                 togglePlayback()
@@ -146,7 +159,8 @@ struct TrimView: View {
                         .offset(x: isPlaying ? 0 : 2)
                 }
             }
-            .opacity(isPlaying ? 0 : 1)
+            .opacity(showControls ? 1 : 0)
+            .animation(.easeInOut(duration: 0.2), value: showControls)
         }
         .padding(.horizontal, 20)
     }
@@ -411,6 +425,7 @@ struct TrimView: View {
     }
     
     private func cleanupPlayer() {
+        controlsHideTask?.cancel()
         if let observer = timeObserver {
             player?.removeTimeObserver(observer)
         }
@@ -420,13 +435,31 @@ struct TrimView: View {
     
     private func togglePlayback() {
         if isPlaying {
+            // Pausing - show controls permanently
             player?.pause()
+            controlsHideTask?.cancel()
+            withAnimation(.easeIn(duration: 0.2)) {
+                showControls = true
+            }
         } else {
-            // Start from trim start if outside range
+            // Starting playback - schedule controls to hide
             if currentTime < startTime || currentTime >= endTime {
                 seekTo(time: startTime)
             }
             player?.play()
+            
+            // Schedule auto-hide after 3 seconds
+            controlsHideTask?.cancel()
+            controlsHideTask = Task {
+                try? await Task.sleep(for: .seconds(3))
+                if !Task.isCancelled {
+                    await MainActor.run {
+                        withAnimation(.easeOut(duration: 0.3)) {
+                            showControls = false
+                        }
+                    }
+                }
+            }
         }
         isPlaying.toggle()
     }
@@ -465,6 +498,26 @@ struct TrimView: View {
         let seconds = Int(time) % 60
         let fraction = Int((time.truncatingRemainder(dividingBy: 1)) * 10)
         return String(format: "%d:%02d.%d", minutes, seconds, fraction)
+    }
+    
+    private func showControlsTemporarily() {
+        withAnimation(.easeIn(duration: 0.2)) {
+            showControls = true
+        }
+        controlsHideTask?.cancel()
+        
+        if isPlaying {
+            controlsHideTask = Task {
+                try? await Task.sleep(for: .seconds(3))
+                if !Task.isCancelled {
+                    await MainActor.run {
+                        withAnimation(.easeOut(duration: 0.3)) {
+                            showControls = false
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 

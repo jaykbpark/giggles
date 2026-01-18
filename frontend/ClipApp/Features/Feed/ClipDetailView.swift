@@ -423,29 +423,19 @@ struct ClipDetailView: View {
     // MARK: - Video Playback
     
     private func configureAudioSession() {
-        let audioSession = AVAudioSession.sharedInstance()
-        
-        do {
-            // First deactivate any existing session to ensure clean state
-            // This helps recover from other audio modes (e.g., speech recognition's .record mode)
-            try audioSession.setActive(false, options: .notifyOthersOnDeactivation)
-        } catch {
-            // Deactivation can fail if no session was active - this is OK
-            print("ℹ️ Audio session deactivation note: \(error.localizedDescription)")
-        }
-        
-        do {
-            // Use playAndRecord to allow video playback while maintaining recording capability
-            // This is compatible with the Bluetooth audio capture configuration
-            try audioSession.setCategory(
-                .playAndRecord,
-                mode: .default,
-                options: [.defaultToSpeaker, .allowBluetooth, .allowBluetoothA2DP, .mixWithOthers]
-            )
-            try audioSession.setActive(true)
-        } catch {
-            print("⚠️ Failed to configure audio session for playback: \(error)")
-        }
+        // NOTE: We intentionally do NOT deactivate or reconfigure the audio session here.
+        // The BluetoothAudioProvider has already configured the session with .playAndRecord
+        // category and .mixWithOthers option, which allows video playback to coexist with
+        // the audio recording tap. Deactivating the session would break the recording tap
+        // and cause the audio buffer to stop updating.
+        //
+        // The existing session configuration:
+        // - Category: .playAndRecord (supports both recording and playback)
+        // - Mode: .measurement (for speech recognition)
+        // - Options: [.allowBluetooth, .defaultToSpeaker, .mixWithOthers, .allowBluetoothA2DP]
+        //
+        // This is already compatible with AVPlayer video playback.
+        print("🎬 [Audio] Video playback using existing audio session (preserving recording tap)")
     }
     
     

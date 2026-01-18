@@ -561,9 +561,14 @@ extension FFmpegExporter {
     
     /// Export using ProRes codec which is much more forgiving about input formats
     /// Then we can transcode to H.264 later if needed
+    /// - Parameters:
+    ///   - frames: Video frames with pixel buffers and host times
+    ///   - frameRate: Target frame rate (default 30)
+    ///   - baseHostTime: Optional base host time for consistent A/V sync. If nil, uses first frame's time.
     func exportWithProRes(
         frames: [(pixelBuffer: CVPixelBuffer, hostTime: UInt64)],
-        frameRate: Int = 30
+        frameRate: Int = 30,
+        baseHostTime: UInt64? = nil
     ) async throws -> URL {
         guard !frames.isEmpty else {
             throw ExportError.noFrames
@@ -607,7 +612,8 @@ extension FFmpegExporter {
         print("🎬 [ProRes] Writing \(frames.count) frames...")
         
         var writtenCount = 0
-        let baseTime = frames[0].hostTime
+        // Use provided baseHostTime for consistent A/V sync, or fall back to first frame's time
+        let baseTime = baseHostTime ?? frames[0].hostTime
         
         for (index, frame) in frames.enumerated() {
             while !input.isReadyForMoreMediaData {

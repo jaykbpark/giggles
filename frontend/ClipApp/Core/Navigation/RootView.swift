@@ -232,23 +232,26 @@ struct RootView: View {
                     }
                 },
                 onSaveFull: {
-                    // Save without trimming
-                    addClipToTimeline(exportedURL: videoURL, transcript: trimTranscript)
+                    // Save without trimming - get actual video duration
                     Task {
-                        await handleExportedClip(url: videoURL, transcript: trimTranscript)
-                    }
-                    HapticManager.playSuccess()
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                        showRecordConfirmation = true
-                    }
-                    withAnimation {
-                        showTrimView = false
-                        clipToTrim = nil
-                    }
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                        withAnimation(.spring(response: 0.3)) {
-                            showRecordConfirmation = false
+                        let actualDuration = await getVideoDuration(from: videoURL)
+                        await MainActor.run {
+                            addClipToTimeline(exportedURL: videoURL, transcript: trimTranscript, duration: actualDuration)
+                            HapticManager.playSuccess()
+                            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                                showRecordConfirmation = true
+                            }
+                            withAnimation {
+                                showTrimView = false
+                                clipToTrim = nil
+                            }
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                                withAnimation(.spring(response: 0.3)) {
+                                    showRecordConfirmation = false
+                                }
+                            }
                         }
+                        await handleExportedClip(url: videoURL, transcript: trimTranscript)
                     }
                 },
                 onDiscard: {
@@ -510,13 +513,16 @@ struct RootView: View {
                     showTrimView = true
                 }
             } else {
-                // Direct save without trimming
+                // Direct save without trimming - get actual video duration
                 withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
                     showRecordConfirmation = true
                 }
                 
-                addClipToTimeline(exportedURL: url, transcript: transcript)
                 Task {
+                    let actualDuration = await getVideoDuration(from: url)
+                    await MainActor.run {
+                        addClipToTimeline(exportedURL: url, transcript: transcript, duration: actualDuration)
+                    }
                     await handleExportedClip(url: url, transcript: transcript)
                 }
                 
@@ -641,6 +647,14 @@ struct RootView: View {
                     showCaptions: true,
                     captionStyle: updatedClip.captionStyle
                 )
+                
+                // Generate and store thumbnail from video file
+                let exporter = ClipExporter()
+                if let thumbnailImage = await exporter.generateThumbnail(from: localURL ?? url) {
+                    updatedClip = updatedClip.withThumbnail(thumbnailImage)
+                    print("🖼️ Generated and stored thumbnail for clip")
+                }
+                
                 viewState.clips[index] = updatedClip
                 
                 // Upload to backend asynchronously using PHAsset localIdentifier as videoId
@@ -751,6 +765,13 @@ struct RootView: View {
         
         // Use all clips for context
         await memoryAssistant.askQuestion(question, clips: viewState.clips)
+    }
+    
+    /// Get the actual duration of a video file
+    private func getVideoDuration(from url: URL) async -> TimeInterval {
+        let asset = AVAsset(url: url)
+        let duration = try? await asset.load(.duration)
+        return duration?.seconds ?? 30.0
     }
     
     private func addClipToTimeline(exportedURL: URL, transcript: String = "", duration: TimeInterval = 30.0) {

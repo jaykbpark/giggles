@@ -139,6 +139,10 @@ final class ClipCaptureCoordinator: ObservableObject {
     
     private var cancellables = Set<AnyCancellable>()
     
+    /// Separate set for audio subscriptions so they can be cancelled independently
+    /// when resuming audio capture after video playback
+    private var audioSubscriptions = Set<AnyCancellable>()
+    
     // MARK: - Initialization
     
     /// Initialize with default shared managers
@@ -347,6 +351,7 @@ final class ClipCaptureCoordinator: ObservableObject {
     /// Stop capturing
     func stopCapture() {
         cancellables.removeAll()
+        audioSubscriptions.removeAll()
         
         wakeWordDetector.stopListening()
         laughterDetector.stopListening()
@@ -364,12 +369,25 @@ final class ClipCaptureCoordinator: ObservableObject {
     /// Resume audio capture after it was interrupted (e.g., by video playback)
     /// Call this when returning from video detail view to restore wake word detection
     func resumeAudioCapture() async {
-        guard isCapturing else { return }
+        guard isCapturing else {
+            print("🎤 [Resume] Skipping - not capturing")
+            return
+        }
+        
+        print("🎤 [Resume] Starting audio resume after video playback...")
+        
+        // Cancel existing audio subscriptions FIRST to prevent duplicates
+        let oldSubscriptionCount = audioSubscriptions.count
+        audioSubscriptions.removeAll()
+        print("🎤 [Resume] Cancelled \(oldSubscriptionCount) old audio subscriptions")
         
         // Stop existing audio to ensure clean restart
         wakeWordDetector.stopListening()
         laughterDetector.stopListening()
         audioManager.stopCapture()
+        
+        // Small delay to ensure audio session is fully released
+        try? await Task.sleep(nanoseconds: 100_000_000) // 100ms
         
         // Restart audio capture
         do {
@@ -380,10 +398,13 @@ final class ClipCaptureCoordinator: ObservableObject {
             if let audioFormat = audioManager.audioFormat {
                 wakeWordDetector.startListening(audioFormat: audioFormat)
                 laughterDetector.startListening(audioFormat: audioFormat)
+                print("🎤 [Resume] Audio format: \(audioFormat.sampleRate)Hz, \(audioFormat.channelCount) channels")
+            } else {
+                print("⚠️ [Resume] No audio format available")
             }
-            print("🎤 Audio capture resumed after video playback")
+            print("✅ [Resume] Audio capture resumed successfully")
         } catch {
-            print("⚠️ Failed to resume audio capture: \(error.localizedDescription)")
+            print("❌ [Resume] Failed to resume audio capture: \(error.localizedDescription)")
         }
     }
     
@@ -406,13 +427,17 @@ final class ClipCaptureCoordinator: ObservableObject {
     /// Set up audio subscriptions for buffer and wake word detection
     /// Called only if audio capture succeeds
     private func setupAudioSubscriptions() {
+        // Cancel any existing audio subscriptions before adding new ones
+        // This prevents duplicate subscriptions when resuming after video playback
+        audioSubscriptions.removeAll()
+        
         // Subscribe to timestamped audio buffers
         audioManager.timestampedAudioPublisher
             .receive(on: bufferQueue)
             .sink { [weak self] buffer in
                 self?.appendAudioBuffer(buffer)
             }
-            .store(in: &cancellables)
+            .store(in: &audioSubscriptions)
         
         // Feed raw audio to wake word detector and/or ElevenLabs STT
         audioManager.audioBufferPublisher
@@ -429,9 +454,9 @@ final class ClipCaptureCoordinator: ObservableObject {
                     self.elevenLabsSTT.sendAudioBuffer(buffer)
                 }
             }
-            .store(in: &cancellables)
+            .store(in: &audioSubscriptions)
         
-        print("🎤 Audio subscriptions set up")
+        print("🎤 Audio subscriptions set up (cancelled old: \(audioSubscriptions.count) active)")
         
         // Connect to ElevenLabs STT if enabled
         if useElevenLabsSTT && elevenLabsSTT.isConfigured {
@@ -766,7 +791,8 @@ final class ClipCaptureCoordinator: ObservableObject {
             print("🎬 Trying ProRes export...")
             let videoURL = try await ffmpegExporter.exportWithProRes(
                 frames: validVideoFrames,
-                frameRate: exportFrameRate
+                frameRate: exportFrameRate,
+                baseHostTime: baseHostTime  // Pass consistent base time for A/V sync
             )
             do {
                 // Save a master .mov with passthrough (minimal compression)

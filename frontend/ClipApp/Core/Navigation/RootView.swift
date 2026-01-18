@@ -103,7 +103,11 @@ struct RootView: View {
         }
         .task {
             await setupCaptureCoordinator()
-            await viewState.loadClipsFromBackend()
+            // Only load from backend if we don't have local clips
+            // GlobalViewState loads from local storage synchronously in init()
+            if viewState.clips.isEmpty {
+                await viewState.loadClipsFromBackend()
+            }
         }
         .onChange(of: viewState.searchText) { _, newValue in
             Task { @MainActor in
@@ -1173,8 +1177,9 @@ struct RootView: View {
                 try await ensureVideoStreamReady()
 
                 let url = try await captureCoordinator.triggerClipExport()
+                let transcript = captureCoordinator.getRecentTranscript()
                 await MainActor.run {
-                    captureClip(exportedURL: url)
+                    captureClip(exportedURL: url, transcript: transcript, showTrim: true)
                 }
                 print("✅ Clip exported: \(url.lastPathComponent)")
             } catch let error as ClipExportError {

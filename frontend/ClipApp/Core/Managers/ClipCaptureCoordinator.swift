@@ -707,6 +707,11 @@ final class ClipCaptureCoordinator: ObservableObject {
         lastExportedURL = url
         return url
     }
+    
+    /// Get the recent transcript from the wake word detector (for manual clip triggers)
+    func getRecentTranscript() -> String {
+        return wakeWordDetector.getRecentTranscript()
+    }
 }
 
 // MARK: - Errors

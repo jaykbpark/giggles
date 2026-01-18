@@ -24,9 +24,11 @@ struct ClipDetailView: View {
     @State private var isLoadingVideo = true
     @State private var videoLoadError: String?
     @State private var timeObserver: Any?
+    @State private var endTimeObserver: NSObjectProtocol?
     @State private var videoDuration: TimeInterval = 0
     
     // Audio narration state
+    @State private var audioEndObserver: NSObjectProtocol?
     @State private var audioPlayer: AVPlayer?
     @State private var isPlayingAudio = false
     @State private var isGeneratingAudio = false
@@ -121,7 +123,9 @@ struct ClipDetailView: View {
                     player?.play()
                 }
             } else {
-                player?.pause()
+                // Full cleanup when becoming inactive to prevent audio leaking
+                cleanupPlayer()
+                stopAudio()
                 // Reset bounce state when becoming inactive
                 hasTriggeredEndBounce = false
                 showNextHint = false
@@ -237,8 +241,8 @@ struct ClipDetailView: View {
             checkForEndOfClip()
         }
         
-        // Loop video and trigger end bounce
-        NotificationCenter.default.addObserver(
+        // Loop video and trigger end bounce - store observer to remove during cleanup
+        endTimeObserver = NotificationCenter.default.addObserver(
             forName: .AVPlayerItemDidPlayToEndTime,
             object: playerItem,
             queue: .main
@@ -259,6 +263,10 @@ struct ClipDetailView: View {
         if let observer = timeObserver {
             player?.removeTimeObserver(observer)
             timeObserver = nil
+        }
+        if let observer = endTimeObserver {
+            NotificationCenter.default.removeObserver(observer)
+            endTimeObserver = nil
         }
         player?.pause()
         player = nil
@@ -443,7 +451,7 @@ struct ClipDetailView: View {
             }
             .ignoresSafeArea()
             
-            // Center play/pause button - absolutely centered
+            // Center play/pause button - absolutely centered with expanded hit area
             Button {
                 HapticManager.playLight()
                 togglePlayback()
@@ -460,6 +468,8 @@ struct ClipDetailView: View {
                         .foregroundStyle(.white)
                         .offset(x: isPlaying ? 0 : 3)
                 }
+                .frame(width: 120, height: 120)  // Larger frame for easier tapping
+                .contentShape(Circle())           // Make entire area tappable
             }
             .buttonStyle(PlayButtonStyle())
             .accessibilityLabel(isPlaying ? "Pause clip" : "Play clip")
@@ -640,10 +650,8 @@ struct ClipDetailView: View {
     @MainActor
     private func toggleAudioNarration() async {
         if isPlayingAudio {
-            // Stop audio
-            audioPlayer?.pause()
-            audioPlayer = nil
-            isPlayingAudio = false
+            // Stop audio and clean up observer
+            stopAudio()
             return
         }
         
@@ -665,14 +673,18 @@ struct ClipDetailView: View {
             player.play()
             isPlayingAudio = true
             
-            // Listen for completion
-            NotificationCenter.default.addObserver(
+            // Listen for completion - store observer to remove during cleanup
+            audioEndObserver = NotificationCenter.default.addObserver(
                 forName: .AVPlayerItemDidPlayToEndTime,
                 object: player.currentItem,
                 queue: .main
             ) { _ in
                 isPlayingAudio = false
                 audioPlayer = nil
+                if let observer = audioEndObserver {
+                    NotificationCenter.default.removeObserver(observer)
+                    audioEndObserver = nil
+                }
             }
             
         } catch {
@@ -684,6 +696,10 @@ struct ClipDetailView: View {
     }
     
     private func stopAudio() {
+        if let observer = audioEndObserver {
+            NotificationCenter.default.removeObserver(observer)
+            audioEndObserver = nil
+        }
         audioPlayer?.pause()
         audioPlayer = nil
         isPlayingAudio = false

@@ -92,16 +92,28 @@ struct ClipPagerView: View {
 #Preview {
     struct PreviewWrapper: View {
         @Namespace private var namespace
-        @State private var selectedClip: ClipMetadata? = MockData.clips[0]
+        private let previewClip = ClipMetadata(
+            id: UUID(),
+            localIdentifier: "preview",
+            title: "Preview Clip",
+            transcript: "Preview transcript",
+            topics: ["Preview"],
+            capturedAt: Date(),
+            duration: 30
+        )
+        @State private var selectedClip: ClipMetadata?
         
         var body: some View {
             ClipPagerView(
-                clips: MockData.clips,
-                initialClip: MockData.clips[0],
+                clips: [previewClip],
+                initialClip: previewClip,
                 selectedClip: $selectedClip,
                 viewState: GlobalViewState(),
                 namespace: namespace
             )
+            .onAppear {
+                selectedClip = previewClip
+            }
         }
     }
     

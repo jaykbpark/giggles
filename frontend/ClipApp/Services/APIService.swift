@@ -45,6 +45,20 @@ actor APIService {
     static var currentBaseURL: String {
         baseURL.absoluteString
     }
+    
+    enum UploadError: Error, LocalizedError {
+        case invalidFile
+        case badStatus(Int, String)
+        
+        var errorDescription: String? {
+            switch self {
+            case .invalidFile:
+                return "Invalid or missing video file"
+            case .badStatus(let code, let body):
+                return "Upload failed (\(code)): \(body)"
+            }
+        }
+    }
 
     func processClip(audioData: Data, localIdentifier: String) async throws -> ClipMetadata {
         var request = URLRequest(url: Self.baseURL.appendingPathComponent("/api/process"))
@@ -60,19 +74,87 @@ actor APIService {
         let (data, _) = try await URLSession.shared.data(for: request)
         return try JSONDecoder().decode(ClipMetadata.self, from: data)
     }
-
-    func search(query: String) async -> [ClipMetadata] {
-        guard !query.isEmpty else { return [] }
-
-        let lowercased = query.lowercased()
-        return MockData.clips.filter { clip in
-            clip.title.lowercased().contains(lowercased) ||
-            clip.transcript.lowercased().contains(lowercased) ||
-            clip.topics.contains { $0.lowercased().contains(lowercased) }
+    
+    /// Upload a clip to the backend using multipart/form-data (POST /api/videos)
+    func uploadClip(
+        videoURL: URL,
+        videoId: String,
+        title: String,
+        timestamp: Date
+    ) async throws {
+        guard FileManager.default.fileExists(atPath: videoURL.path) else {
+            throw UploadError.invalidFile
+        }
+        
+        let boundary = UUID().uuidString
+        var request = URLRequest(url: Self.baseURL.appendingPathComponent("/api/videos"))
+        request.httpMethod = "POST"
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        
+        let timestampString = ISO8601DateFormatter().string(from: timestamp)
+        let fileData = try Data(contentsOf: videoURL)
+        let filename = videoURL.lastPathComponent
+        
+        var body = Data()
+        body.appendFormField(name: "videoId", value: videoId, boundary: boundary)
+        body.appendFormField(name: "title", value: title, boundary: boundary)
+        body.appendFormField(name: "timestamp", value: timestampString, boundary: boundary)
+        body.appendFileField(
+            name: "videoData",
+            filename: filename.isEmpty ? "clip.mov" : filename,
+            mimeType: "video/quicktime",
+            fileData: fileData,
+            boundary: boundary
+        )
+        body.append("--\(boundary)--\r\n")
+        request.httpBody = body
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw UploadError.badStatus(-1, "No response")
+        }
+        guard (200...299).contains(httpResponse.statusCode) else {
+            let bodyText = String(data: data, encoding: .utf8) ?? "Unknown error"
+            throw UploadError.badStatus(httpResponse.statusCode, bodyText)
         }
     }
 
+    func search(query: String) async -> [ClipMetadata] {
+        // TODO: wire to backend search endpoint
+        guard !query.isEmpty else { return [] }
+        return []
+    }
+
     func fetchMetadata(for localIdentifier: String) async throws -> ClipMetadata? {
-        return MockData.clips.first { $0.localIdentifier == localIdentifier }
+        // TODO: wire to backend metadata endpoint
+        return nil
+    }
+}
+
+private extension Data {
+    mutating func appendFormField(name: String, value: String, boundary: String) {
+        append("--\(boundary)\r\n")
+        append("Content-Disposition: form-data; name=\"\(name)\"\r\n\r\n")
+        append("\(value)\r\n")
+    }
+    
+    mutating func appendFileField(
+        name: String,
+        filename: String,
+        mimeType: String,
+        fileData: Data,
+        boundary: String
+    ) {
+        append("--\(boundary)\r\n")
+        append("Content-Disposition: form-data; name=\"\(name)\"; filename=\"\(filename)\"\r\n")
+        append("Content-Type: \(mimeType)\r\n\r\n")
+        append(fileData)
+        append("\r\n")
+    }
+    
+    mutating func append(_ string: String) {
+        if let data = string.data(using: .utf8) {
+            append(data)
+        }
     }
 }

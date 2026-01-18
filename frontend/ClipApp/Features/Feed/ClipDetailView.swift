@@ -179,19 +179,6 @@ struct ClipDetailView: View {
         
         Task {
             do {
-                // For mock clips (no Photo Library entry), simulate playback
-                if currentClip.localIdentifier.hasPrefix("mock-") {
-                    await MainActor.run {
-                        isLoadingVideo = false
-                        videoDuration = currentClip.duration
-                        if isActive {
-                            isPlaying = true
-                            startPlaybackTimer()
-                        }
-                    }
-                    return
-                }
-                
                 // Prefer local master file if available
                 if let localPath = currentClip.localFileURL,
                    FileManager.default.fileExists(atPath: localPath) {
@@ -813,15 +800,27 @@ class PlayerUIView: UIView {
 
 struct ClipDetailViewPreview: View {
     @Namespace private var namespace
-    @State private var selectedClip: ClipMetadata? = MockData.clips[0]
+    private let previewClip = ClipMetadata(
+        id: UUID(),
+        localIdentifier: "preview",
+        title: "Preview Clip",
+        transcript: "Preview transcript",
+        topics: ["Preview"],
+        capturedAt: Date(),
+        duration: 30
+    )
+    @State private var selectedClip: ClipMetadata?
 
     var body: some View {
         ClipDetailView(
-            clip: MockData.clips[0],
+            clip: previewClip,
             namespace: namespace,
             selectedClip: $selectedClip,
             viewState: GlobalViewState()
         )
+        .onAppear {
+            selectedClip = previewClip
+        }
     }
 }
 

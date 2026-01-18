@@ -245,6 +245,7 @@ final class WakeWordDetector: ObservableObject {
         
         // Build the transcript from the last 30 seconds
         let transcript = buildTranscriptFromBuffer()
+        print("📝 [WakeWord] Transcript length: \(transcript.count) chars, segments: \(transcriptBuffer.count)")
         
         // Save current transcript before restarting
         saveCurrentSessionTranscript()

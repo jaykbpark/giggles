@@ -5,8 +5,11 @@ import numpy as np
 MILVUS_COLLECTION_NAME = "clip_embeddings"
 class DatabaseOperations():
     def __init__(self):
-        self.milvus_conn = MilvusClient('database/milvus_storage.db')
-        self.sqlite_conn = sqlite3.connect('database/sqlite.db')
+        # Use paths relative to this file's location
+        import os
+        db_dir = os.path.join(os.path.dirname(__file__), 'database')
+        self.milvus_conn = MilvusClient(os.path.join(db_dir, 'milvus_storage.db'))
+        self.sqlite_conn = sqlite3.connect(os.path.join(db_dir, 'sqlite.db'))
         self.cursor = self.sqlite_conn.cursor()
         
     def search_vector_table(self,vector_data):

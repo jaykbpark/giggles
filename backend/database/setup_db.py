@@ -7,7 +7,9 @@ from pymilvus import (
 import sqlite3
 
 
-client = MilvusClient("./milvus_storage.db")
+import os
+db_dir = os.path.dirname(__file__)
+client = MilvusClient(os.path.join(db_dir, "milvus_storage.db"))
 
 if not client.has_collection("clip_embeddings"):
     fields = [
@@ -32,7 +34,7 @@ if not client.has_collection("clip_embeddings"):
 
 client.load_collection("clip_embeddings")
 
-db_conn = sqlite3.connect("sqlite.db")
+db_conn = sqlite3.connect(os.path.join(db_dir, "sqlite.db"))
 db_cursor = db_conn.cursor()
 db_cursor.execute("""
                   CREATE TABLE IF NOT EXISTS videos(

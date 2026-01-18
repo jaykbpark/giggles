@@ -59,12 +59,17 @@ final class TitleGenerator {
     /// - Parameter transcript: The clip transcript text
     /// - Returns: A generated title (2-4 words) or nil if generation fails
     func generateTitle(from transcript: String) async -> String? {
+        let cleanedTranscript = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard cleanedTranscript.count >= 10 else {
+            return generateFallbackTitle(from: cleanedTranscript)
+        }
+        
         // Re-check availability
         checkAvailability()
         
         guard isAvailable else {
             print("❌ TitleGenerator: LLM not available - \(unavailableReason ?? "unknown")")
-            return generateFallbackTitle(from: transcript)
+            return generateFallbackTitle(from: cleanedTranscript)
         }
         
         do {
@@ -76,26 +81,26 @@ final class TitleGenerator {
                 - Be descriptive but concise
                 - Capture the main topic or mood
                 - Don't use quotes or punctuation
-                - Don't include "Title:" or similar prefixes
+                - Don't include any explanations or prefixes
+                - Output only the title text
                 """
             )
             
-            let prompt = "Generate a title for this transcript:\n\n\(transcript)"
+            let prompt = "Generate a title for this transcript:\n\n\(cleanedTranscript)"
             let response = try await session.respond(to: prompt)
             
             // Clean up the response
-            let title = response.content
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-                .replacingOccurrences(of: "\"", with: "")
-                .replacingOccurrences(of: "Title:", with: "")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let title = sanitizeTitle(response.content)
             
             print("✨ TitleGenerator: Generated '\(title)'")
-            return title.isEmpty ? nil : title
+            if title.isEmpty {
+                return generateFallbackTitle(from: cleanedTranscript)
+            }
+            return title
             
         } catch {
             print("❌ TitleGenerator: Error - \(error.localizedDescription)")
-            return generateFallbackTitle(from: transcript)
+            return generateFallbackTitle(from: cleanedTranscript)
         }
     }
     
@@ -113,5 +118,25 @@ final class TitleGenerator {
         
         let title = words.joined(separator: " ")
         return title.count > 30 ? String(title.prefix(30)) + "..." : title
+    }
+    
+    /// Sanitize raw model output to a 2-4 word title
+    private func sanitizeTitle(_ raw: String) -> String {
+        let firstLine = raw
+            .components(separatedBy: .newlines)
+            .first ?? raw
+        
+        let stripped = firstLine
+            .replacingOccurrences(of: "\"", with: "")
+            .replacingOccurrences(of: "Title:", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        let words = stripped
+            .components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+        
+        guard words.count >= 2 else { return "" }
+        let limited = words.prefix(4)
+        return limited.joined(separator: " ")
     }
 }

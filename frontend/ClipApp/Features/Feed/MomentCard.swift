@@ -191,15 +191,34 @@ struct MomentCardButtonStyle: ButtonStyle {
     ZStack {
         AppColors.warmBackground.ignoresSafeArea()
         
+        let previewClip1 = ClipMetadata(
+            id: UUID(),
+            localIdentifier: "preview-1",
+            title: "Preview Clip",
+            transcript: "Preview transcript",
+            topics: ["Preview"],
+            capturedAt: Date(),
+            duration: 30
+        )
+        let previewClip2 = ClipMetadata(
+            id: UUID(),
+            localIdentifier: "preview-2",
+            title: "Second Preview",
+            transcript: "Preview transcript",
+            topics: ["Preview"],
+            capturedAt: Date(),
+            duration: 24
+        )
+        
         VStack(spacing: 24) {
             MomentCard(
-                clip: MockData.clips[0],
+                clip: previewClip1,
                 isLeft: true,
                 animationDelay: 0
             )
             
             MomentCard(
-                clip: MockData.clips[1],
+                clip: previewClip2,
                 isLeft: false,
                 animationDelay: 0.1
             )

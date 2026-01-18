@@ -203,7 +203,7 @@ struct ClipsGridViewPreview: View {
     var body: some View {
         ScrollView {
             ClipsGridView(
-                clips: MockData.clips,
+                clips: [],
                 isLoading: false,
                 selectedClip: .constant(nil),
                 namespace: namespace

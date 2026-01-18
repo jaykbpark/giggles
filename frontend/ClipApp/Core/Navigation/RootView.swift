@@ -566,6 +566,13 @@ struct RootView: View {
             if let index = viewState.clips.firstIndex(where: { $0.localIdentifier == url.lastPathComponent }) {
                 var updatedClip = viewState.clips[index]
                 
+                // Generate a better title from transcript if possible
+                let trimmedTranscript = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+                let generatedTitle = trimmedTranscript.isEmpty || trimmedTranscript == "[Recording]"
+                    ? nil
+                    : await TitleGenerator.shared.generateTitle(from: trimmedTranscript)
+                let finalTitle = generatedTitle?.isEmpty == false ? generatedTitle! : updatedClip.title
+                
                 // Generate captions from transcript if available
                 var captionSegments: [CaptionSegment]? = nil
                 if !transcript.isEmpty && transcript != "[Recording]" {
@@ -579,7 +586,7 @@ struct RootView: View {
                 updatedClip = ClipMetadata(
                     id: updatedClip.id,
                     localIdentifier: localIdentifier,
-                    title: updatedClip.title,
+                    title: finalTitle,
                     transcript: transcript.isEmpty ? updatedClip.transcript : transcript,
                     topics: updatedClip.topics,
                     capturedAt: updatedClip.capturedAt,
@@ -596,6 +603,26 @@ struct RootView: View {
                     captionStyle: updatedClip.captionStyle
                 )
                 viewState.clips[index] = updatedClip
+                
+                // Upload to backend asynchronously
+                let uploadURL = localURL ?? url
+                if FileManager.default.fileExists(atPath: uploadURL.path) {
+                    Task.detached(priority: .background) {
+                        do {
+                            try await APIService.shared.uploadClip(
+                                videoURL: uploadURL,
+                                videoId: localIdentifier,
+                                title: finalTitle,
+                                timestamp: updatedClip.capturedAt
+                            )
+                            print("✅ Uploaded clip to backend: \(localIdentifier)")
+                        } catch {
+                            print("❌ Upload failed: \(error.localizedDescription)")
+                        }
+                    }
+                } else {
+                    print("⚠️ Upload skipped: missing file at \(uploadURL.path)")
+                }
             }
             
             // Clean up temp file if we copied to local storage
@@ -640,6 +667,23 @@ struct RootView: View {
                     showCaptions: updatedClip.showCaptions,
                     captionStyle: updatedClip.captionStyle
                 )
+                
+                // Upload to backend asynchronously if we still have a local file
+                if FileManager.default.fileExists(atPath: localURL.path) {
+                    Task.detached(priority: .background) {
+                        do {
+                            try await APIService.shared.uploadClip(
+                                videoURL: localURL,
+                                videoId: updatedClip.localIdentifier,
+                                title: updatedClip.title,
+                                timestamp: updatedClip.capturedAt
+                            )
+                            print("✅ Uploaded clip to backend (Photos failed): \(updatedClip.localIdentifier)")
+                        } catch {
+                            print("❌ Upload failed (Photos failed): \(error.localizedDescription)")
+                        }
+                    }
+                }
             }
         }
     }
@@ -705,21 +749,6 @@ struct RootView: View {
             localFileURL: exportedURL.path,
             captionSegments: captionSegments,
             showCaptions: captionSegments != nil
-        )
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-            viewState.clips.insert(newClip, at: 0)
-        }
-    }
-    
-    private func addMockClipToTimeline() {
-        let newClip = ClipMetadata(
-            id: UUID(),
-            localIdentifier: "mock-\(UUID().uuidString)",
-            title: "Mock Clip \(Date().formatted(date: .omitted, time: .shortened))",
-            transcript: "[Mock recording - no video]",
-            topics: ["Mock", "Debug"],
-            capturedAt: Date(),
-            duration: 30.0
         )
         withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
             viewState.clips.insert(newClip, at: 0)

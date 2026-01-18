@@ -303,10 +303,13 @@ struct ClipCard: View {
         
         let size = CGSize(width: 400, height: 225) // 16:9 aspect
         
-        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+        let image = await withCheckedContinuation { (continuation: CheckedContinuation<UIImage?, Never>) in
             let options = PHImageRequestOptions()
-            options.deliveryMode = .opportunistic
+            options.deliveryMode = .highQualityFormat
             options.isNetworkAccessAllowed = true
+            
+            let lock = NSLock()
+            var didResume = false
             
             PHImageManager.default().requestImage(
                 for: asset,
@@ -314,11 +317,20 @@ struct ClipCard: View {
                 contentMode: .aspectFill,
                 options: options
             ) { image, _ in
-                Task { @MainActor in
-                    self.thumbnail = image
+                lock.lock()
+                if didResume {
+                    lock.unlock()
+                    return
                 }
-                continuation.resume()
+                didResume = true
+                lock.unlock()
+                
+                continuation.resume(returning: image)
             }
+        }
+        
+        await MainActor.run {
+            self.thumbnail = image
         }
     }
 }
@@ -378,7 +390,7 @@ private struct ScrollOffsetKey: PreferenceKey {
                 
                 FeedView(
                     viewState: GlobalViewState(),
-                    clips: MockData.clips,
+                    clips: [],
                     isLoading: false,
                     selectedClip: .constant(nil),
                     namespace: namespace

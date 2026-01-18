@@ -270,7 +270,7 @@ struct TimelineViewPreview: View {
             AppColors.warmBackground.ignoresSafeArea()
             
             TimelineView(
-                clips: MockData.clips,
+                clips: [],
                 isLoading: false,
                 selectedClip: .constant(nil),
                 namespace: namespace

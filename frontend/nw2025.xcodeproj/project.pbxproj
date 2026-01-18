@@ -14,7 +14,6 @@
 		4EC031572F16242C00552603 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031442F16242C00552603 /* RootView.swift */; };
 		4EC031582F16242C00552603 /* Typography.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC0313E2F16242C00552603 /* Typography.swift */; };
 		4EC031592F16242C00552603 /* CameraManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031402F16242C00552603 /* CameraManager.swift */; };
-		4EC0315A2F16242C00552603 /* MockData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031502F16242C00552603 /* MockData.swift */; };
 		4EC0315B2F16242C00552603 /* PhotoManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031422F16242C00552603 /* PhotoManager.swift */; };
 		4EC0315C2F16242C00552603 /* SearchResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC0314D2F16242C00552603 /* SearchResult.swift */; };
 		4EC0315E2F16242C00552603 /* TopicPill.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC0313B2F16242C00552603 /* TopicPill.swift */; };
@@ -76,7 +75,6 @@
 		4EC0314C2F16242C00552603 /* ClipMetadata.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipMetadata.swift; sourceTree = "<group>"; };
 		4EC0314D2F16242C00552603 /* SearchResult.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchResult.swift; sourceTree = "<group>"; };
 		4EC0314F2F16242C00552603 /* APIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIService.swift; sourceTree = "<group>"; };
-		4EC031502F16242C00552603 /* MockData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockData.swift; sourceTree = "<group>"; };
 		4EC031652F16252C00552603 /* Gradients.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Gradients.swift; sourceTree = "<group>"; };
 		4EC031662F16300000552603 /* WakeWordDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WakeWordDetector.swift; sourceTree = "<group>"; };
 		4EC031682F16300000552603 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -251,7 +249,6 @@
 			isa = PBXGroup;
 			children = (
 				4EC0314F2F16242C00552603 /* APIService.swift */,
-				4EC031502F16242C00552603 /* MockData.swift */,
 				4EC031912F17800000552603 /* TitleGenerator.swift */,
 				4EC031B42F19000000552603 /* PresageService.swift */,
 				4EC031BA2F1A000000552603 /* ElevenLabsService.swift */,
@@ -389,7 +386,6 @@
 				4EC031572F16242C00552603 /* RootView.swift in Sources */,
 				4EC031582F16242C00552603 /* Typography.swift in Sources */,
 				4EC031592F16242C00552603 /* CameraManager.swift in Sources */,
-				4EC0315A2F16242C00552603 /* MockData.swift in Sources */,
 				4EC0315B2F16242C00552603 /* PhotoManager.swift in Sources */,
 				4EC0315C2F16242C00552603 /* SearchResult.swift in Sources */,
 				4EC0315E2F16242C00552603 /* TopicPill.swift in Sources */,

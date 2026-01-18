@@ -1,4 +1,5 @@
 from pydantic import BaseModel
+from fastapi import UploadFile
 
 class RequestSearchObject(BaseModel):
     type: str

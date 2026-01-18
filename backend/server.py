@@ -1,5 +1,5 @@
 # local server endpoints using fastapi
-from fastapi import FastAPI
+from fastapi import FastAPI,Form,File,UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
 from backend.objects.RequestObjects import RequestSearchObject, RequestVideoObject
@@ -29,19 +29,34 @@ def health_check():
 
 # upload video
 @app.post("/api/videos")
-async def create_video(video: RequestVideoObject):
+async def create_video(
+    videoId: str = Form(...),
+    title: str = Form(...),
+    timestamp: str = Form(...),
+    videoData: UploadFile = File(...)
+):
+    video_bytes = await videoData.read()
+
+    # Create your RequestVideoObject instance
+    video = RequestVideoObject(
+        videoId=videoId,
+        title=title,
+        timestamp=timestamp,
+        videoData=video_bytes
+    )
     pm = ProcessingManager(video)
     db = DatabaseOperations()
     # preprocessing
     tags = db.query_tags_table_get_tags()
     ((transcription, tags), condensed_transcript) = pm.create_transcript_from_audio(tags)
     # video _ tags table insertion
-    db.insert_video_table(video.video_id, video.title, transcription, video.timestamp)
+    
+    db.insert_video_table(video.videoId, video.title, transcription, video.timestamp)
     for tag in tags:
         db.insert_tags_table(tag, video.videoId)
     # vectorizing table insertion
     frames = pm.split_video_to_frames(3)
-    return video
+    return {"message": "Item created"}
 
 # get all videos
 @app.get("/api/videos")

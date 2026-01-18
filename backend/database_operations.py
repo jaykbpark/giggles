@@ -39,7 +39,7 @@ class DatabaseOperations():
     
     def insert_video_table(self,video_id,title,transcript,timestamp):
         self.cursor.execute(
-            "INSERT into videos (video_id,title,transcript,timestamp) VALUES (?,?,?,?)",
+            "INSERT into videos (id,title,transcript,timestamp) VALUES (?,?,?,?)",
             (video_id,title,transcript,timestamp)
         ) 
         self.sqlite_conn.commit()

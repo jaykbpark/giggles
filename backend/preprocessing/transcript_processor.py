@@ -56,12 +56,12 @@ class TranscriptProcessor:
         tags_string = ", ".join(tags)
         # generate tags (general) 5 tags max but if less is needed to less
         # give me tags + if greater than 300 characters
-        prompt = f"Given the following InputPrompt, generate at most 3 tags that describe the transcript, matching where possible with the tags: {tags_string}. If the prompt is over 300 characters condense it with minimal loss of context. Return in the format where 'tags' are a list and 'prompt' is a string (either condensed or original), in JSON format. InputPrompt: {transcription_text}"
+        prompt = f"Given the following InputPrompt, generate at most 3 lowercase tags that describe the transcript, matching where possible with the tags: {tags_string}. If the prompt is over 300 characters condense it with minimal loss of context. Return in the format where 'tags' are a list and 'prompt' is a string (either condensed or original), in JSON format without anything like ```json ```. InputPrompt: {transcription_text}"
         response = self.client.models.generate_content(
             model="gemini-3-flash-preview",
             contents=prompt,
         )
         prompt_and_tags = json.loads(response.text)
-        return (transcription_text, prompt_and_tags[prompt], prompt_and_tags[tags])
+        return (transcription_text, prompt_and_tags["prompt"], prompt_and_tags["tags"])
 
 # inputs into gemini and processes, puts tags in, checks against db

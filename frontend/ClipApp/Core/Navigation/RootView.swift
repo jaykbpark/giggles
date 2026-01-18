@@ -60,12 +60,35 @@ struct RootView: View {
             AppGradients.warmAmbient
                 .ignoresSafeArea()
             
-            // Tab content
-            if selectedTab == .clips {
-                clipsTabContent
-            } else {
-                askTabContent
+            // Tab content with swipe gesture
+            Group {
+                if selectedTab == .clips {
+                    clipsTabContent
+                } else {
+                    askTabContent
+                }
             }
+            .gesture(
+                DragGesture(minimumDistance: 30, coordinateSpace: .local)
+                    .onEnded { value in
+                        let horizontalSwipe = value.translation.width
+                        let threshold: CGFloat = 50
+                        
+                        if horizontalSwipe < -threshold && selectedTab == .clips {
+                            // Swipe left → go to Ask
+                            HapticManager.playLight()
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+                                selectedTab = .ask
+                            }
+                        } else if horizontalSwipe > threshold && selectedTab == .ask {
+                            // Swipe right → go to Clips
+                            HapticManager.playLight()
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.7)) {
+                                selectedTab = .clips
+                            }
+                        }
+                    }
+            )
             
             // Bottom tab bar (always visible except in detail view)
             if selectedClip == nil && !showSearch {

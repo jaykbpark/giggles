@@ -150,45 +150,40 @@ struct ClipCard: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Thumbnail area
-            ZStack {
-                // Background/placeholder
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: [Color(.systemGray4), Color(.systemGray5)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
+            // Thumbnail area - placeholder defines size, thumbnail overlays inherit bounds
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [Color(.systemGray4), Color(.systemGray5)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
                     )
-                    .aspectRatio(aspectRatio, contentMode: .fit)
-                
-                // Real thumbnail if loaded (prefer stored thumbnail)
-                if let thumbnail = thumbnail ?? clip.thumbnailImage {
-                    Image(uiImage: thumbnail)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(maxWidth: .infinity)
-                        .aspectRatio(aspectRatio, contentMode: .fit)
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                )
+                .aspectRatio(aspectRatio, contentMode: .fit)
+                .overlay {
+                    // Real thumbnail if loaded (prefer stored thumbnail)
+                    if let thumbnail = thumbnail ?? clip.thumbnailImage {
+                        Image(uiImage: thumbnail)
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                    }
                 }
-                
-                // Gradient overlay
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: [.clear, Color.black.opacity(0.35)],
-                            startPoint: .center,
-                            endPoint: .bottom
-                        )
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay {
+                    // Gradient overlay
+                    LinearGradient(
+                        colors: [.clear, Color.black.opacity(0.35)],
+                        startPoint: .center,
+                        endPoint: .bottom
                     )
-                    .aspectRatio(aspectRatio, contentMode: .fit)
-                
-                // Play icon
-                Image(systemName: "play.fill")
-                    .font(.system(size: 32))
-                    .foregroundStyle(.white.opacity(0.9))
-            }
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay {
+                    // Play icon
+                    Image(systemName: "play.fill")
+                        .font(.system(size: 32))
+                        .foregroundStyle(.white.opacity(0.9))
+                }
             .matchedGeometryEffect(id: clip.id, in: namespace)
             .task {
                 // Only load from Photos if no stored thumbnail

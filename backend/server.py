@@ -99,6 +99,17 @@ def get_videos(limit: int = 50, offset: int = 0):
     finally:
         db.close()
 
+
+@app.get("/api/tags")
+def get_videos(limit: int = 50, offset: int = 0):
+    db = DatabaseOperations()
+    try:
+        all_tags = db.query_tags_table_get_tags() 
+        db.close()
+        return {"success": True, "result": all_tags}
+    finally:
+        db.close()
+
 # retrieve full metadata + transcript for a specific video
 @app.get("/api/videos/{videoId}")
 def get_video(videoId):

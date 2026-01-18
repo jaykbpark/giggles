@@ -123,15 +123,6 @@ struct RootView: View {
                 showSearchSuggestions = false
             }
         }
-        .onChange(of: selectedClip) { oldValue, newValue in
-            // Resume audio capture when exiting video detail view
-            // Video playback reconfigures the audio session, breaking the recording tap
-            if oldValue != nil && newValue == nil {
-                Task {
-                    await captureCoordinator.resumeAudioCapture()
-                }
-            }
-        }
     }
     
     // MARK: - Clips Tab Content

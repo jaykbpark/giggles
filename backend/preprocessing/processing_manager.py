@@ -1,6 +1,7 @@
 import ffmpeg 
 import numpy as np
 import tempfile
+from io import BytesIO
 from backend.preprocessing.transcript_processor import TranscriptProcessor
 from backend.objects.RequestObjects import RequestVideoObject
 class ProcessingManager():
@@ -60,7 +61,12 @@ class ProcessingManager():
         return out
 
     def split_video_to_frames(self, fps):
-        """Extract frames from video, properly handling rotation."""
+        """Extract frames from video, properly handling rotation.
+        
+        Returns PIL Images that CLIP can directly preprocess.
+        """
+        from PIL import Image
+        
         with tempfile.NamedTemporaryFile(suffix=".mp4") as tmp:
             tmp.write(self.video_bytes)
             tmp.flush()
@@ -80,30 +86,52 @@ class ProcessingManager():
             # Sample at target fps
             stream = stream.filter('fps', fps=fps)
             
-            # Scale to a consistent size for CLIP (224x224 is CLIP's input size)
-            # This normalizes all videos regardless of original resolution
-            stream = stream.filter('scale', 224, 224)
+            # Scale to max 320 on the longer side, preserving aspect ratio
+            # Use scale2ref or just scale with force_original_aspect_ratio
+            stream = stream.filter('scale', 
+                                   'min(320,iw)', 'min(320,ih)', 
+                                   force_original_aspect_ratio='decrease')
             
+            # Output as JPEG images (avoids dimension calculation issues)
             process = (
                 stream
-                .output('pipe:1', format='rawvideo', pix_fmt='rgb24')
+                .output('pipe:1', format='image2pipe', vcodec='mjpeg', q=2)
                 .run_async(pipe_stdout=True, pipe_stderr=True)
             )
 
-            # After scaling to 224x224, frame size is fixed
-            scaled_frame_size = 224 * 224 * 3
-            
+            # Read JPEG frames from pipe
             frames = []
+            jpeg_data = b''
+            
             while True:
-                raw_frame = process.stdout.read(scaled_frame_size)
-                if len(raw_frame) < scaled_frame_size:
+                chunk = process.stdout.read(4096)
+                if not chunk:
                     break
-                frame = np.frombuffer(raw_frame, np.uint8).reshape((224, 224, 3))
-                frames.append(frame)
+                jpeg_data += chunk
+                
+                # Find JPEG boundaries (FFD8 start, FFD9 end)
+                while True:
+                    start = jpeg_data.find(b'\xff\xd8')
+                    if start == -1:
+                        break
+                    end = jpeg_data.find(b'\xff\xd9', start + 2)
+                    if end == -1:
+                        break
+                    
+                    # Extract complete JPEG
+                    jpeg_bytes = jpeg_data[start:end + 2]
+                    jpeg_data = jpeg_data[end + 2:]
+                    
+                    try:
+                        img = Image.open(BytesIO(jpeg_bytes))
+                        frames.append(img.copy())  # Copy to detach from buffer
+                        img.close()
+                    except Exception as e:
+                        print(f"⚠️ Failed to decode frame: {e}")
 
             process.wait()
             
-        print(f"📹 Extracted {len(frames)} frames at {fps} fps (224x224)")
+        print(f"📹 Extracted {len(frames)} frames at {fps} fps")
         return frames
         
         

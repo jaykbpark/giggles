@@ -8,6 +8,7 @@ from backend.database_operations import DatabaseOperations
 from backend.preprocessing.processing_manager import ProcessingManager
 from backend.vectorizer import Vectorizer, get_vectorizer
 import uvicorn
+import numpy as np
 app = FastAPI()
 
 # Preload the vectorizer model at startup so first search is fast
@@ -132,7 +133,7 @@ def get_video(videoId):
         db.close()
 
 @app.get("/api/search/")
-def search(type,input):
+def search(type, input):
     db = DatabaseOperations()
     try:
         if type == "tag":
@@ -150,9 +151,21 @@ def search(type,input):
                 video_objects.append(video_object)
             return video_objects
         else:
-            vectorizer = get_vectorizer()  # Use cached singleton instead of loading model each time
+            vectorizer = get_vectorizer()
             encoded_vector = vectorizer.encode_text(input)
+            print(f"🔍 Search query: '{input}'")
+            print(f"🔍 Query vector norm: {np.linalg.norm(encoded_vector):.4f}")
+            
             result = db.search_vector_table(encoded_vector)
+            
+            # Log search results with distances
+            if result and result[0]:
+                print(f"🔍 Found {len(result[0])} results:")
+                for i, item in enumerate(result[0][:5]):
+                    dist = item.get('distance', 'N/A')
+                    vid = item['entity']['video_id']
+                    print(f"   {i+1}. {vid[:30]}... (dist: {dist})")
+            
             seen = set()
             unique_video_ids = [
                 item['entity']['video_id'] 

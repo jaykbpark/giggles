@@ -5,7 +5,7 @@ class ResponseTagsObject(BaseModel):
         self.tags = tags
 
 class ResponseVideoObject(BaseModel):
-    success: bool
     videoId: str
-    tags: list[str]
+    title: str
     transcript: str
+    timestamp: str

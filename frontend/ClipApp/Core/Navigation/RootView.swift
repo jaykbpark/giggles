@@ -2,11 +2,13 @@ import SwiftUI
 import AVFoundation
 import Combine
 import Photos
+import CoreMedia
 
 struct RootView: View {
     @StateObject private var viewState = GlobalViewState()
     @StateObject private var glassesManager = MetaGlassesManager.shared
     @StateObject private var captureCoordinator = ClipCaptureCoordinator.shared
+    @StateObject private var memoryAssistant = MemoryAssistantService()
     @State private var selectedClip: ClipMetadata?
     @State private var showSearch = false
     @State private var showSearchSuggestions = false
@@ -21,7 +23,29 @@ struct RootView: View {
     @State private var showNoVideoFramesMessage = false
     @State private var showStreamErrorMessage = false
     @State private var streamErrorText = ""
+    @State private var showPhotoSaveError = false
+    @State private var photoSaveErrorText = ""
+    @State private var showPhotoSaveSuccess = false
+    @State private var selectedTab: AppTab = .clips
+    
+    // Trim view state
+    @State private var showTrimView = false
+    @State private var clipToTrim: URL?
+    @State private var trimTranscript: String = ""
+    
     @Namespace private var namespace
+    
+    enum AppTab: String, CaseIterable {
+        case clips = "Clips"
+        case ask = "Ask Clip"
+        
+        var icon: String {
+            switch self {
+            case .clips: return "play.rectangle.on.rectangle"
+            case .ask: return "brain.head.profile"
+            }
+        }
+    }
 
     var body: some View {
         ZStack {
@@ -29,7 +53,45 @@ struct RootView: View {
             AppGradients.warmAmbient
                 .ignoresSafeArea()
             
-            // Main content
+            // Tab content
+            if selectedTab == .clips {
+                clipsTabContent
+            } else {
+                askTabContent
+            }
+            
+            // Bottom tab bar (always visible except in detail view)
+            if selectedClip == nil && !showSearch {
+                VStack {
+                    Spacer()
+                    bottomTabBar
+                }
+            }
+            
+            // Overlays
+            overlaysContent
+        }
+        .task {
+            await setupCaptureCoordinator()
+        }
+        .onChange(of: showSearch) { _, newValue in
+            if newValue {
+                showSearchSuggestions = false
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                        showSearchSuggestions = true
+                    }
+                }
+            } else {
+                showSearchSuggestions = false
+            }
+        }
+    }
+    
+    // MARK: - Clips Tab Content
+    
+    private var clipsTabContent: some View {
+        ZStack {
             VStack(spacing: 0) {
                 headerBar
 
@@ -102,6 +164,9 @@ struct RootView: View {
                     selectedClip: $selectedClip,
                     namespace: namespace
                 )
+                
+                // Bottom spacing for tab bar
+                Spacer().frame(height: 90)
             }
             .opacity(selectedClip != nil ? 0 : 1)
             .blur(radius: showSearch ? 6 : 0)
@@ -115,14 +180,18 @@ struct RootView: View {
                         Spacer()
                         recordButton
                             .padding(.trailing, 24)
-                            .padding(.bottom, 30)
+                            .padding(.bottom, 100) // Above tab bar
                     }
                 }
                 .transition(.opacity)
             }
-            
-            // Live glasses preview (top-right corner)
-            if showGlassesPreview && selectedClip == nil && !showSearch {
+        } // End clipsTabContent ZStack
+    }
+    
+    // Live glasses preview (top-right corner) - should only be shown on clips tab
+    private var glassesPreviewOverlay: some View {
+        Group {
+            if showGlassesPreview && selectedClip == nil && !showSearch && selectedTab == .clips {
                 VStack {
                     HStack {
                         Spacer()
@@ -140,126 +209,231 @@ struct RootView: View {
                 .transition(.opacity)
                 .zIndex(10)
             }
-
-            // Detail view overlay
-            if let clip = selectedClip {
-                ClipDetailView(
-                    clip: clip,
-                    namespace: namespace,
-                    selectedClip: $selectedClip,
-                    viewState: viewState
-                )
-                    .transition(.asymmetric(insertion: .identity, removal: .opacity))
-                    .zIndex(100)
-            }
-            
-            // Buffer too short message
-            if showBufferTooShortMessage {
-                VStack {
-                    Spacer()
-                    HStack {
-                        Spacer()
-                        Text("Buffer too short. Wait a moment...")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 20)
-                            .padding(.vertical, 12)
-                            .background {
-                                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                    .fill(.black.opacity(0.8))
-                            }
-                            .glassEffect(.regular, in: .rect(cornerRadius: 12))
-                        Spacer()
+        }
+    }
+    
+    // MARK: - Trim View Overlay
+    
+    @ViewBuilder
+    private var trimViewOverlay: some View {
+        if showTrimView, let videoURL = clipToTrim {
+            TrimView(
+                videoURL: videoURL,
+                onSave: { startTime, endTime in
+                    Task {
+                        await handleTrimComplete(
+                            sourceURL: videoURL,
+                            startTime: startTime,
+                            endTime: endTime,
+                            transcript: trimTranscript
+                        )
                     }
-                    .padding(.bottom, 100)
-                }
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
-            
-            // No video frames message
-            if showNoVideoFramesMessage {
-                VStack {
-                    Spacer()
-                    HStack {
-                        Spacer()
-                        VStack(spacing: 8) {
-                            Image(systemName: "video.slash")
-                                .font(.system(size: 20, weight: .medium))
-                            Text("No video feed. Tap glasses card to start.")
-                                .font(.system(size: 14, weight: .medium))
-                        }
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 12)
-                        .background {
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .fill(.black.opacity(0.8))
-                        }
-                        .glassEffect(.regular, in: .rect(cornerRadius: 12))
-                        Spacer()
+                    withAnimation {
+                        showTrimView = false
+                        clipToTrim = nil
                     }
-                    .padding(.bottom, 100)
-                }
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
-            
-            // Stream error message
-            if showStreamErrorMessage {
-                VStack {
-                    Spacer()
-                    HStack {
-                        Spacer()
-                        VStack(spacing: 8) {
-                            Image(systemName: "exclamationmark.triangle")
-                                .font(.system(size: 20, weight: .medium))
-                            Text(streamErrorText.isEmpty ? "Failed to start video stream" : streamErrorText)
-                                .font(.system(size: 14, weight: .medium))
-                                .multilineTextAlignment(.center)
-                        }
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 12)
-                        .background {
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .fill(.red.opacity(0.8))
-                        }
-                        .glassEffect(.regular, in: .rect(cornerRadius: 12))
-                        Spacer()
+                },
+                onSaveFull: {
+                    // Save without trimming
+                    addClipToTimeline(exportedURL: videoURL, transcript: trimTranscript)
+                    Task {
+                        await handleExportedClip(url: videoURL, transcript: trimTranscript)
                     }
-                    .padding(.bottom, 100)
+                    HapticManager.playSuccess()
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                        showRecordConfirmation = true
+                    }
+                    withAnimation {
+                        showTrimView = false
+                        clipToTrim = nil
+                    }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                        withAnimation(.spring(response: 0.3)) {
+                            showRecordConfirmation = false
+                        }
+                    }
+                },
+                onDiscard: {
+                    // Discard clip without saving
+                    HapticManager.playLight()
+                    try? FileManager.default.removeItem(at: videoURL)
+                    withAnimation {
+                        showTrimView = false
+                        clipToTrim = nil
+                    }
                 }
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
+            )
+            .transition(.opacity)
+            .zIndex(300)
+        }
+    }
             
-            // Search overlay
-            if showSearch {
-                searchOverlay
-                    .transition(.opacity)
-                    .zIndex(50)
-            }
-            
-            // Record confirmation overlay
-            if showRecordConfirmation {
-                ClipConfirmation()
-                    .transition(.scale.combined(with: .opacity))
-                    .zIndex(200)
+    // MARK: - Ask Tab Content
+    
+    private var askTabContent: some View {
+        MemoryAssistantView(
+            memoryAssistant: memoryAssistant,
+            viewState: viewState,
+            isEmbedded: true
+        )
+        .padding(.bottom, 90) // Space for tab bar
+    }
+    
+    // MARK: - Bottom Tab Bar
+    
+    private var bottomTabBar: some View {
+        HStack(spacing: 0) {
+            ForEach(AppTab.allCases, id: \.self) { tab in
+                Button {
+                    HapticManager.playLight()
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                        selectedTab = tab
+                    }
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: tab.icon)
+                            .font(.system(size: 16, weight: .semibold))
+                        
+                        if selectedTab == tab {
+                            Text(tab.rawValue)
+                                .font(.system(size: 14, weight: .semibold))
+                        }
+                    }
+                    .foregroundStyle(selectedTab == tab ? .white : AppColors.textSecondary)
+                    .padding(.horizontal, selectedTab == tab ? 20 : 16)
+                    .padding(.vertical, 12)
+                    .background {
+                        if selectedTab == tab {
+                            Capsule()
+                                .fill(AppColors.accent)
+                        }
+                    }
+                }
+                .animation(.spring(response: 0.3, dampingFraction: 0.8), value: selectedTab)
             }
         }
-        .task {
-            await setupCaptureCoordinator()
+        .padding(.horizontal, 8)
+        .padding(.vertical, 8)
+        .glassEffect(in: .capsule)
+        .shadow(color: .black.opacity(0.1), radius: 20, y: 10)
+        .padding(.horizontal, 40)
+        .padding(.bottom, 20)
+    }
+    
+    // MARK: - Overlays Content
+    
+    @ViewBuilder
+    private var overlaysContent: some View {
+        // Live glasses preview
+        glassesPreviewOverlay
+        
+        // Detail view overlay
+        if let clip = selectedClip {
+            ClipDetailView(
+                clip: clip,
+                namespace: namespace,
+                selectedClip: $selectedClip,
+                viewState: viewState
+            )
+            .transition(.asymmetric(insertion: .identity, removal: .opacity))
+            .zIndex(100)
         }
-        .onChange(of: showSearch) { _, newValue in
-            if newValue {
-                showSearchSuggestions = false
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                        showSearchSuggestions = true
-                    }
+        
+        // Trim view
+        trimViewOverlay
+        
+        // Search overlay
+        if showSearch {
+            searchOverlay
+                .transition(.opacity)
+                .zIndex(50)
+        }
+        
+        // Record confirmation overlay
+        if showRecordConfirmation {
+            ClipConfirmation()
+                .transition(.scale.combined(with: .opacity))
+                .zIndex(200)
+        }
+        
+        // Memory Assistant indicator (when on ask tab)
+        if memoryAssistant.state.isActive && selectedTab == .ask {
+            MemoryAssistantIndicator(
+                state: memoryAssistant.state,
+                question: memoryAssistant.lastQuestion,
+                response: memoryAssistant.lastResponse
+            )
+            .transition(.move(edge: .top).combined(with: .opacity))
+            .zIndex(250)
+        }
+        
+        // Toast messages
+        toastMessages
+    }
+    
+    @ViewBuilder
+    private var toastMessages: some View {
+        // Buffer too short message
+        if showBufferTooShortMessage {
+            toastView(icon: nil, text: "Buffer too short. Wait a moment...", color: .black.opacity(0.8))
+        }
+        
+        // No video frames message
+        if showNoVideoFramesMessage {
+            toastView(icon: "video.slash", text: "No video feed. Tap glasses card to start.", color: .black.opacity(0.8))
+        }
+        
+        // Stream error message
+        if showStreamErrorMessage {
+            toastView(icon: "exclamationmark.triangle", text: streamErrorText.isEmpty ? "Failed to start video stream" : streamErrorText, color: .red.opacity(0.8))
+        }
+        
+        // Photo save error message
+        if showPhotoSaveError {
+            toastView(icon: "photo.badge.exclamationmark", text: photoSaveErrorText.isEmpty ? "Failed to save to Photos" : photoSaveErrorText, color: .red.opacity(0.8))
+        }
+        
+        // Photo save success message
+        if showPhotoSaveSuccess {
+            VStack {
+                Spacer()
+                HStack(spacing: 8) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 18, weight: .medium))
+                    Text("Saved to Photos")
+                        .font(.system(size: 14, weight: .medium))
                 }
-            } else {
-                showSearchSuggestions = false
+                .foregroundStyle(.white)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(AppColors.connected.opacity(0.9))
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .padding(.bottom, 120)
             }
+            .transition(.move(edge: .bottom).combined(with: .opacity))
         }
+    }
+    
+    private func toastView(icon: String?, text: String, color: Color) -> some View {
+        VStack {
+            Spacer()
+            VStack(spacing: 8) {
+                if let icon = icon {
+                    Image(systemName: icon)
+                        .font(.system(size: 20, weight: .medium))
+                }
+                Text(text)
+                    .font(.system(size: 14, weight: .medium))
+                    .multilineTextAlignment(.center)
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 12)
+            .background(color)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .padding(.bottom, 120)
+        }
+        .transition(.move(edge: .bottom).combined(with: .opacity))
     }
     
     // MARK: - Capture Coordinator Setup
@@ -270,14 +444,27 @@ struct RootView: View {
         await photoManager.requestAuthorization()
         
         // Set up callback when a clip is exported
-        captureCoordinator.onClipExported = { [self] url in
+        captureCoordinator.onClipExported = { [self] url, transcript in
             Task { @MainActor in
-                captureClip(exportedURL: url)
+                // Show trim view for editing (can skip to save directly)
+                captureClip(exportedURL: url, transcript: transcript, showTrim: true)
             }
         }
         
         captureCoordinator.onExportError = { error in
             print("❌ Clip export failed: \(error.localizedDescription)")
+        }
+        
+        // Set up Memory Assistant callback for "Hey Clip" questions
+        captureCoordinator.onQuestionAsked = { [self] question in
+            Task { @MainActor in
+                await handleMemoryQuestion(question)
+            }
+        }
+        
+        // Set up Memory Assistant completion callback
+        memoryAssistant.onComplete = { [self] in
+            captureCoordinator.questionProcessingComplete()
         }
         
         // Connect to Meta glasses
@@ -298,17 +485,35 @@ struct RootView: View {
         }
     }
     
-    private func captureClip(exportedURL: URL? = nil, transcript: String = "") {
+    private func captureClip(exportedURL: URL? = nil, transcript: String = "", showTrim: Bool = false) {
         HapticManager.playSuccess()
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-            showRecordConfirmation = true
-        }
         
-        // Handle exported clip and add to timeline
+        // Handle exported clip
         if let url = exportedURL {
-            addClipToTimeline(exportedURL: url)
-            Task {
-                await handleExportedClip(url: url)
+            if showTrim {
+                // Show trim view for editing
+                clipToTrim = url
+                trimTranscript = transcript
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                    showTrimView = true
+                }
+            } else {
+                // Direct save without trimming
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                    showRecordConfirmation = true
+                }
+                
+                addClipToTimeline(exportedURL: url, transcript: transcript)
+                Task {
+                    await handleExportedClip(url: url, transcript: transcript)
+                }
+                
+                // Auto-dismiss confirmation
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                    withAnimation(.spring(response: 0.3)) {
+                        showRecordConfirmation = false
+                    }
+                }
             }
         }
         
@@ -318,16 +523,49 @@ struct RootView: View {
                 await sendClipToBackend(transcript: transcript)
             }
         }
-        
-        // Auto-dismiss confirmation
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-            withAnimation(.spring(response: 0.3)) {
-                showRecordConfirmation = false
+    }
+    
+    private func handleTrimComplete(sourceURL: URL, startTime: CMTime, endTime: CMTime, transcript: String) async {
+        do {
+            let exporter = ClipExporter()
+            let trimmedURL = try await exporter.trimClip(
+                sourceURL: sourceURL,
+                startTime: startTime,
+                endTime: endTime
+            )
+            
+            // Calculate trimmed duration
+            let trimmedDuration = endTime.seconds - startTime.seconds
+            
+            await MainActor.run {
+                HapticManager.playSuccess()
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                    showRecordConfirmation = true
+                }
+                
+                addClipToTimeline(exportedURL: trimmedURL, transcript: transcript, duration: trimmedDuration)
             }
+            
+            await handleExportedClip(url: trimmedURL, transcript: transcript)
+            
+            // Clean up original file
+            try? FileManager.default.removeItem(at: sourceURL)
+            
+            await MainActor.run {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                    withAnimation(.spring(response: 0.3)) {
+                        showRecordConfirmation = false
+                    }
+                }
+            }
+        } catch {
+            print("❌ Trim failed: \(error.localizedDescription)")
+            // Fall back to saving untrimmed
+            await handleExportedClip(url: sourceURL, transcript: transcript)
         }
     }
     
-    private func handleExportedClip(url: URL) async {
+    private func handleExportedClip(url: URL, transcript: String = "") async {
         print("📼 Clip exported to: \(url.path)")
         
         // Log file size
@@ -346,23 +584,58 @@ struct RootView: View {
             // Update the clip's localIdentifier so it can load the thumbnail
             if let index = viewState.clips.firstIndex(where: { $0.localIdentifier == url.lastPathComponent }) {
                 var updatedClip = viewState.clips[index]
+                
+                // Generate captions from transcript if available
+                var captionSegments: [CaptionSegment]? = nil
+                if !transcript.isEmpty && transcript != "[Recording]" {
+                    captionSegments = CaptionManager.shared.generateSegments(
+                        from: transcript,
+                        duration: updatedClip.duration
+                    )
+                    print("📝 Generated \(captionSegments?.count ?? 0) caption segments")
+                }
+                
                 updatedClip = ClipMetadata(
                     id: updatedClip.id,
                     localIdentifier: localIdentifier,
                     title: updatedClip.title,
-                    transcript: updatedClip.transcript,
+                    transcript: transcript.isEmpty ? updatedClip.transcript : transcript,
                     topics: updatedClip.topics,
                     capturedAt: updatedClip.capturedAt,
                     duration: updatedClip.duration,
-                    isStarred: updatedClip.isStarred
+                    isStarred: updatedClip.isStarred,
+                    captionSegments: captionSegments,
+                    showCaptions: true
                 )
                 viewState.clips[index] = updatedClip
+            }
+            
+            // Show success toast
+            withAnimation {
+                showPhotoSaveSuccess = true
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                withAnimation {
+                    showPhotoSaveSuccess = false
+                }
             }
             
             // Clean up temp file
             try? FileManager.default.removeItem(at: url)
         } catch {
             print("❌ Failed to save to Photo Library: \(error.localizedDescription)")
+            
+            // Show error toast
+            HapticManager.playError()
+            photoSaveErrorText = error.localizedDescription
+            withAnimation {
+                showPhotoSaveError = true
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+                withAnimation {
+                    showPhotoSaveError = false
+                }
+            }
         }
     }
     
@@ -371,15 +644,38 @@ struct RootView: View {
         print("📝 Clip triggered with transcript: \(transcript)")
     }
     
-    private func addClipToTimeline(exportedURL: URL) {
+    // MARK: - Memory Assistant
+    
+    private func handleMemoryQuestion(_ question: String) async {
+        HapticManager.playLight()
+        print("🧠 Memory question asked: \"\(question)\"")
+        
+        // Use all clips for context
+        await memoryAssistant.askQuestion(question, clips: viewState.clips)
+    }
+    
+    private func addClipToTimeline(exportedURL: URL, transcript: String = "", duration: TimeInterval = 30.0) {
+        // Generate captions from transcript if available
+        var captionSegments: [CaptionSegment]? = nil
+        let finalTranscript = transcript.isEmpty ? "[Recording]" : transcript
+        
+        if !transcript.isEmpty {
+            captionSegments = CaptionManager.shared.generateSegments(
+                from: transcript,
+                duration: duration
+            )
+        }
+        
         let newClip = ClipMetadata(
             id: UUID(),
             localIdentifier: exportedURL.lastPathComponent,
             title: "Clip \(Date().formatted(date: .omitted, time: .shortened))",
-            transcript: "[Recording]",
+            transcript: finalTranscript,
             topics: ["Clip"],
             capturedAt: Date(),
-            duration: 30.0
+            duration: duration,
+            captionSegments: captionSegments,
+            showCaptions: captionSegments != nil
         )
         withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
             viewState.clips.insert(newClip, at: 0)
@@ -499,6 +795,8 @@ struct RootView: View {
                         .transition(.scale.combined(with: .opacity))
                 }
             }
+            // Fixed frame prevents layout shift when pulse ring appears/disappears
+            .frame(width: 96, height: 96)
         }
         .buttonStyle(RecordButtonStyle())
         .shadow(color: AppColors.accent.opacity(0.25), radius: 16, y: 10)
@@ -1007,6 +1305,115 @@ struct CheckmarkShape: Shape {
         path.addLine(to: mid)
         path.addLine(to: end)
         return path
+    }
+}
+
+// MARK: - Memory Assistant Indicator
+
+struct MemoryAssistantIndicator: View {
+    let state: MemoryAssistantState
+    var question: String?
+    var response: String?
+    
+    @State private var pulseScale: CGFloat = 1.0
+    
+    var body: some View {
+        VStack {
+            VStack(spacing: 12) {
+                // Status icon with animation
+                ZStack {
+                    // Pulsing background
+                    Circle()
+                        .fill(stateColor.opacity(0.2))
+                        .frame(width: 56, height: 56)
+                        .scaleEffect(pulseScale)
+                    
+                    // Glass circle
+                    Circle()
+                        .fill(.clear)
+                        .frame(width: 48, height: 48)
+                        .glassEffect(in: .circle)
+                    
+                    // Icon
+                    stateIcon
+                        .font(.system(size: 22, weight: .semibold))
+                        .foregroundStyle(stateColor)
+                }
+                
+                // Status text
+                Text(state.displayText)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.primary)
+                
+                // Question (if available)
+                if let question = question, !question.isEmpty {
+                    Text("\"\(question)\"")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(2)
+                        .padding(.horizontal, 8)
+                }
+                
+                // Response (if speaking)
+                if state == .speaking, let response = response, !response.isEmpty {
+                    Text(response)
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(.primary)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(4)
+                        .padding(.horizontal, 12)
+                        .padding(.top, 4)
+                }
+            }
+            .padding(.vertical, 20)
+            .padding(.horizontal, 24)
+            .frame(maxWidth: 300)
+            .glassEffect(in: .rect(cornerRadius: 24))
+            .shadow(color: .black.opacity(0.15), radius: 20, y: 10)
+            .padding(.top, 100)
+            
+            Spacer()
+        }
+        .onAppear {
+            startPulseAnimation()
+        }
+    }
+    
+    @ViewBuilder
+    private var stateIcon: some View {
+        switch state {
+        case .idle:
+            Image(systemName: "brain")
+        case .listening:
+            Image(systemName: "ear")
+        case .thinking:
+            ProgressView()
+                .tint(stateColor)
+        case .speaking:
+            Image(systemName: "speaker.wave.2.fill")
+        case .error:
+            Image(systemName: "exclamationmark.triangle")
+        }
+    }
+    
+    private var stateColor: Color {
+        switch state {
+        case .idle: return .gray
+        case .listening: return .blue
+        case .thinking: return .orange
+        case .speaking: return AppColors.accent
+        case .error: return .red
+        }
+    }
+    
+    private func startPulseAnimation() {
+        withAnimation(
+            .easeInOut(duration: 1.2)
+            .repeatForever(autoreverses: true)
+        ) {
+            pulseScale = 1.15
+        }
     }
 }
 

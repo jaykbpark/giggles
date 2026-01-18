@@ -89,6 +89,47 @@ actor ElevenLabsService {
         try? FileManager.default.createDirectory(at: cacheDirectory, withIntermediateDirectories: true)
     }
     
+    /// Generate speech for arbitrary text (used by Memory Assistant).
+    /// Returns audio URL that can be played directly.
+    /// - Parameters:
+    ///   - text: The text to speak
+    ///   - cacheKey: Optional key for caching (if nil, won't cache)
+    /// - Returns: URL to the audio file
+    func speakText(_ text: String, cacheKey: String? = nil) async throws -> URL {
+        // Check cache if key provided
+        if let key = cacheKey,
+           let cachedURL = audioCache[key],
+           FileManager.default.fileExists(atPath: cachedURL.path) {
+            return cachedURL
+        }
+        
+        guard apiKey != nil else {
+            throw ElevenLabsError.apiKeyMissing
+        }
+        
+        // Use turbo model for faster responses (important for conversational flow)
+        let audioURL = try await generateAudio(
+            text: text,
+            voiceId: defaultVoiceId,
+            modelId: "eleven_turbo_v2_5",
+            voiceSettings: VoiceSettings.default
+        )
+        
+        // Cache if key provided
+        if let key = cacheKey {
+            let cachedURL = saveToCache(audioURL, key: key)
+            audioCache[key] = cachedURL
+            return cachedURL
+        }
+        
+        return audioURL
+    }
+    
+    /// Check if API key is configured
+    var isConfigured: Bool {
+        apiKey != nil
+    }
+    
     // MARK: - Private Helpers
     
     private func generateAudio(

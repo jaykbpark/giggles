@@ -40,6 +40,7 @@ final class ClipCaptureCoordinator: ObservableObject {
     private let glassesManager: MetaGlassesManager
     private let audioManager: AudioCaptureManager
     private let wakeWordDetector: WakeWordDetector
+    private let laughterDetector: LaughterDetector
     private let exporter: ClipExporter
     
     // MARK: - Published State
@@ -61,13 +62,28 @@ final class ClipCaptureCoordinator: ObservableObject {
     /// Minimum buffer duration required to record (default: 1 second)
     let minimumBufferDuration: TimeInterval = 1.0
     
+    /// Whether laughter detection auto-trigger is enabled
+    var isLaughterDetectionEnabled: Bool {
+        get { laughterDetector.isEnabled }
+        set { 
+            laughterDetector.isEnabled = newValue
+            objectWillChange.send()
+        }
+    }
+    
+    /// Current laughter detection confidence (0.0 - 1.0)
+    @Published private(set) var laughterConfidence: Float = 0
+    
     // MARK: - Callbacks
     
-    /// Called when a clip is successfully exported
-    var onClipExported: ((URL) -> Void)?
+    /// Called when a clip is successfully exported (URL, transcript)
+    var onClipExported: ((URL, String) -> Void)?
     
     /// Called when export fails
     var onExportError: ((Error) -> Void)?
+    
+    /// Called when a question is asked via "Hey Clip" (Memory Assistant)
+    var onQuestionAsked: ((String) -> Void)?
     
     // MARK: - Rolling Buffers
     
@@ -87,9 +103,11 @@ final class ClipCaptureCoordinator: ObservableObject {
         self.glassesManager = MetaGlassesManager.shared
         self.audioManager = AudioCaptureManager.shared
         self.wakeWordDetector = WakeWordDetector()
+        self.laughterDetector = LaughterDetector()
         self.exporter = ClipExporter()
         
         setupWakeWordCallback()
+        setupLaughterCallback()
     }
     
     /// Initialize with custom managers (for testing)
@@ -97,14 +115,17 @@ final class ClipCaptureCoordinator: ObservableObject {
         glassesManager: MetaGlassesManager,
         audioManager: AudioCaptureManager,
         wakeWordDetector: WakeWordDetector,
+        laughterDetector: LaughterDetector,
         exporter: ClipExporter
     ) {
         self.glassesManager = glassesManager
         self.audioManager = audioManager
         self.wakeWordDetector = wakeWordDetector
+        self.laughterDetector = laughterDetector
         self.exporter = exporter
         
         setupWakeWordCallback()
+        setupLaughterCallback()
     }
     
     // MARK: - Setup
@@ -112,7 +133,32 @@ final class ClipCaptureCoordinator: ObservableObject {
     private func setupWakeWordCallback() {
         wakeWordDetector.onClipTriggered = { [weak self] transcript in
             Task { @MainActor in
-                await self?.handleClipTrigger(transcript: transcript)
+                await self?.handleClipTrigger(transcript: transcript, source: .wakeWord)
+            }
+        }
+        
+        wakeWordDetector.onQuestionAsked = { [weak self] question in
+            Task { @MainActor in
+                self?.onQuestionAsked?(question)
+            }
+        }
+    }
+    
+    /// Notify that question processing is complete (call from Memory Assistant)
+    func questionProcessingComplete() {
+        wakeWordDetector.questionProcessingComplete()
+    }
+    
+    private func setupLaughterCallback() {
+        laughterDetector.onLaughterDetected = { [weak self] in
+            Task { @MainActor in
+                await self?.handleClipTrigger(transcript: "[Laughter detected]", source: .laughter)
+            }
+        }
+        
+        laughterDetector.onConfidenceUpdate = { [weak self] confidence in
+            Task { @MainActor in
+                self?.laughterConfidence = confidence
             }
         }
     }
@@ -131,24 +177,36 @@ final class ClipCaptureCoordinator: ObservableObject {
             try await glassesManager.startVideoStream()
         }
         
-        // Start audio capture (Bluetooth)
-        try await audioManager.startCapture()
+        // CRITICAL: Subscribe to video frames FIRST, before audio setup
+        // This ensures video buffer fills even if audio capture fails
+        setupStreamSubscriptions()
+        isCapturing = true
+        print("🎬 ClipCaptureCoordinator: Video capture started, setting up audio...")
+        
+        // Start audio capture (Bluetooth) - non-fatal if this fails
+        do {
+            try await audioManager.startCapture()
+            print("🎤 ClipCaptureCoordinator: Audio capture started")
+        } catch {
+            print("⚠️ ClipCaptureCoordinator: Audio capture failed (video recording still works): \(error.localizedDescription)")
+            // Continue without audio - video buffer will still capture frames
+        }
         
         // Request speech recognition authorization if needed
         if wakeWordDetector.authorizationStatus == .notDetermined {
             await wakeWordDetector.requestAuthorization()
         }
         
-        // Start wake word detection
-        if let audioFormat = audioManager.audioFormat {
+        // Start wake word detection (only if audio is available)
+        if let audioFormat = audioManager.audioFormat, audioManager.isCapturing {
             wakeWordDetector.startListening(audioFormat: audioFormat)
+            
+            // Start laughter detection (if enabled)
+            laughterDetector.startListening(audioFormat: audioFormat)
+            print("🎬 ClipCaptureCoordinator: Wake word detection started")
         }
         
-        // Subscribe to streams
-        setupStreamSubscriptions()
-        
-        isCapturing = true
-        print("🎬 ClipCaptureCoordinator: Capture started")
+        print("🎬 ClipCaptureCoordinator: Capture fully started")
     }
     
     /// Stop capturing
@@ -156,6 +214,7 @@ final class ClipCaptureCoordinator: ObservableObject {
         cancellables.removeAll()
         
         wakeWordDetector.stopListening()
+        laughterDetector.stopListening()
         audioManager.stopCapture()
         glassesManager.stopVideoStream()
         
@@ -187,6 +246,7 @@ final class ClipCaptureCoordinator: ObservableObject {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] buffer in
                 self?.wakeWordDetector.processAudioBuffer(buffer)
+                self?.laughterDetector.processAudioBuffer(buffer)
             }
             .store(in: &cancellables)
     }
@@ -262,20 +322,34 @@ final class ClipCaptureCoordinator: ObservableObject {
     
     // MARK: - Clip Export
     
-    private func handleClipTrigger(transcript: String) async {
+    /// Source of clip trigger
+    enum ClipTriggerSource {
+        case wakeWord
+        case laughter
+        case manual
+    }
+    
+    private func handleClipTrigger(transcript: String, source: ClipTriggerSource = .manual) async {
         guard !isExporting else {
             print("⚠️ Already exporting, ignoring trigger")
             return
         }
         
         isExporting = true
-        print("🎬 Clip triggered! Transcript: \(transcript)")
+        
+        let sourceEmoji: String
+        switch source {
+        case .wakeWord: sourceEmoji = "🎤"
+        case .laughter: sourceEmoji = "😂"
+        case .manual: sourceEmoji = "👆"
+        }
+        print("\(sourceEmoji) Clip triggered! Source: \(source), Transcript: \(transcript)")
         
         do {
             let url = try await exportCurrentBuffer()
             lastExportedURL = url
             lastError = nil
-            onClipExported?(url)
+            onClipExported?(url, transcript)
             print("✅ Clip exported to: \(url.lastPathComponent)")
         } catch {
             lastError = error
@@ -375,6 +449,8 @@ extension ClipCaptureCoordinator {
           Video buffer: \(videoBufferCount) frames
           Audio buffer: \(audioBufferCount) buffers
           Wake word listening: \(wakeWordDetector.isListening)
+          Laughter detection: \(laughterDetector.isEnabled ? "enabled" : "disabled")
+          Laughter confidence: \(String(format: "%.2f", laughterConfidence))
         """
     }
     

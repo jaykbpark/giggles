@@ -470,17 +470,18 @@ final class MetaSDKProvider: GlassesStreamProvider {
         case .deviceNotConnected:
             return .notConnected
         case .permissionDenied:
-            return .permissionDenied
+            // More specific message about how to fix
+            return .streamFailed("Camera permission denied. Tap glasses temple when prompted, or check Meta AI app permissions.")
         case .timeout:
-            return .streamFailed("Connection timeout - check glasses are awake")
+            return .streamFailed("Timeout - tap glasses temple to wake them up")
         case .videoStreamingError:
-            return .streamFailed("Video streaming error - try reconnecting")
+            return .streamFailed("Video streaming error - ensure glasses are awake and try again")
         case .audioStreamingError:
             return .streamFailed("Audio streaming error")
         case .internalError:
-            return .streamFailed("Internal SDK error - restart the app")
+            return .streamFailed("Internal SDK error - try disconnecting and reconnecting")
         @unknown default:
-            return .streamFailed("Unknown streaming error")
+            return .streamFailed("Unknown streaming error - try again")
         }
     }
     
@@ -507,52 +508,88 @@ final class MetaSDKProvider: GlassesStreamProvider {
             throw GlassesError.notConnected
         }
         
+        // Verify device is still connected
+        guard device.linkState == .connected else {
+            print("[MetaSDK] Device linkState is not connected: \(device.linkState)")
+            throw GlassesError.notConnected
+        }
+        
         print("[MetaSDK] Starting video stream from device: \(device.name), linkState: \(device.linkState)")
         
-        // Check current permission status first
+        // Check and request camera permission with proper error handling
+        var permissionGranted = false
+        
+        // First check current status
         do {
             let currentStatus = try await wearables.checkPermissionStatus(.camera)
             print("[MetaSDK] Current camera permission status: \(currentStatus)")
             
-            if currentStatus == .denied {
-                print("[MetaSDK] Camera permission was previously denied")
+            if currentStatus == .granted {
+                permissionGranted = true
+                print("[MetaSDK] Camera permission already granted")
+            } else if currentStatus == .denied {
+                print("[MetaSDK] Camera permission was previously denied - need to re-grant in Meta AI app")
                 throw GlassesError.permissionDenied
             }
         } catch let error as GlassesError {
             throw error
         } catch {
             print("[MetaSDK] Could not check permission status: \(error)")
-            // Continue anyway - we'll try requesting
+            // Continue to request permission
         }
         
-        // Request camera permission before streaming
-        // Note: PermissionError error 3 can occur if already authorized - we handle that gracefully
-        do {
-            let status = try await wearables.requestPermission(.camera)
-            print("[MetaSDK] Camera permission request result: \(status)")
-            guard status == .granted else {
-                print("[MetaSDK] Camera permission not granted (status: \(status))")
-                throw GlassesError.permissionDenied
+        // Request permission if not already granted
+        if !permissionGranted {
+            do {
+                let status = try await wearables.requestPermission(.camera)
+                print("[MetaSDK] Camera permission request result: \(status)")
+                
+                switch status {
+                case .granted:
+                    permissionGranted = true
+                    print("[MetaSDK] Camera permission GRANTED")
+                case .denied:
+                    print("[MetaSDK] Camera permission DENIED by user")
+                    throw GlassesError.permissionDenied
+                default:
+                    print("[MetaSDK] Camera permission status: \(status)")
+                    // Try to proceed anyway if device is connected
+                }
+            } catch let error as GlassesError {
+                throw error
+            } catch {
+                // Handle PermissionError from SDK
+                let errorString = String(describing: error)
+                print("[MetaSDK] Permission request error: \(errorString)")
+                
+                // "error 3" from PermissionError typically means one of:
+                // - Permission already granted (proceed)
+                // - SDK state issue (try anyway)
+                // - Actual permission problem (will fail at stream start)
+                if errorString.contains("error 3") {
+                    print("[MetaSDK] PermissionError 3 - attempting stream (might already be authorized)")
+                } else if errorString.contains("error 2") {
+                    // error 2 typically means permission denied
+                    print("[MetaSDK] PermissionError 2 - permission denied")
+                    throw GlassesError.permissionDenied
+                } else {
+                    // For other errors, try to proceed if device is connected
+                    print("[MetaSDK] Unknown permission error - attempting stream anyway")
+                }
             }
-            print("[MetaSDK] Camera permission GRANTED")
-        } catch let error as GlassesError {
-            throw error
-        } catch {
-            // PermissionError error 3 often means "already authorized" or SDK state issue
-            // If device is connected, continue anyway - the stream might still work
-            let errorString = String(describing: error)
-            print("[MetaSDK] Permission request error: \(errorString)")
-            
-            if device.linkState == .connected && errorString.contains("error 3") {
-                print("[MetaSDK] Device connected + error 3 - continuing anyway (likely already authorized)")
-            } else if device.linkState == .connected {
-                // Device connected but different error - still try to continue
-                print("[MetaSDK] Device connected but permission error - attempting stream anyway")
-            } else {
-                // Device not connected and permission failed - this is a real error
-                print("[MetaSDK] Device not connected and permission failed")
-                throw GlassesError.streamFailed("Permission check failed: \(error.localizedDescription)")
-            }
+        }
+        
+        // Clean up any existing session before creating a new one
+        if let existingSession = streamSession {
+            print("[MetaSDK] Cleaning up existing stream session...")
+            await existingSession.stop()
+            await videoFrameToken?.cancel()
+            await streamStateToken?.cancel()
+            await errorToken?.cancel()
+            videoFrameToken = nil
+            streamStateToken = nil
+            errorToken = nil
+            streamSession = nil
         }
         
         // Use SpecificDeviceSelector with the device we already connected to
@@ -603,9 +640,16 @@ final class MetaSDKProvider: GlassesStreamProvider {
                 // Listen for state changes - resume on streaming
                 self?.streamStateToken = session.statePublisher.listen { state in
                     print("[MetaSDK] Stream state during startup: \(state)")
-                    if state == .streaming {
+                    switch state {
+                    case .streaming:
                         print("[MetaSDK] Stream reached .streaming state!")
                         safeResume(with: .success(()))
+                    case .stopped:
+                        // If we immediately hit stopped without streaming, something went wrong
+                        print("[MetaSDK] Stream stopped before reaching streaming state")
+                        safeResume(with: .failure(GlassesError.streamFailed("Stream stopped unexpectedly - check glasses camera permission in Meta AI app")))
+                    default:
+                        break
                     }
                 }
                 
@@ -613,24 +657,40 @@ final class MetaSDKProvider: GlassesStreamProvider {
                 self?.errorToken = session.errorPublisher.listen { [weak self] error in
                     print("[MetaSDK] Stream error during startup: \(error)")
                     let mappedError = self?.mapStreamError(error) ?? GlassesError.streamFailed("Unknown error")
+                    
+                    // Add more context to the error message
+                    switch error {
+                    case .permissionDenied:
+                        print("[MetaSDK] ⚠️ Camera permission denied - user must grant permission via glasses tap or Meta AI app")
+                    case .videoStreamingError:
+                        print("[MetaSDK] ⚠️ Video streaming error - glasses may need to be woken up (tap temple)")
+                    case .timeout:
+                        print("[MetaSDK] ⚠️ Timeout - glasses may be asleep or out of range")
+                    default:
+                        break
+                    }
+                    
                     safeResume(with: .failure(mappedError))
                 }
                 
-                // Start the session and set a timeout
+                // Start the session
                 Task {
+                    print("[MetaSDK] Calling session.start()...")
                     await session.start()
+                    print("[MetaSDK] session.start() completed, waiting for state change...")
                     
-                    // Wait up to 10 seconds for streaming to start
-                    try? await Task.sleep(nanoseconds: 10_000_000_000)
+                    // Wait up to 15 seconds for streaming to start (increased from 10)
+                    // The glasses may need time to wake up
+                    try? await Task.sleep(nanoseconds: 15_000_000_000)
                     
                     // If we haven't resumed yet, it's a timeout
-                    safeResume(with: .failure(GlassesError.streamFailed("Stream startup timeout - glasses may be asleep")))
+                    safeResume(with: .failure(GlassesError.streamFailed("Stream startup timeout - tap glasses temple to wake them, then try again")))
                 }
             }
             
             // If we get here, streaming started successfully
             isVideoStreaming = true
-            print("[MetaSDK] Video stream started successfully!")
+            print("[MetaSDK] ✅ Video stream started successfully!")
             
             // Set up ongoing state change handler (for later state changes like pause/stop)
             streamStateToken = session.statePublisher.listen { [weak self] state in
@@ -642,6 +702,7 @@ final class MetaSDKProvider: GlassesStreamProvider {
             
         } catch {
             // Clean up on failure
+            print("[MetaSDK] ❌ Stream startup failed, cleaning up...")
             await streamSession?.stop()
             streamSession = nil
             await videoFrameToken?.cancel()

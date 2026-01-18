@@ -30,6 +30,44 @@ struct ClipState: Codable, Hashable, Sendable {
     }
 }
 
+// MARK: - CaptionSegment
+
+/// A timed caption segment for displaying captions during playback
+struct CaptionSegment: Codable, Hashable, Sendable, Identifiable {
+    var id: UUID = UUID()
+    let text: String
+    let startTime: TimeInterval
+    let endTime: TimeInterval
+    
+    /// Duration of this caption segment
+    var duration: TimeInterval {
+        endTime - startTime
+    }
+    
+    /// Check if this segment should be displayed at the given time
+    func isActive(at time: TimeInterval) -> Bool {
+        time >= startTime && time < endTime
+    }
+}
+
+// MARK: - CaptionStyle
+
+/// Style configuration for caption display
+struct CaptionStyle: Codable, Hashable, Sendable {
+    var fontSize: CGFloat = 18
+    var fontWeight: String = "semibold"  // "regular", "medium", "semibold", "bold"
+    var textColor: String = "#FFFFFF"
+    var backgroundColor: String = "#000000"
+    var backgroundOpacity: Double = 0.7
+    var position: CaptionPosition = .bottom
+    
+    enum CaptionPosition: String, Codable, Hashable, Sendable {
+        case top
+        case center
+        case bottom
+    }
+}
+
 struct ClipMetadata: Identifiable, Codable, Hashable, Sendable {
     let id: UUID
     let localIdentifier: String
@@ -42,6 +80,11 @@ struct ClipMetadata: Identifiable, Codable, Hashable, Sendable {
     var context: ClipContext? = nil
     var audioNarrationURL: String? = nil // URL to cached ElevenLabs audio narration
     var clipState: ClipState? = nil // Presage state data (optional)
+    
+    // Caption support
+    var captionSegments: [CaptionSegment]? = nil // Timed caption chunks
+    var showCaptions: Bool = true // User preference for showing captions
+    var captionStyle: CaptionStyle? = nil // Custom caption styling
 
     var formattedDuration: String {
         let minutes = Int(duration) / 60

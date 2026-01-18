@@ -45,6 +45,13 @@
 		4EC031B52F19000000552603 /* PresageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031B42F19000000552603 /* PresageService.swift */; };
 		4EC031B72F19000000552603 /* SmartSpectraSwiftSDK in Frameworks */ = {isa = PBXBuildFile; productRef = 4EC031B82F19000000552603 /* SmartSpectraSwiftSDK */; };
 		4EC031B92F1A000000552603 /* ElevenLabsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031BA2F1A000000552603 /* ElevenLabsService.swift */; };
+		4EC031D02F1C000000552603 /* GeminiService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031D12F1C000000552603 /* GeminiService.swift */; };
+		4EC031D22F1C000000552603 /* MemoryAssistantService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031D32F1C000000552603 /* MemoryAssistantService.swift */; };
+		4EC031D42F1C000000552603 /* MemoryAssistantView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031D52F1C000000552603 /* MemoryAssistantView.swift */; };
+		4EC031C02F1B000000552603 /* TrimView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031C12F1B000000552603 /* TrimView.swift */; };
+		4EC031C22F1B000000552603 /* CaptionOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031C32F1B000000552603 /* CaptionOverlayView.swift */; };
+		4EC031C42F1B000000552603 /* CaptionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031C52F1B000000552603 /* CaptionManager.swift */; };
+		4EC031C62F1B000000552603 /* LaughterDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031C72F1B000000552603 /* LaughterDetector.swift */; };
 		EDE0E54B2F1C414600788AE2 /* MWDATCamera in Frameworks */ = {isa = PBXBuildFile; productRef = EDE0E54A2F1C414600788AE2 /* MWDATCamera */; };
 		EDE0E54D2F1C414600788AE2 /* MWDATCore in Frameworks */ = {isa = PBXBuildFile; productRef = EDE0E54C2F1C414600788AE2 /* MWDATCore */; };
 		EDE0E54F2F1C414600788AE2 /* MWDATMockDevice in Frameworks */ = {isa = PBXBuildFile; productRef = EDE0E54E2F1C414600788AE2 /* MWDATMockDevice */; };
@@ -90,6 +97,13 @@
 		4EC031B22F19000000552603 /* StateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StateView.swift; sourceTree = "<group>"; };
 		4EC031B42F19000000552603 /* PresageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PresageService.swift; sourceTree = "<group>"; };
 		4EC031BA2F1A000000552603 /* ElevenLabsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElevenLabsService.swift; sourceTree = "<group>"; };
+		4EC031D12F1C000000552603 /* GeminiService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeminiService.swift; sourceTree = "<group>"; };
+		4EC031D32F1C000000552603 /* MemoryAssistantService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryAssistantService.swift; sourceTree = "<group>"; };
+		4EC031D52F1C000000552603 /* MemoryAssistantView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryAssistantView.swift; sourceTree = "<group>"; };
+		4EC031C12F1B000000552603 /* TrimView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrimView.swift; sourceTree = "<group>"; };
+		4EC031C32F1B000000552603 /* CaptionOverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptionOverlayView.swift; sourceTree = "<group>"; };
+		4EC031C52F1B000000552603 /* CaptionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptionManager.swift; sourceTree = "<group>"; };
+		4EC031C72F1B000000552603 /* LaughterDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaughterDetector.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -158,9 +172,11 @@
 				4EC031AC2F18000000552603 /* AudioCapture */,
 				4EC031892F16700000552603 /* MetaGlasses */,
 				4EC031402F16242C00552603 /* CameraManager.swift */,
+				4EC031C52F1B000000552603 /* CaptionManager.swift */,
 				4EC031A92F18000000552603 /* ClipExporter.swift */,
 				4EC031AB2F18000000552603 /* ClipCaptureCoordinator.swift */,
 				4EC031412F16242C00552603 /* HapticManager.swift */,
+				4EC031C72F1B000000552603 /* LaughterDetector.swift */,
 				4EC031422F16242C00552603 /* PhotoManager.swift */,
 				4EC031662F16300000552603 /* WakeWordDetector.swift */,
 			);
@@ -190,13 +206,16 @@
 		4EC0314A2F16242C00552603 /* Feed */ = {
 			isa = PBXGroup;
 			children = (
+				4EC031C32F1B000000552603 /* CaptionOverlayView.swift */,
 				4EC031472F16242C00552603 /* ClipDetailView.swift */,
 				4EC0317E2F16600000552603 /* ClipsGridView.swift */,
 				4EC031802F16600000552603 /* ClipsListView.swift */,
 				4EC031742F16500000552603 /* FeedView.swift */,
 				4EC031B12F19000000552603 /* GlassesPreviewView.swift */,
+				4EC031D52F1C000000552603 /* MemoryAssistantView.swift */,
 				4EC0317C2F16400000552603 /* MomentCard.swift */,
 				4EC0317A2F16400000552603 /* TimelineView.swift */,
+				4EC031C12F1B000000552603 /* TrimView.swift */,
 			);
 			path = Feed;
 			sourceTree = "<group>";
@@ -235,6 +254,8 @@
 				4EC031912F17800000552603 /* TitleGenerator.swift */,
 				4EC031B42F19000000552603 /* PresageService.swift */,
 				4EC031BA2F1A000000552603 /* ElevenLabsService.swift */,
+				4EC031D12F1C000000552603 /* GeminiService.swift */,
+				4EC031D32F1C000000552603 /* MemoryAssistantService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -388,6 +409,13 @@
 				4EC031B32F19000000552603 /* StateView.swift in Sources */,
 				4EC031B52F19000000552603 /* PresageService.swift in Sources */,
 				4EC031B92F1A000000552603 /* ElevenLabsService.swift in Sources */,
+				4EC031D02F1C000000552603 /* GeminiService.swift in Sources */,
+				4EC031D22F1C000000552603 /* MemoryAssistantService.swift in Sources */,
+				4EC031D42F1C000000552603 /* MemoryAssistantView.swift in Sources */,
+				4EC031C02F1B000000552603 /* TrimView.swift in Sources */,
+				4EC031C22F1B000000552603 /* CaptionOverlayView.swift in Sources */,
+				4EC031C42F1B000000552603 /* CaptionManager.swift in Sources */,
+				4EC031C62F1B000000552603 /* LaughterDetector.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

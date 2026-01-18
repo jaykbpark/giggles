@@ -59,15 +59,15 @@ enum GlassesError: Error, LocalizedError, Equatable, Sendable {
     var errorDescription: String? {
         switch self {
         case .notConnected:
-            return "Glasses not connected"
+            return "Glasses not connected. Tap Retry to reconnect."
         case .connectionFailed(let reason):
             return "Connection failed: \(reason)"
         case .streamFailed(let reason):
-            return "Stream failed: \(reason)"
+            return reason  // Already contains user-friendly message
         case .permissionDenied:
-            return "Camera permission denied by glasses"
+            return "Camera permission denied. Grant access via glasses tap or Meta AI app."
         case .deviceNotFound:
-            return "No glasses found"
+            return "No glasses found. Ensure they're paired in Meta AI app."
         case .sdkNotAvailable:
             return "Meta SDK not available"
         case .audioNotSupported:

@@ -130,3 +130,6 @@ def search(type,input):
         for video_id in unique_video_ids:
             video_objs.append(get_video(video_id)["result"])
         return video_objs
+
+def __main__():
+    app.run(host="0.0.0.0", port=8080)

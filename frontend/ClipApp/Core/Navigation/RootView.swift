@@ -644,7 +644,12 @@ struct RootView: View {
                     let clipForUpload = updatedClip
                     Task {
                         // Use existing serverVideoId or generate a new one from backend
-                        let videoIdForUpload = clipForUpload.serverVideoId ?? await viewState.nextVideoId()
+                        let videoIdForUpload: Int
+                        if let existingId = clipForUpload.serverVideoId {
+                            videoIdForUpload = existingId
+                        } else {
+                            videoIdForUpload = await viewState.nextVideoId()
+                        }
                         do {
                             try await APIService.shared.uploadClip(
                                 videoURL: uploadURL,
@@ -710,7 +715,12 @@ struct RootView: View {
                     let clipForUpload = updatedClip
                     Task {
                         // Use existing serverVideoId or generate a new one from backend
-                        let videoIdForUpload = clipForUpload.serverVideoId ?? await viewState.nextVideoId()
+                        let videoIdForUpload: Int
+                        if let existingId = clipForUpload.serverVideoId {
+                            videoIdForUpload = existingId
+                        } else {
+                            videoIdForUpload = await viewState.nextVideoId()
+                        }
                         do {
                             try await APIService.shared.uploadClip(
                                 videoURL: localURL,

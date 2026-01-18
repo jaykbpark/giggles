@@ -159,7 +159,8 @@ actor ElevenLabsService {
                 "stability": voiceSettings.stability,
                 "similarity_boost": voiceSettings.similarityBoost,
                 "style": voiceSettings.style,
-                "use_speaker_boost": voiceSettings.useSpeakerBoost
+                "use_speaker_boost": voiceSettings.useSpeakerBoost,
+                "speed": voiceSettings.speed  // 1.0 = normal, 1.2 = 20% faster
             ]
         ]
         
@@ -286,20 +287,24 @@ private struct VoiceSettings {
     var similarityBoost: Double
     var style: Double
     var useSpeakerBoost: Bool
+    var speed: Double  // 0.25 to 4.0, default 1.0
     
     static let `default` = VoiceSettings(
         stability: 0.5,
         similarityBoost: 0.75,
         style: 0.1,
-        useSpeakerBoost: true
+        useSpeakerBoost: true,
+        speed: 1.0
     )
     
     // Optimized for warm, caring delivery (Alzheimer's/memory care context)
+    // Slightly faster (1.15x) for more natural conversational pace
     static let warmCaring = VoiceSettings(
-        stability: 0.65,        // Higher stability = more consistent, calming
+        stability: 0.60,        // Slightly less stable for more natural variation
         similarityBoost: 0.80,  // Clear voice reproduction
         style: 0.15,            // Slight expressiveness without being dramatic
-        useSpeakerBoost: true
+        useSpeakerBoost: true,
+        speed: 1.15             // 15% faster - more conversational
     )
 }
 

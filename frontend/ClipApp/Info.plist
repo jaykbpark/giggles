@@ -18,7 +18,7 @@
 	<key>ELEVENLABS_API_KEY</key>
 	<string>69d464144176e45535c23e3a3b3b245f9a3a205596ea7be1eaccb4ffebdb1274</string>
 	<key>GEMINI_API_KEY</key>
-	<string>AIzaSyBdVodbOPsEPw_cUM3JEPdKhGJ5NWDcQPI</string>
+	<string>AIzaSyCQKff1igJ2o0_Ra8sCVAsJrGBQKpyQsP4</string>
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>fb-viewapp</string>
@@ -37,6 +37,10 @@
 	</dict>
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>Needed to connect to Meta Wearables</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Required for "Clip that" voice commands and audio recording</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Required for "Clip that" and "Hey Clip" voice commands</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>bluetooth-peripheral</string>

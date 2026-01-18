@@ -3,17 +3,23 @@ import CoreMedia
 import CoreVideo
 import CoreImage
 import Combine
+import UIKit
 
 /// Exports synchronized video and audio buffers to a movie file.
 /// Uses AVAssetWriter to mux video frames and audio buffers into a .mov file.
 ///
+/// ## Design
+/// This exporter passes raw YUV pixel buffers directly to the H.264 hardware encoder
+/// without any manual conversion. This is fast and reliable because iOS's VideoToolbox
+/// natively supports the YUV 420v format from Meta glasses.
+///
 /// ## Usage
 /// ```swift
 /// let exporter = ClipExporter()
-/// let url = try await exporter.export(
-///     videoFrames: videoBuffers,
-///     audioBuffers: audioBuffers,
-///     videoSize: CGSize(width: 1280, height: 720)
+/// let url = try await exporter.exportWithHostTimeSync(
+///     videoFrames: frames,
+///     audioBuffers: audio,
+///     config: .default
 /// )
 /// ```
 final class ClipExporter {
@@ -39,14 +45,25 @@ final class ClipExporter {
         let videoBitRate: Int
         let audioSampleRate: Double
         let audioChannels: Int
+        let isPortrait: Bool
+        let generateThumbnail: Bool
         
         static let `default` = ExportConfig(
             videoSize: CGSize(width: 1280, height: 720),
             frameRate: 30,
-            videoBitRate: 5_000_000, // 5 Mbps
+            videoBitRate: 5_000_000,
             audioSampleRate: 16000,
-            audioChannels: 1
+            audioChannels: 1,
+            isPortrait: false,
+            generateThumbnail: false
         )
+    }
+    
+    /// Export result containing URL and optional thumbnail
+    struct ExportResult {
+        let videoURL: URL
+        let thumbnail: UIImage?
+        let isPortrait: Bool
     }
     
     // MARK: - Errors
@@ -85,10 +102,7 @@ final class ClipExporter {
     
     // MARK: - Progress Reporting
     
-    /// Progress callback: (framesWritten, totalFrames)
     typealias ProgressCallback = (Int, Int) -> Void
-    
-    /// Called periodically during export with progress updates
     var onProgress: ProgressCallback?
     
     // MARK: - Properties
@@ -98,8 +112,8 @@ final class ClipExporter {
     private var audioInput: AVAssetWriterInput?
     private var pixelBufferAdaptor: AVAssetWriterInputPixelBufferAdaptor?
     
-    /// CIContext for converting pixel buffers to BGRA format (GPU-accelerated)
-    private let ciContext = CIContext(options: [.useSoftwareRenderer: false])
+    // Lazy CIContext only for thumbnail generation (not used during export)
+    private lazy var ciContext = CIContext(options: [.useSoftwareRenderer: false])
     
     // MARK: - Initialization
     
@@ -134,19 +148,20 @@ final class ClipExporter {
         let formatString = pixelFormatToString(pixelFormat)
         print("🎬 First frame: \(frameWidth)x\(frameHeight), format: \(formatString) (0x\(String(pixelFormat, radix: 16)))")
         
-        // Round dimensions to be divisible by 16 for H.264 compatibility
-        let adjustedWidth = (frameWidth + 15) / 16 * 16
-        let adjustedHeight = (frameHeight + 15) / 16 * 16
-        let adjustedConfig = ExportConfig(
-            videoSize: CGSize(width: adjustedWidth, height: adjustedHeight),
-            frameRate: config.frameRate,
-            videoBitRate: config.videoBitRate,
-            audioSampleRate: config.audioSampleRate,
-            audioChannels: config.audioChannels
-        )
-        
-        if adjustedWidth != frameWidth || adjustedHeight != frameHeight {
-            print("🎬 Adjusted dimensions for H.264: \(adjustedWidth)x\(adjustedHeight)")
+        // Ensure export config matches the actual frame size (no resizing during export)
+        var finalConfig = config
+        let actualSize = CGSize(width: frameWidth, height: frameHeight)
+        if config.videoSize != actualSize {
+            finalConfig = ExportConfig(
+                videoSize: actualSize,
+                frameRate: config.frameRate,
+                videoBitRate: config.videoBitRate,
+                audioSampleRate: config.audioSampleRate,
+                audioChannels: config.audioChannels,
+                isPortrait: config.isPortrait,
+                generateThumbnail: config.generateThumbnail
+            )
+            print("🎬 Using actual frame size: \(frameWidth)x\(frameHeight)")
         }
         
         // Create output URL in temp directory
@@ -169,15 +184,16 @@ final class ClipExporter {
         
         self.assetWriter = writer
         
-        // Setup video input with adjusted dimensions
-        setupVideoInput(writer: writer, config: adjustedConfig)
-        print("✅ Video input configured")
+        // Setup video input - pass through YUV directly to H.264 encoder (no conversion)
+        setupVideoInput(writer: writer, config: finalConfig, sourcePixelFormat: pixelFormat)
+        print("✅ Video input configured (format: \(formatString))")
         
-        // Setup audio input if we have audio (use original config for audio settings)
-        if !audioBuffers.isEmpty {
-            setupAudioInput(writer: writer, config: config)
-            print("✅ Audio input configured")
-        }
+        // Skip audio input for now (debugging video first)
+        // if !audioBuffers.isEmpty {
+        //     setupAudioInput(writer: writer, config: finalConfig)
+        //     print("✅ Audio input configured")
+        // }
+        print("⚠️ Audio input skipped (debugging video first)")
         
         // Start writing
         guard writer.startWriting() else {
@@ -201,20 +217,25 @@ final class ClipExporter {
         }
         print("✅ Session started at time zero (base time for offset: \(baseTime.seconds)s)")
         
-        // Write video frames (convert to BGRA using adaptor's pool for H.264 compatibility)
+        // Write video frames
         try await writeVideoFrames(videoFrames, baseTime: baseTime)
         
-        // Write audio buffers
+        // Skip audio for now to isolate the problem
+        // TODO: Re-enable audio once video export works
         if !audioBuffers.isEmpty {
-            try await writeAudioBuffers(audioBuffers, baseTime: baseTime)
+            print("⚠️ Skipping \(audioBuffers.count) audio buffers (debugging video first)")
+            // try await writeAudioBuffers(audioBuffers, baseTime: baseTime)
         }
         
-        // Finish writing
-        print("🎬 Finishing write...")
-        videoInput?.markAsFinished()
-        audioInput?.markAsFinished()
+        // Check writer status before finishing
+        print("🎬 Finishing write... (writer status: \(writerStatusString(writer.status)))")
+        if let error = writer.error {
+            print("🎬 Writer has error before finish: \(error.localizedDescription)")
+        }
         
         await writer.finishWriting()
+        
+        print("🎬 Finish complete (writer status: \(writerStatusString(writer.status)))")
         
         if let error = writer.error {
             print("❌ Writer error after finish: \(error.localizedDescription)")
@@ -224,6 +245,175 @@ final class ClipExporter {
         print("✅ Export complete: \(outputURL.lastPathComponent)")
         
         return outputURL
+    }
+    
+    /// Export video frames with optional portrait cropping and thumbnail generation
+    /// - Parameters:
+    ///   - videoFrames: Array of timestamped video frames
+    ///   - audioBuffers: Array of timestamped audio sample buffers
+    ///   - config: Export configuration (use .portrait for vertical video)
+    /// - Returns: ExportResult containing video URL and optional thumbnail
+    func exportWithResult(
+        videoFrames: [TimestampedVideoFrame],
+        audioBuffers: [TimestampedAudioSample],
+        config: ExportConfig = .default
+    ) async throws -> ExportResult {
+        print("🎬 Starting export with result: portrait=\(config.isPortrait), thumbnail=\(config.generateThumbnail)")
+        
+        // Generate thumbnail from first frame before any processing
+        var thumbnail: UIImage? = nil
+        if config.generateThumbnail, let firstFrame = videoFrames.first {
+            thumbnail = generateThumbnail(from: firstFrame.pixelBuffer, isPortrait: config.isPortrait)
+            print("🖼️ Thumbnail generated: \(thumbnail != nil)")
+        }
+        
+        // If portrait mode, transform frames to portrait orientation (center crop)
+        let processedFrames: [TimestampedVideoFrame]
+        if config.isPortrait {
+            print("📱 Processing frames for portrait mode (center crop)...")
+            processedFrames = videoFrames.compactMap { frame -> TimestampedVideoFrame? in
+                guard let croppedBuffer = cropToPortrait(frame.pixelBuffer) else {
+                    return nil
+                }
+                return TimestampedVideoFrame(
+                    pixelBuffer: croppedBuffer,
+                    presentationTime: frame.presentationTime
+                )
+            }
+            print("📱 Processed \(processedFrames.count) portrait frames")
+        } else {
+            processedFrames = videoFrames
+        }
+        
+        // Export the video
+        let videoURL = try await export(
+            videoFrames: processedFrames,
+            audioBuffers: audioBuffers,
+            config: config
+        )
+        
+        return ExportResult(
+            videoURL: videoURL,
+            thumbnail: thumbnail,
+            isPortrait: config.isPortrait
+        )
+    }
+    
+    /// Generate a thumbnail image from a pixel buffer
+    /// - Parameters:
+    ///   - pixelBuffer: Source pixel buffer
+    ///   - isPortrait: If true, crop to portrait aspect ratio
+    /// - Returns: Thumbnail UIImage
+    func generateThumbnail(from pixelBuffer: CVPixelBuffer, isPortrait: Bool = false, maxSize: CGFloat = 400) -> UIImage? {
+        var ciImage = CIImage(cvPixelBuffer: pixelBuffer)
+        
+        // If portrait, crop to center 9:16 region
+        if isPortrait {
+            let width = ciImage.extent.width
+            let height = ciImage.extent.height
+            
+            // Calculate portrait crop (9:16 from center of landscape 16:9)
+            let targetAspect: CGFloat = 9.0 / 16.0
+            let cropWidth = height * targetAspect // Use height to determine width for 9:16
+            let cropX = (width - cropWidth) / 2
+            
+            let cropRect = CGRect(x: cropX, y: 0, width: cropWidth, height: height)
+            ciImage = ciImage.cropped(to: cropRect)
+        }
+        
+        // Scale down for thumbnail size
+        let scale = min(maxSize / ciImage.extent.width, maxSize / ciImage.extent.height, 1.0)
+        if scale < 1.0 {
+            ciImage = ciImage.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+        }
+        
+        // Render to CGImage then UIImage
+        guard let cgImage = ciContext.createCGImage(ciImage, from: ciImage.extent) else {
+            return nil
+        }
+        
+        return UIImage(cgImage: cgImage)
+    }
+    
+    /// Generate thumbnail from a video file URL
+    /// - Parameters:
+    ///   - url: Video file URL
+    ///   - time: Time to capture thumbnail (default: 0.5 seconds in)
+    /// - Returns: Thumbnail UIImage
+    func generateThumbnail(from url: URL, at time: TimeInterval = 0.5) async -> UIImage? {
+        let asset = AVAsset(url: url)
+        let imageGenerator = AVAssetImageGenerator(asset: asset)
+        imageGenerator.appliesPreferredTrackTransform = true
+        imageGenerator.maximumSize = CGSize(width: 400, height: 400)
+        
+        let cmTime = CMTime(seconds: time, preferredTimescale: 600)
+        
+        do {
+            let cgImage = try imageGenerator.copyCGImage(at: cmTime, actualTime: nil)
+            return UIImage(cgImage: cgImage)
+        } catch {
+            print("⚠️ Failed to generate thumbnail: \(error.localizedDescription)")
+            return nil
+        }
+    }
+    
+    /// Crop a landscape pixel buffer to portrait (9:16) aspect ratio
+    /// - Parameter pixelBuffer: Source landscape pixel buffer
+    /// - Returns: New pixel buffer cropped to portrait aspect ratio
+    private func cropToPortrait(_ pixelBuffer: CVPixelBuffer) -> CVPixelBuffer? {
+        let ciImage = CIImage(cvPixelBuffer: pixelBuffer)
+        let width = ciImage.extent.width
+        let height = ciImage.extent.height
+        
+        // Calculate 9:16 portrait crop from center
+        let targetAspect: CGFloat = 9.0 / 16.0
+        let cropWidth = height * targetAspect
+        let cropX = (width - cropWidth) / 2
+        
+        let cropRect = CGRect(x: cropX, y: 0, width: cropWidth, height: height)
+        let croppedImage = ciImage.cropped(to: cropRect)
+        
+        // Translate to origin (CIImage.cropped keeps original coordinates)
+        let translatedImage = croppedImage.transformed(by: CGAffineTransform(translationX: -cropRect.origin.x, y: 0))
+        
+        // Calculate output dimensions (divisible by 16 for H.264)
+        let outputWidth = (Int(cropWidth) + 15) / 16 * 16
+        let outputHeight = (Int(height) + 15) / 16 * 16
+        
+        // Create output pixel buffer with IOSurface for hardware encoder compatibility
+        var outputBuffer: CVPixelBuffer?
+        let attrs: [CFString: Any] = [
+            kCVPixelBufferCGImageCompatibilityKey: true,
+            kCVPixelBufferCGBitmapContextCompatibilityKey: true,
+            kCVPixelBufferWidthKey: outputWidth,
+            kCVPixelBufferHeightKey: outputHeight,
+            kCVPixelBufferPixelFormatTypeKey: kCVPixelFormatType_32BGRA,
+            kCVPixelBufferIOSurfacePropertiesKey: [:] as [String: Any]  // Enable IOSurface backing
+        ]
+        
+        let status = CVPixelBufferCreate(
+            kCFAllocatorDefault,
+            outputWidth,
+            outputHeight,
+            kCVPixelFormatType_32BGRA,
+            attrs as CFDictionary,
+            &outputBuffer
+        )
+        
+        guard status == kCVReturnSuccess, let output = outputBuffer else {
+            print("⚠️ Failed to create portrait pixel buffer: \(status)")
+            return nil
+        }
+        
+        // Scale to fill the output buffer dimensions
+        let scaleX = CGFloat(outputWidth) / translatedImage.extent.width
+        let scaleY = CGFloat(outputHeight) / translatedImage.extent.height
+        let scaledImage = translatedImage.transformed(by: CGAffineTransform(scaleX: scaleX, y: scaleY))
+        
+        // Render to output buffer
+        ciContext.render(scaledImage, to: output)
+        
+        return output
     }
     
     /// Export from raw buffers with host time synchronization
@@ -276,6 +466,97 @@ final class ClipExporter {
             videoFrames: convertedVideoFrames,
             audioBuffers: convertedAudioBuffers,
             config: config
+        )
+    }
+    
+    /// Export from raw buffers with host time synchronization and return ExportResult with thumbnail
+    /// - Parameters:
+    ///   - videoFrames: Video pixel buffers with host times
+    ///   - audioBuffers: Audio buffers with host times
+    ///   - config: Export configuration (use .portrait for vertical video)
+    /// - Returns: ExportResult containing video URL and optional thumbnail
+    func exportWithHostTimeSyncResult(
+        videoFrames: [(pixelBuffer: CVPixelBuffer, hostTime: UInt64)],
+        audioBuffers: [TimestampedAudioBuffer],
+        config: ExportConfig = .default
+    ) async throws -> ExportResult {
+        print("🎬 exportWithHostTimeSyncResult: portrait=\(config.isPortrait), thumbnail=\(config.generateThumbnail)")
+        
+        guard !videoFrames.isEmpty else {
+            throw ExportError.noVideoFrames
+        }
+        
+        // Generate thumbnail from first frame
+        var thumbnail: UIImage? = nil
+        if config.generateThumbnail, let firstFrame = videoFrames.first?.pixelBuffer {
+            thumbnail = generateThumbnail(from: firstFrame, isPortrait: config.isPortrait)
+            print("🖼️ Thumbnail generated: \(thumbnail != nil)")
+        }
+        
+        // Convert host times to CMTime
+        let videoStartTime = videoFrames.first?.hostTime ?? 0
+        let audioStartTime = audioBuffers.first?.hostTime ?? UInt64.max
+        let baseHostTime = min(videoStartTime, audioStartTime)
+        
+        // Convert and optionally crop video frames
+        let convertedVideoFrames: [TimestampedVideoFrame]
+        if config.isPortrait {
+            print("📱 Processing frames for portrait mode...")
+            convertedVideoFrames = videoFrames.compactMap { frame -> TimestampedVideoFrame? in
+                guard let croppedBuffer = cropToPortrait(frame.pixelBuffer) else {
+                    return nil
+                }
+                let relativeTime = hostTimeToCMTime(frame.hostTime, relativeTo: baseHostTime)
+                return TimestampedVideoFrame(pixelBuffer: croppedBuffer, presentationTime: relativeTime)
+            }
+        } else {
+            convertedVideoFrames = videoFrames.map { frame in
+                let relativeTime = hostTimeToCMTime(frame.hostTime, relativeTo: baseHostTime)
+                return TimestampedVideoFrame(pixelBuffer: frame.pixelBuffer, presentationTime: relativeTime)
+            }
+        }
+        
+        // Convert audio buffers
+        var convertedAudioBuffers: [TimestampedAudioSample] = []
+        for audioBuffer in audioBuffers {
+            if let sampleBuffer = createAudioSampleBuffer(from: audioBuffer, baseHostTime: baseHostTime) {
+                let relativeTime = hostTimeToCMTime(audioBuffer.hostTime, relativeTo: baseHostTime)
+                convertedAudioBuffers.append(TimestampedAudioSample(
+                    sampleBuffer: sampleBuffer,
+                    presentationTime: relativeTime
+                ))
+            }
+        }
+        
+        print("🎬 Converted \(convertedVideoFrames.count) frames, \(convertedAudioBuffers.count) audio buffers")
+        
+        // Update config with actual frame dimensions after portrait processing
+        var finalConfig = config
+        if config.isPortrait, let firstFrame = convertedVideoFrames.first?.pixelBuffer {
+            let actualWidth = CVPixelBufferGetWidth(firstFrame)
+            let actualHeight = CVPixelBufferGetHeight(firstFrame)
+            finalConfig = ExportConfig(
+                videoSize: CGSize(width: actualWidth, height: actualHeight),
+                frameRate: config.frameRate,
+                videoBitRate: config.videoBitRate,
+                audioSampleRate: config.audioSampleRate,
+                audioChannels: config.audioChannels,
+                isPortrait: config.isPortrait,
+                generateThumbnail: config.generateThumbnail
+            )
+            print("🎬 Updated config for portrait: \(actualWidth)x\(actualHeight)")
+        }
+        
+        let videoURL = try await export(
+            videoFrames: convertedVideoFrames,
+            audioBuffers: convertedAudioBuffers,
+            config: finalConfig
+        )
+        
+        return ExportResult(
+            videoURL: videoURL,
+            thumbnail: thumbnail,
+            isPortrait: config.isPortrait
         )
     }
     
@@ -388,37 +669,38 @@ final class ClipExporter {
     
     // MARK: - Private Methods
     
-    private func setupVideoInput(writer: AVAssetWriter, config: ExportConfig) {
+    private func setupVideoInput(
+        writer: AVAssetWriter,
+        config: ExportConfig,
+        sourcePixelFormat: OSType
+    ) {
+        // Use EXACT source dimensions - don't pad
+        let width = Int(config.videoSize.width)
+        let height = Int(config.videoSize.height)
+        
+        print("📹 Video dimensions: \(width)x\(height) (exact, no padding)")
+        
         let videoSettings: [String: Any] = [
             AVVideoCodecKey: AVVideoCodecType.h264,
-            AVVideoWidthKey: config.videoSize.width,
-            AVVideoHeightKey: config.videoSize.height,
+            AVVideoWidthKey: width,
+            AVVideoHeightKey: height,
             AVVideoCompressionPropertiesKey: [
                 AVVideoAverageBitRateKey: config.videoBitRate,
                 AVVideoExpectedSourceFrameRateKey: config.frameRate,
-                AVVideoProfileLevelKey: AVVideoProfileLevelH264HighAutoLevel
+                AVVideoProfileLevelKey: AVVideoProfileLevelH264BaselineAutoLevel
             ]
         ]
         
         let input = AVAssetWriterInput(mediaType: .video, outputSettings: videoSettings)
         input.expectsMediaDataInRealTime = false
         
-        // Create pixel buffer adaptor with BGRA format
-        // We convert all incoming frames to BGRA before appending, so specify that format here
-        let sourcePixelBufferAttributes: [String: Any] = [
-            kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
-            kCVPixelBufferWidthKey as String: Int(config.videoSize.width),
-            kCVPixelBufferHeightKey as String: Int(config.videoSize.height),
-            kCVPixelBufferIOSurfacePropertiesKey as String: [:] as [String: Any]
-        ]
-        
+        // Use pixel buffer adaptor - let it handle format conversion
         let adaptor = AVAssetWriterInputPixelBufferAdaptor(
             assetWriterInput: input,
-            sourcePixelBufferAttributes: sourcePixelBufferAttributes
+            sourcePixelBufferAttributes: nil // Let system figure out the format
         )
         
         writer.add(input)
-        
         self.videoInput = input
         self.pixelBufferAdaptor = adaptor
     }
@@ -448,90 +730,48 @@ final class ClipExporter {
             return
         }
         
-        print("📹 Writing \(frames.count) video frames (using adaptor's pixel buffer pool)...")
-        print("📹 Initial isReadyForMoreMediaData: \(input.isReadyForMoreMediaData)")
-        print("📹 Pixel buffer pool available: \(adaptor.pixelBufferPool != nil)")
+        print("📹 Writing \(frames.count) video frames (adaptor method)...")
         
-        if let writer = assetWriter {
-            print("📹 Writer status: \(writerStatusString(writer.status))")
-        }
-        
-        var convertedCount = 0
-        var skippedCount = 0
+        var writtenCount = 0
         
         for (index, frame) in frames.enumerated() {
-            // Convert frame to BGRA format using adaptor's pool (optimized for hardware encoder)
-            guard let convertedBuffer = convertToBGRA(frame.pixelBuffer, using: adaptor) else {
-                skippedCount += 1
-                if skippedCount == 1 {
-                    print("⚠️ Failed to convert frame \(index) to BGRA, skipping")
-                }
-                continue
-            }
-            
-            // Wait for input to be ready with timeout
-            var waitCount = 0
-            let maxWait = 3000 // 30 second max (3000 * 10ms) - encoding large buffers takes time
-            
+            // Wait for input to be ready
             while !input.isReadyForMoreMediaData {
-                waitCount += 1
-                if waitCount > maxWait {
-                    let writerStatus = assetWriter?.status ?? .unknown
-                    let writerError = assetWriter?.error?.localizedDescription ?? "none"
-                    print("❌ Timeout waiting for video input - frame \(index)/\(frames.count)")
-                    print("❌ Writer status: \(writerStatusString(writerStatus)), error: \(writerError)")
-                    throw ExportError.failedToFinishWriting("Video input not ready after timeout (writer: \(writerStatusString(writerStatus)))")
-                }
-                
-                // Check if writer has failed
                 if let writer = assetWriter, writer.status == .failed {
-                    let errorMsg = writer.error?.localizedDescription ?? "Unknown writer error"
-                    print("❌ Writer failed: \(errorMsg)")
+                    let errorMsg = writer.error?.localizedDescription ?? "Unknown"
+                    print("❌ Writer failed at frame \(index): \(errorMsg)")
                     throw ExportError.failedToFinishWriting(errorMsg)
                 }
-                
-                // Log every 100 waits (1s)
-                if waitCount % 100 == 0 {
-                    print("⏳ Waiting for video input... (\(waitCount * 10)ms)")
-                }
-                
-                try await Task.sleep(nanoseconds: 10_000_000) // 10ms
+                try await Task.sleep(nanoseconds: 1_000_000) // 1ms
             }
             
             // Calculate presentation time relative to base
             let presentationTime = CMTimeSubtract(frame.presentationTime, baseTime)
             let adjustedTime = CMTimeMaximum(presentationTime, .zero)
             
-            // Append the converted BGRA pixel buffer
-            if adaptor.append(convertedBuffer, withPresentationTime: adjustedTime) {
-                convertedCount += 1
+            // Append via adaptor
+            if adaptor.append(frame.pixelBuffer, withPresentationTime: adjustedTime) {
+                writtenCount += 1
             } else {
-                print("⚠️ Failed to append video frame \(index) at \(adjustedTime.seconds)s")
-                // Check if writer failed
-                if let writer = assetWriter, writer.status == .failed {
-                    let errorMsg = writer.error?.localizedDescription ?? "Unknown writer error"
-                    throw ExportError.failedToFinishWriting(errorMsg)
-                }
+                let writerStatus = assetWriter?.status ?? .unknown
+                let writerError = assetWriter?.error?.localizedDescription ?? "none"
+                print("❌ Frame \(index) append FAILED at time \(adjustedTime.seconds)s")
+                print("❌ Writer status: \(writerStatusString(writerStatus)), Error: \(writerError)")
+                
+                input.markAsFinished()
+                throw ExportError.failedToFinishWriting("Frame \(index) failed: \(writerError)")
             }
             
-            // Report progress every 10 frames for smooth UI updates
-            if convertedCount % 10 == 0 {
-                onProgress?(convertedCount, frames.count)
-            }
-            
-            // Log progress every 100 frames
-            if convertedCount > 0 && convertedCount % 100 == 0 {
-                print("📹 Written \(convertedCount)/\(frames.count) video frames")
+            // Progress every 100 frames
+            if writtenCount % 100 == 0 && writtenCount > 0 {
+                print("📹 Progress: \(writtenCount)/\(frames.count)")
+                onProgress?(writtenCount, frames.count)
             }
         }
         
-        // Report final progress
-        onProgress?(convertedCount, frames.count)
-        
-        if skippedCount > 0 {
-            print("⚠️ Skipped \(skippedCount) frames due to conversion failure")
-        }
-        print("✅ Finished writing \(convertedCount) video frames")
+        input.markAsFinished()
+        print("✅ Wrote \(writtenCount)/\(frames.count) video frames")
+        onProgress?(writtenCount, frames.count)
     }
     
     private func writeAudioBuffers(_ buffers: [TimestampedAudioSample], baseTime: CMTime) async throws {
@@ -540,47 +780,36 @@ final class ClipExporter {
             return
         }
         
-        print("🎤 Writing \(buffers.count) audio buffers...")
+        print("🎤 Writing \(buffers.count) audio buffers (sequential)...")
+        
+        var writtenCount = 0
         
         for (index, buffer) in buffers.enumerated() {
-            // Wait for input to be ready with timeout
-            var waitCount = 0
-            let maxWait = 3000 // 30 second max (3000 * 10ms) - encoding large buffers takes time
-            
+            // Wait for input to be ready
             while !input.isReadyForMoreMediaData {
-                waitCount += 1
-                if waitCount > maxWait {
-                    print("❌ Timeout waiting for audio input - buffer \(index)/\(buffers.count)")
-                    throw ExportError.failedToFinishWriting("Audio input not ready after timeout")
-                }
-                
-                // Check if writer has failed
                 if let writer = assetWriter, writer.status == .failed {
-                    let errorMsg = writer.error?.localizedDescription ?? "Unknown writer error"
-                    print("❌ Writer failed: \(errorMsg)")
+                    let errorMsg = writer.error?.localizedDescription ?? "Unknown"
+                    print("❌ Writer failed at audio buffer \(index): \(errorMsg)")
                     throw ExportError.failedToFinishWriting(errorMsg)
                 }
-                
-                // Log every 100 waits (1s)
-                if waitCount % 100 == 0 {
-                    print("⏳ Waiting for audio input... (\(waitCount * 10)ms)")
-                }
-                
-                try await Task.sleep(nanoseconds: 10_000_000) // 10ms
+                try await Task.sleep(nanoseconds: 1_000_000) // 1ms
             }
             
-            // Append sample buffer
-            if !input.append(buffer.sampleBuffer) {
-                print("⚠️ Failed to append audio buffer \(index)")
-                // Check if writer failed
-                if let writer = assetWriter, writer.status == .failed {
-                    let errorMsg = writer.error?.localizedDescription ?? "Unknown writer error"
-                    throw ExportError.failedToFinishWriting(errorMsg)
+            if input.append(buffer.sampleBuffer) {
+                writtenCount += 1
+            } else {
+                let writerStatus = assetWriter?.status ?? .unknown
+                let writerError = assetWriter?.error?.localizedDescription ?? "none"
+                print("⚠️ Audio buffer \(index) append failed. Status: \(writerStatusString(writerStatus)), Error: \(writerError)")
+                
+                if writerStatus == .failed {
+                    throw ExportError.failedToFinishWriting(writerError)
                 }
             }
         }
         
-        print("✅ Finished writing \(buffers.count) audio buffers")
+        input.markAsFinished()
+        print("✅ Wrote \(writtenCount)/\(buffers.count) audio buffers")
     }
     
     private func hostTimeToCMTime(_ hostTime: UInt64, relativeTo baseHostTime: UInt64) -> CMTime {
@@ -711,44 +940,4 @@ final class ClipExporter {
         }
     }
     
-    /// Convert a pixel buffer from any format to BGRA format using the adaptor's pixel buffer pool
-    /// - Parameters:
-    ///   - pixelBuffer: Source pixel buffer (can be YUV, BGRA, etc.)
-    ///   - adaptor: The pixel buffer adaptor whose pool will be used for output buffers
-    /// - Returns: A new pixel buffer in BGRA format from the adaptor's pool, or nil if conversion fails
-    private func convertToBGRA(
-        _ pixelBuffer: CVPixelBuffer,
-        using adaptor: AVAssetWriterInputPixelBufferAdaptor
-    ) -> CVPixelBuffer? {
-        // Get buffer from adaptor's pool (optimized for hardware encoder)
-        guard let pool = adaptor.pixelBufferPool else {
-            print("⚠️ Pixel buffer pool not available")
-            return nil
-        }
-        
-        var outputBuffer: CVPixelBuffer?
-        let status = CVPixelBufferPoolCreatePixelBuffer(kCFAllocatorDefault, pool, &outputBuffer)
-        
-        guard status == kCVReturnSuccess, let output = outputBuffer else {
-            print("⚠️ Failed to create pixel buffer from pool: \(status)")
-            return nil
-        }
-        
-        // Create CIImage from the source pixel buffer
-        let ciImage = CIImage(cvPixelBuffer: pixelBuffer)
-        
-        // Get output dimensions from the pooled buffer
-        let outputWidth = CVPixelBufferGetWidth(output)
-        let outputHeight = CVPixelBufferGetHeight(output)
-        
-        // Scale if needed to match output dimensions
-        let scaleX = CGFloat(outputWidth) / ciImage.extent.width
-        let scaleY = CGFloat(outputHeight) / ciImage.extent.height
-        let scaledImage = ciImage.transformed(by: CGAffineTransform(scaleX: scaleX, y: scaleY))
-        
-        // Render the CIImage into the pooled buffer
-        ciContext.render(scaledImage, to: output)
-        
-        return output
-    }
 }

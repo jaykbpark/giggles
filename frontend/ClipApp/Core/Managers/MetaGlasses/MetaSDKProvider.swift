@@ -732,11 +732,12 @@ final class MetaSDKProvider: GlassesStreamProvider {
         let deviceSelector = SpecificDeviceSelector(device: device.identifier)
         
         // Create stream session with config
-        // Using .low resolution and 24fps for stability as recommended by SDK docs
+        // Using .high resolution for best quality
+        // Options: .low (640x480), .medium (1280x720), .high (1920x1080)
         let config = StreamSessionConfig(
             videoCodec: .raw,
-            resolution: .low,
-            frameRate: 24
+            resolution: .high,
+            frameRate: 30
         )
         
         print("[MetaSDK] Creating stream session with device: \(device.name)...")

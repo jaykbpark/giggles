@@ -3,6 +3,7 @@ import Combine
 import CoreMedia
 import CoreVideo
 import Speech
+import UIKit
 
 /// Coordinates synchronized video and audio capture from Meta glasses.
 /// Maintains rolling buffers of both streams and triggers clip export on wake word detection.
@@ -49,13 +50,20 @@ final class ClipCaptureCoordinator: ObservableObject {
     private let wakeWordDetector: WakeWordDetector
     private let laughterDetector: LaughterDetector
     private let exporter: ClipExporter
+    private let ffmpegExporter: FFmpegExporter
     
     // MARK: - Published State
     
     @Published private(set) var isCapturing: Bool = false
     @Published private(set) var isExporting: Bool = false
     @Published private(set) var lastExportedURL: URL?
+    @Published private(set) var lastExportedThumbnail: UIImage?
+    @Published private(set) var lastExportedIsPortrait: Bool = false
     @Published private(set) var lastError: Error?
+    
+    /// Whether to export clips in portrait mode (center-cropped from landscape)
+    /// Default: false - save video as-is, UI handles display orientation
+    var exportAsPortrait: Bool = false
     
     /// Number of video frames in the buffer
     @Published private(set) var videoBufferCount: Int = 0
@@ -124,6 +132,7 @@ final class ClipCaptureCoordinator: ObservableObject {
         self.wakeWordDetector = WakeWordDetector()
         self.laughterDetector = LaughterDetector()
         self.exporter = ClipExporter()
+        self.ffmpegExporter = FFmpegExporter()
         
         setupWakeWordCallback()
         setupLaughterCallback()
@@ -143,6 +152,7 @@ final class ClipCaptureCoordinator: ObservableObject {
         self.wakeWordDetector = wakeWordDetector
         self.laughterDetector = laughterDetector
         self.exporter = exporter
+        self.ffmpegExporter = FFmpegExporter()
         
         setupWakeWordCallback()
         setupLaughterCallback()
@@ -238,14 +248,24 @@ final class ClipCaptureCoordinator: ObservableObject {
             print("🎤 [HFP] HFP setup delay complete")
         }
         
-        // 3️⃣ Video stream is NOT auto-started here
-        // The video stream will be started when:
-        // - User taps the preview button (via ensureVideoStreamReady)
-        // - User manually triggers recording
-        // This avoids race conditions between coordinator and UI trying to start the stream simultaneously
-        print("📹 [Stream] Video stream NOT auto-started (will start on user action)")
-        
-        // Note: If glasses are already streaming, we'll pick up the frames via our subscription
+        // 3️⃣ Auto-start video stream for immediate buffer filling
+        // This ensures users can clip right away without waiting
+        if glassesManager.connectionState == .connected {
+            do {
+                if !glassesManager.isVideoStreaming {
+                    print("📹 [Stream] Auto-starting video stream...")
+                    try await glassesManager.startVideoStream()
+                    print("📹 [Stream] Video stream started automatically!")
+                } else {
+                    print("📹 [Stream] Video already streaming, buffer will fill")
+                }
+            } catch {
+                print("⚠️ [Stream] Auto-start failed (user can manually start via Preview): \(error.localizedDescription)")
+                // Non-fatal - user can start manually via Preview button
+            }
+        } else {
+            print("📹 [Stream] Glasses not connected, video will start when connected")
+        }
         
         // 4️⃣ Wake word + laughter detection (only if audio is available)
         if audioAvailable {
@@ -319,8 +339,20 @@ final class ClipCaptureCoordinator: ObservableObject {
     // MARK: - Buffer Management
     
     private func appendVideoFrame(_ frame: TimestampedVideoFrame) {
+        // CRITICAL: Copy the pixel buffer - SDK reuses/releases the original after ~3 seconds
+        guard let copiedBuffer = copyPixelBuffer(frame.pixelBuffer) else {
+            print("⚠️ Failed to copy pixel buffer, skipping frame")
+            return
+        }
+        
+        let copiedFrame = TimestampedVideoFrame(
+            pixelBuffer: copiedBuffer,
+            hostTime: frame.hostTime,
+            presentationTime: frame.presentationTime
+        )
+        
         let now = Date()
-        videoBuffer.append((frame: frame, timestamp: now))
+        videoBuffer.append((frame: copiedFrame, timestamp: now))
         pruneVideoBuffer(before: now.addingTimeInterval(-bufferDuration))
         
         updateBufferDuration()
@@ -328,6 +360,73 @@ final class ClipCaptureCoordinator: ObservableObject {
         Task { @MainActor in
             self.videoBufferCount = self.videoBuffer.count
         }
+    }
+    
+    /// Copy a CVPixelBuffer to ensure we own the data
+    private func copyPixelBuffer(_ source: CVPixelBuffer) -> CVPixelBuffer? {
+        let width = CVPixelBufferGetWidth(source)
+        let height = CVPixelBufferGetHeight(source)
+        let pixelFormat = CVPixelBufferGetPixelFormatType(source)
+        
+        var copy: CVPixelBuffer?
+        let attrs: [CFString: Any] = [
+            kCVPixelBufferIOSurfacePropertiesKey: [:] as [String: Any]
+        ]
+        
+        let status = CVPixelBufferCreate(
+            kCFAllocatorDefault,
+            width,
+            height,
+            pixelFormat,
+            attrs as CFDictionary,
+            &copy
+        )
+        
+        guard status == kCVReturnSuccess, let destination = copy else {
+            return nil
+        }
+        
+        CVPixelBufferLockBaseAddress(source, .readOnly)
+        CVPixelBufferLockBaseAddress(destination, [])
+        defer {
+            CVPixelBufferUnlockBaseAddress(source, .readOnly)
+            CVPixelBufferUnlockBaseAddress(destination, [])
+        }
+        
+        // Copy each plane (YUV has 2 planes)
+        let planeCount = CVPixelBufferGetPlaneCount(source)
+        if planeCount > 0 {
+            for plane in 0..<planeCount {
+                guard let srcAddr = CVPixelBufferGetBaseAddressOfPlane(source, plane),
+                      let dstAddr = CVPixelBufferGetBaseAddressOfPlane(destination, plane) else {
+                    continue
+                }
+                let srcBytesPerRow = CVPixelBufferGetBytesPerRowOfPlane(source, plane)
+                let dstBytesPerRow = CVPixelBufferGetBytesPerRowOfPlane(destination, plane)
+                let height = CVPixelBufferGetHeightOfPlane(source, plane)
+                
+                if srcBytesPerRow == dstBytesPerRow {
+                    memcpy(dstAddr, srcAddr, srcBytesPerRow * height)
+                } else {
+                    // Copy row by row if bytes per row differs
+                    let copyBytes = min(srcBytesPerRow, dstBytesPerRow)
+                    for row in 0..<height {
+                        memcpy(dstAddr + row * dstBytesPerRow, srcAddr + row * srcBytesPerRow, copyBytes)
+                    }
+                }
+            }
+        } else {
+            // Non-planar format (single plane)
+            guard let srcAddr = CVPixelBufferGetBaseAddress(source),
+                  let dstAddr = CVPixelBufferGetBaseAddress(destination) else {
+                return nil
+            }
+            let srcBytesPerRow = CVPixelBufferGetBytesPerRow(source)
+            let dataSize = srcBytesPerRow * height
+            memcpy(dstAddr, srcAddr, dataSize)
+        }
+        
+        return destination
     }
     
     private func appendAudioBuffer(_ buffer: TimestampedAudioBuffer) {
@@ -429,7 +528,7 @@ final class ClipCaptureCoordinator: ObservableObject {
     
     private func exportCurrentBuffer() async throws -> URL {
         // Capture current buffer contents on the buffer queue
-        let (videoFrames, audioBuffers) = bufferQueue.sync {
+        let (videoFrames, _) = bufferQueue.sync {
             (
                 videoBuffer.map { ($0.frame.pixelBuffer, $0.frame.hostTime) },
                 audioBuffer.map { $0.buffer }
@@ -440,26 +539,30 @@ final class ClipCaptureCoordinator: ObservableObject {
             throw ClipExportError.noVideoFrames
         }
         
-        // Determine video size from first frame
-        let firstFrame = videoFrames[0].0
-        let videoSize = CGSize(
-            width: CVPixelBufferGetWidth(firstFrame),
-            height: CVPixelBufferGetHeight(firstFrame)
+        print("🎬 Exporting \(videoFrames.count) frames...")
+        
+        // Try ProRes first (more lenient about formats)
+        do {
+            print("🎬 Trying ProRes export...")
+            let videoURL = try await ffmpegExporter.exportWithProRes(
+                frames: videoFrames,
+                frameRate: 30
+            )
+            lastExportedIsPortrait = false
+            return videoURL
+        } catch {
+            print("⚠️ ProRes failed: \(error.localizedDescription)")
+            print("🎬 Falling back to JPEG sequence...")
+        }
+        
+        // Fallback to JPEG sequence
+        let videoURL = try await ffmpegExporter.exportAsImageSequence(
+            frames: videoFrames,
+            frameRate: 30
         )
         
-        let config = ClipExporter.ExportConfig(
-            videoSize: videoSize,
-            frameRate: 30,
-            videoBitRate: 5_000_000,
-            audioSampleRate: 16000,
-            audioChannels: 1
-        )
-        
-        return try await exporter.exportWithHostTimeSync(
-            videoFrames: videoFrames,
-            audioBuffers: audioBuffers,
-            config: config
-        )
+        lastExportedIsPortrait = false
+        return videoURL
     }
     
     /// Manually trigger a clip export (for testing or manual capture)

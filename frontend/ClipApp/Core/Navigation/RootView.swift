@@ -309,17 +309,6 @@ struct RootView: View {
                 .zIndex(200)
         }
         
-        // Memory Assistant indicator (when on ask tab)
-        if memoryAssistant.state.isActive && selectedTab == .ask {
-            MemoryAssistantIndicator(
-                state: memoryAssistant.state,
-                question: memoryAssistant.lastQuestion,
-                response: memoryAssistant.lastResponse
-            )
-            .transition(.move(edge: .top).combined(with: .opacity))
-            .zIndex(250)
-        }
-        
         // Toast messages
         toastMessages
     }
@@ -333,12 +322,12 @@ struct RootView: View {
         
         // Buffer too short message
         if showBufferTooShortMessage {
-            toastView(icon: nil, text: "Buffer too short. Wait a moment...", color: .black.opacity(0.8))
+            toastView(icon: "clock", text: "Recording... try again in a second", color: .black.opacity(0.8))
         }
         
         // No video frames message
         if showNoVideoFramesMessage {
-            toastView(icon: "video.slash", text: "No video feed. Tap glasses card to start.", color: .black.opacity(0.8))
+            toastView(icon: "video.slash", text: "Waiting for video from glasses...", color: .black.opacity(0.8))
         }
         
         // Stream error message

@@ -51,9 +51,9 @@ class ProcessingManager():
         return frames
         
         
-    def create_transcript_from_audio(self):
+    def create_transcript_from_audio(self,tags):
         transcript_processer = TranscriptProcessor()
-        transcription, condensed_transcript, tags = transcript_processer.process_audio(self.audio_bytes)
+        transcription, condensed_transcript, tags = transcript_processer.process_audio(self.audio_bytes,tags)
         return ((transcription, tags),condensed_transcript)        
 
     

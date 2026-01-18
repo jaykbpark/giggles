@@ -38,7 +38,11 @@ final class GlobalViewState: ObservableObject {
     @Published var searchText: String = ""
     @Published var isSearching: Bool = false
     @Published var selectedTopic: String?
-    @Published var clips: [ClipMetadata] = MockData.clips
+    @Published var clips: [ClipMetadata] = [] {
+        didSet {
+            saveClips()
+        }
+    }
     @Published var isLoading: Bool = false
     @Published var selectedFeedTab: FeedTab = .all
     @Published var currentState: ClipState? = nil
@@ -46,6 +50,39 @@ final class GlobalViewState: ObservableObject {
     // Filter & Sort
     @Published var sortOrder: SortOrder = .recent
     @Published var selectedTags: Set<String> = []
+    
+    // MARK: - Persistence
+    
+    private var clipsFileURL: URL {
+        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("clips.json")
+    }
+    
+    init() {
+        loadClips()
+    }
+    
+    private func loadClips() {
+        guard FileManager.default.fileExists(atPath: clipsFileURL.path),
+              let data = try? Data(contentsOf: clipsFileURL),
+              let decoded = try? JSONDecoder().decode([ClipMetadata].self, from: data) else {
+            // No persisted clips - start with empty array
+            return
+        }
+        // Temporarily disable didSet to avoid re-saving
+        clips = decoded
+        print("📂 Loaded \(decoded.count) clips from storage")
+    }
+    
+    private func saveClips() {
+        do {
+            let data = try JSONEncoder().encode(clips)
+            try data.write(to: clipsFileURL)
+            print("💾 Saved \(clips.count) clips to storage")
+        } catch {
+            print("⚠️ Failed to save clips: \(error.localizedDescription)")
+        }
+    }
 
     var filteredClips: [ClipMetadata] {
         var result = clips

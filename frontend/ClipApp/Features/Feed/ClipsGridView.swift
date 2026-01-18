@@ -192,6 +192,7 @@ struct SpectacularClipCell: View {
             .clipShape(RoundedRectangle(cornerRadius: 4))
             .matchedGeometryEffect(id: clip.id, in: namespace)
             .frame(width: geo.size.width, height: geo.size.width)
+            .clipped()
         }
         .aspectRatio(1, contentMode: .fit)
     }

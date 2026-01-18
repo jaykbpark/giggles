@@ -180,7 +180,7 @@ struct ClipDetailView: View {
         Task {
             do {
                 // For mock clips (no Photo Library entry), simulate playback
-                if currentClip.localIdentifier.hasPrefix("mock-") || currentClip.localIdentifier.hasSuffix(".mov") {
+                if currentClip.localIdentifier.hasPrefix("mock-") {
                     await MainActor.run {
                         isLoadingVideo = false
                         videoDuration = currentClip.duration
@@ -188,6 +188,17 @@ struct ClipDetailView: View {
                             isPlaying = true
                             startPlaybackTimer()
                         }
+                    }
+                    return
+                }
+                
+                // Prefer local master file if available
+                if let localPath = currentClip.localFileURL,
+                   FileManager.default.fileExists(atPath: localPath) {
+                    let localURL = URL(fileURLWithPath: localPath)
+                    await MainActor.run {
+                        videoURL = localURL
+                        setupPlayer(with: localURL)
                     }
                     return
                 }

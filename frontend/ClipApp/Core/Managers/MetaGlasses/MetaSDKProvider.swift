@@ -116,6 +116,14 @@ final class MetaSDKProvider: GlassesStreamProvider {
     // Track when streaming started to detect immediate stop (permission denial)
     private var streamingStartTime: Date?
     
+    // MARK: - Registration/Permission Guardrails
+    
+    /// Prevents infinite loops of repeatedly launching Meta AI for registration/permission.
+    private var lastMetaAILaunchAt: Date?
+    
+    /// Track whether we've ever observed at least one device from the SDK in this run.
+    private var hasSeenAnyDevice: Bool = false
+    
     // Device availability monitoring task (per SDK docs: monitor devicesMetadata for availability)
     private var deviceAvailabilityTask: Task<Void, Never>?
     
@@ -314,9 +322,17 @@ final class MetaSDKProvider: GlassesStreamProvider {
     private var previousLinkState: LinkState?
     
     private func handleLinkStateChange(_ linkState: LinkState) {
-        // Skip if state hasn't actually changed (avoids redundant cleanup)
-        guard linkState != previousLinkState else {
-            return
+        // Skip if state hasn't actually changed, unless our public connectionState is out of sync.
+        if linkState == previousLinkState {
+            if linkState == .connected && connectionState != .connected {
+                print("[MetaSDK] 🔁 LinkState is connected but connectionState isn't - resyncing")
+            } else if linkState == .connecting && connectionState != .connecting {
+                print("[MetaSDK] 🔁 LinkState is connecting but connectionState isn't - resyncing")
+            } else if linkState == .disconnected && connectionState != .disconnected {
+                print("[MetaSDK] 🔁 LinkState is disconnected but connectionState isn't - resyncing")
+            } else {
+                return
+            }
         }
         
         let wasConnected = previousLinkState == .connected
@@ -362,6 +378,8 @@ final class MetaSDKProvider: GlassesStreamProvider {
         }
         
         connectionStateSubject.send(.connecting)
+        // Allow link state to re-emit even if it matches a prior value.
+        previousLinkState = nil
         
         // Check registration state first
         print("[MetaSDK] Registration state: \(wearables.registrationState)")
@@ -369,31 +387,74 @@ final class MetaSDKProvider: GlassesStreamProvider {
         
         // If we have devices, try to connect to them
         if wearables.devices.count > 0 {
+            hasSeenAnyDevice = true
             checkForDevices()
             if connectionState == .connected {
                 print("[MetaSDK] Connected to existing device!")
                 return
             }
+            // If the SDK reports a connected device, trust linkState and avoid Meta AI loop.
+            if currentDevice?.linkState == .connected {
+                print("[MetaSDK] Device linkState is connected - forcing connection state")
+                handleLinkStateChange(.connected)
+                return
+            }
+            print("[MetaSDK] Devices present but not fully connected yet - waiting for linkState")
+            return
         }
         
-        // No devices found - need to trigger the Meta AI app authorization flow
+        // If we're already registered, do NOT keep launching Meta AI in a loop.
+        // Devices can temporarily appear/disappear while the SDK stabilizes; give it time.
+        if wearables.registrationState == .registered {
+            print("[MetaSDK] Already registered - waiting briefly for devices to stabilize (avoiding Meta AI loop)...")
+            for attempt in 1...10 {
+                try await Task.sleep(nanoseconds: 500_000_000) // 0.5s
+                let deviceCount = wearables.devices.count
+                print("[MetaSDK] Registered wait \(attempt): devices=\(deviceCount)")
+                if deviceCount > 0 {
+                    hasSeenAnyDevice = true
+                    checkForDevices()
+                    if connectionState == .connected {
+                        print("[MetaSDK] Connected after registered wait")
+                        return
+                    }
+                    // Don't fail here; allow linkState listener / poller to settle.
+                    return
+                }
+            }
+        }
+        
+        // No devices found - may need to trigger the Meta AI app authorization flow
         // startRegistration() opens Meta AI app for the user to grant access
         print("[MetaSDK] No devices found. Registration state: \(wearables.registrationState)")
         print("[MetaSDK] Opening Meta AI app for authorization...")
         
-        do {
-            // startRegistration() should open Meta AI app
-            try wearables.startRegistration()
-            print("[MetaSDK] startRegistration called - Meta AI app should open")
-            // The app will redirect back via URL scheme, handled by handleURL()
-            return
-        } catch {
-            print("[MetaSDK] startRegistration error: \(error)")
-            print("[MetaSDK] Trying requestPermission as fallback...")
+        // Rate-limit Meta AI launches to avoid infinite loops / flapping.
+        if let last = lastMetaAILaunchAt, Date().timeIntervalSince(last) < 30 {
+            print("[MetaSDK] Skipping Meta AI launch (rate-limited). Last launch was \(Date().timeIntervalSince(last))s ago.")
+        } else {
+            lastMetaAILaunchAt = Date()
+            do {
+                // startRegistration() should open Meta AI app
+                try wearables.startRegistration()
+                print("[MetaSDK] startRegistration called - Meta AI app should open")
+                // The app will redirect back via URL scheme, handled by handleURL()
+                return
+            } catch {
+                print("[MetaSDK] startRegistration error: \(error)")
+                print("[MetaSDK] Trying requestPermission as fallback...")
+            }
         }
         
         // Fallback: try requestPermission
         do {
+            // If camera permission is already granted, don't bounce through Meta AI again.
+            if (try? await wearables.checkPermissionStatus(.camera)) == .granted {
+                print("[MetaSDK] Camera permission already granted - checking for devices without re-requesting")
+                checkForDevices()
+                return
+            }
+            
             let status = try await wearables.requestPermission(.camera)
             print("[MetaSDK] Permission status: \(status)")
             
@@ -413,6 +474,20 @@ final class MetaSDKProvider: GlassesStreamProvider {
                             return
                         }
                     }
+                }
+                
+                // If we saw devices at any point, don't overwrite state with deviceNotFound.
+                // The linkState listener / poller may still be settling.
+                if wearables.devices.count > 0 {
+                    hasSeenAnyDevice = true
+                    print("[MetaSDK] Permission granted and devices are present - skipping deviceNotFound error")
+                    checkForDevices()
+                    return
+                }
+                
+                if hasSeenAnyDevice {
+                    print("[MetaSDK] Permission granted but devices temporarily unavailable - leaving state as connecting")
+                    return
                 }
                 
                 // Still no devices after permission granted
@@ -592,9 +667,15 @@ final class MetaSDKProvider: GlassesStreamProvider {
             }
         }
         
-        guard connectionState == .connected else {
-            print("[MetaSDK] Cannot start stream - not connected")
-            throw GlassesError.notConnected
+        if connectionState != .connected {
+            // If the SDK says the device link is connected, resync our state and proceed.
+            if currentDevice?.linkState == .connected {
+                print("[MetaSDK] ConnectionState out of sync - linkState is connected, resyncing")
+                connectionStateSubject.send(.connected)
+            } else {
+                print("[MetaSDK] Cannot start stream - not connected")
+                throw GlassesError.notConnected
+            }
         }
         
         // Double-check streaming state after waiting
@@ -737,7 +818,7 @@ final class MetaSDKProvider: GlassesStreamProvider {
         let config = StreamSessionConfig(
             videoCodec: .raw,
             resolution: .high,
-            frameRate: 30
+            frameRate: 15
         )
         
         print("[MetaSDK] Creating stream session with device: \(device.name)...")

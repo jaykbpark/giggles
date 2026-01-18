@@ -34,8 +34,13 @@ struct ClipApp: App {
             }
             .animation(.easeInOut(duration: 0.3), value: launchComplete)
             .onOpenURL { url in
-                Task {
-                    _ = await MetaGlassesManager.shared.handleURL(url)
+                // Only handle URLs with metaWearablesAction parameter (per SDK docs)
+                if url.absoluteString.contains("metaWearablesAction") {
+                    Task {
+                        _ = await MetaGlassesManager.shared.handleURL(url)
+                    }
+                } else {
+                    print("[ClipApp] Ignoring non-Meta URL: \(url.scheme ?? "nil")")
                 }
             }
         }

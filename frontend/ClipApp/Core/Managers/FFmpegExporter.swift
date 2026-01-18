@@ -39,6 +39,7 @@ final class FFmpegExporter {
     /// This is the most reliable method - writes JPEGs then combines with FFmpeg
     func exportAsImageSequence(
         frames: [(pixelBuffer: CVPixelBuffer, hostTime: UInt64)],
+        audioBuffers: [TimestampedAudioBuffer] = [],
         frameRate: Int = 30
     ) async throws -> URL {
         guard !frames.isEmpty else {
@@ -70,24 +71,10 @@ final class FFmpegExporter {
         
         print("✅ [FFmpeg] All JPEGs written")
         
-        // Output path
-        let outputURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("clip_\(UUID().uuidString).mp4")
-        
-        // Build FFmpeg command
-        let inputPattern = tempDir.appendingPathComponent("frame_%05d.jpg").path
-        
-        // FFmpeg command: image sequence → H.264 MP4
-        let command = """
-        -y \
-        -framerate \(frameRate) \
-        -i "\(inputPattern)" \
-        -c:v libx264 \
-        -preset ultrafast \
-        -pix_fmt yuv420p \
-        -crf 23 \
-        "\(outputURL.path)"
-        """
+        let baseHostTime = min(
+            frames.first?.hostTime ?? 0,
+            audioBuffers.first?.hostTime ?? UInt64.max
+        )
         
         // Since FFmpeg isn't available on device, combine JPEGs using AVAssetWriter
         print("🎬 [JPEG] Combining JPEGs with AVAssetWriter...")
@@ -97,14 +84,60 @@ final class FFmpegExporter {
             frameCount: frames.count,
             width: width,
             height: height,
-            frameRate: frameRate
+            frameRate: frameRate,
+            framesHostTimes: frames.map { $0.hostTime },
+            baseHostTime: baseHostTime
         )
+        
+        // If we have audio, write an audio track and mux with video
+        if !audioBuffers.isEmpty {
+            print("🎬 [Audio] Writing audio track...")
+            let audioURL = try await writeAudioTrack(
+                audioBuffers: audioBuffers,
+                baseHostTime: baseHostTime
+            )
+            
+            print("🎬 [Mux] Combining audio + video...")
+            let muxedURL = try await muxVideo(videoURL: videoURL, audioURL: audioURL, outputFileType: .mp4, preset: AVAssetExportPresetHighestQuality)
+            
+            // Cleanup temp files
+            try? FileManager.default.removeItem(at: audioURL)
+            try? FileManager.default.removeItem(at: tempDir)
+            
+            print("✅ [Mux] Export complete: \(muxedURL.lastPathComponent)")
+            return muxedURL
+        }
         
         // Cleanup temp files
         try? FileManager.default.removeItem(at: tempDir)
         
         print("✅ [JPEG] Export complete: \(videoURL.lastPathComponent)")
         return videoURL
+    }
+
+    /// Mux an existing video with audio buffers (used after ProRes export)
+    func muxVideoWithAudio(
+        videoURL: URL,
+        audioBuffers: [TimestampedAudioBuffer],
+        baseHostTime: UInt64,
+        outputFileType: AVFileType = .mp4,
+        preset: String = AVAssetExportPresetHighestQuality
+    ) async throws -> URL {
+        guard !audioBuffers.isEmpty else { return videoURL }
+
+        let audioURL = try await writeAudioTrack(
+            audioBuffers: audioBuffers,
+            baseHostTime: baseHostTime
+        )
+
+        let muxedURL = try await muxVideo(
+            videoURL: videoURL,
+            audioURL: audioURL,
+            outputFileType: outputFileType,
+            preset: preset
+        )
+        try? FileManager.default.removeItem(at: audioURL)
+        return muxedURL
     }
     
     /// Combine JPEG files into H.264 video using AVAssetWriter
@@ -114,7 +147,9 @@ final class FFmpegExporter {
         frameCount: Int,
         width: Int,
         height: Int,
-        frameRate: Int
+        frameRate: Int,
+        framesHostTimes: [UInt64],
+        baseHostTime: UInt64
     ) async throws -> URL {
         let outputURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("clip_\(UUID().uuidString).mp4")
@@ -157,6 +192,7 @@ final class FFmpegExporter {
         
         var writtenCount = 0
         let frameDuration = CMTime(value: 1, timescale: CMTimeScale(frameRate))
+        var lastPresentationTime = CMTime(value: -1, timescale: 600)
         
         for index in 0..<frameCount {
             let jpegURL = jpegDirectory.appendingPathComponent(String(format: "frame_%05d.jpg", index))
@@ -176,7 +212,14 @@ final class FFmpegExporter {
                 try await Task.sleep(nanoseconds: 1_000_000)
             }
             
-            let presentationTime = CMTimeMultiply(frameDuration, multiplier: Int32(index))
+            let rawTime = hostTimeToCMTime(framesHostTimes[index], relativeTo: baseHostTime)
+            let presentationTime: CMTime
+            if lastPresentationTime.isValid && rawTime <= lastPresentationTime {
+                presentationTime = CMTimeAdd(lastPresentationTime, frameDuration)
+            } else {
+                presentationTime = rawTime
+            }
+            lastPresentationTime = presentationTime
             
             if adaptor.append(pixelBuffer, withPresentationTime: presentationTime) {
                 writtenCount += 1
@@ -201,6 +244,226 @@ final class FFmpegExporter {
         } else {
             throw ExportError.writeFailed(writer.error?.localizedDescription ?? "Finish failed")
         }
+    }
+
+    // MARK: - Audio Track
+
+    private func writeAudioTrack(
+        audioBuffers: [TimestampedAudioBuffer],
+        baseHostTime: UInt64
+    ) async throws -> URL {
+        guard let firstBuffer = audioBuffers.first else {
+            throw ExportError.writeFailed("No audio buffers")
+        }
+
+        let outputURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("audio_\(UUID().uuidString).caf")
+
+        try? FileManager.default.removeItem(at: outputURL)
+
+        // Use LinearPCM to avoid AAC encoder failures at 16kHz
+        let writer = try AVAssetWriter(outputURL: outputURL, fileType: .caf)
+
+        let format = firstBuffer.buffer.format
+        let audioSettings: [String: Any] = [
+            AVFormatIDKey: kAudioFormatLinearPCM,
+            AVSampleRateKey: format.sampleRate,
+            AVNumberOfChannelsKey: format.channelCount,
+            AVLinearPCMBitDepthKey: 32,
+            AVLinearPCMIsFloatKey: true,
+            AVLinearPCMIsBigEndianKey: false,
+            AVLinearPCMIsNonInterleaved: false
+        ]
+
+        let input = AVAssetWriterInput(mediaType: .audio, outputSettings: audioSettings)
+        input.expectsMediaDataInRealTime = false
+
+        writer.add(input)
+
+        guard writer.startWriting() else {
+            throw ExportError.writeFailed(writer.error?.localizedDescription ?? "Unknown")
+        }
+
+        writer.startSession(atSourceTime: .zero)
+
+        var writtenCount = 0
+        for (index, audioBuffer) in audioBuffers.enumerated() {
+            while !input.isReadyForMoreMediaData {
+                if writer.status == .failed {
+                    throw ExportError.writeFailed(writer.error?.localizedDescription ?? "Unknown")
+                }
+                try await Task.sleep(nanoseconds: 1_000_000)
+            }
+
+            if let sampleBuffer = createAudioSampleBuffer(from: audioBuffer, baseHostTime: baseHostTime) {
+                if input.append(sampleBuffer) {
+                    writtenCount += 1
+                } else if writer.status == .failed {
+                    throw ExportError.writeFailed(writer.error?.localizedDescription ?? "Unknown")
+                }
+            } else {
+                print("⚠️ [Audio] Failed to create sample buffer at index \(index)")
+            }
+        }
+
+        input.markAsFinished()
+        await writer.finishWriting()
+
+        if writer.status == .completed {
+            print("✅ [Audio] Wrote \(writtenCount)/\(audioBuffers.count) buffers")
+            return outputURL
+        }
+
+        throw ExportError.writeFailed(writer.error?.localizedDescription ?? "Audio finish failed")
+    }
+
+    private func muxVideo(
+        videoURL: URL,
+        audioURL: URL,
+        outputFileType: AVFileType,
+        preset: String
+    ) async throws -> URL {
+        let outputURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("clip_muxed_\(UUID().uuidString).\(outputFileType == .mov ? "mov" : "mp4")")
+
+        try? FileManager.default.removeItem(at: outputURL)
+
+        let videoAsset = AVAsset(url: videoURL)
+        let audioAsset = AVAsset(url: audioURL)
+
+        let composition = AVMutableComposition()
+        let videoDuration = try await videoAsset.load(.duration)
+
+        if let videoTrack = try await videoAsset.loadTracks(withMediaType: .video).first,
+           let compVideoTrack = composition.addMutableTrack(withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid) {
+            try compVideoTrack.insertTimeRange(
+                CMTimeRange(start: .zero, duration: videoDuration),
+                of: videoTrack,
+                at: .zero
+            )
+        }
+
+        if let audioTrack = try await audioAsset.loadTracks(withMediaType: .audio).first,
+           let compAudioTrack = composition.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid) {
+            let audioDuration = try await audioAsset.load(.duration)
+            let duration = CMTimeMinimum(videoDuration, audioDuration)
+            try compAudioTrack.insertTimeRange(
+                CMTimeRange(start: .zero, duration: duration),
+                of: audioTrack,
+                at: .zero
+            )
+        }
+
+        // Use passthrough for master .mov, otherwise re-encode for mp4
+        guard let exporter = AVAssetExportSession(asset: composition, presetName: preset) else {
+            throw ExportError.writeFailed("Failed to create export session")
+        }
+
+        exporter.outputURL = outputURL
+        exporter.outputFileType = outputFileType
+        if outputFileType == .mp4 {
+            exporter.shouldOptimizeForNetworkUse = true
+        }
+
+        await exporter.export()
+
+        switch exporter.status {
+        case .completed:
+            return outputURL
+        case .failed:
+            throw ExportError.writeFailed(exporter.error?.localizedDescription ?? "Mux failed")
+        case .cancelled:
+            throw ExportError.writeFailed("Mux cancelled")
+        default:
+            throw ExportError.writeFailed("Mux unexpected status: \(exporter.status.rawValue)")
+        }
+    }
+
+    private func hostTimeToCMTime(_ hostTime: UInt64, relativeTo baseHostTime: UInt64) -> CMTime {
+        var timebaseInfo = mach_timebase_info_data_t()
+        mach_timebase_info(&timebaseInfo)
+
+        let elapsedHostTime = hostTime - baseHostTime
+        let nanoseconds = elapsedHostTime * UInt64(timebaseInfo.numer) / UInt64(timebaseInfo.denom)
+        let seconds = Double(nanoseconds) / 1_000_000_000.0
+
+        return CMTime(seconds: seconds, preferredTimescale: 600)
+    }
+
+    private func createAudioSampleBuffer(
+        from timestampedBuffer: TimestampedAudioBuffer,
+        baseHostTime: UInt64
+    ) -> CMSampleBuffer? {
+        let buffer = timestampedBuffer.buffer
+        let formatPtr = buffer.format.streamDescription
+
+        let presentationTime = hostTimeToCMTime(timestampedBuffer.hostTime, relativeTo: baseHostTime)
+
+        var formatDescription: CMAudioFormatDescription?
+        let status = CMAudioFormatDescriptionCreate(
+            allocator: kCFAllocatorDefault,
+            asbd: formatPtr,
+            layoutSize: 0,
+            layout: nil,
+            magicCookieSize: 0,
+            magicCookie: nil,
+            extensions: nil,
+            formatDescriptionOut: &formatDescription
+        )
+
+        guard status == noErr, let audioFormatDescription = formatDescription else {
+            return nil
+        }
+
+        var timing = CMSampleTimingInfo(
+            duration: CMTime(value: CMTimeValue(buffer.frameLength), timescale: CMTimeScale(buffer.format.sampleRate)),
+            presentationTimeStamp: presentationTime,
+            decodeTimeStamp: .invalid
+        )
+
+        var sampleBuffer: CMSampleBuffer?
+        guard let channelData = buffer.floatChannelData else { return nil }
+
+        let dataSize = Int(buffer.frameLength) * MemoryLayout<Float>.size
+        var blockBuffer: CMBlockBuffer?
+
+        CMBlockBufferCreateWithMemoryBlock(
+            allocator: kCFAllocatorDefault,
+            memoryBlock: nil,
+            blockLength: dataSize,
+            blockAllocator: kCFAllocatorDefault,
+            customBlockSource: nil,
+            offsetToData: 0,
+            dataLength: dataSize,
+            flags: 0,
+            blockBufferOut: &blockBuffer
+        )
+
+        guard let block = blockBuffer else { return nil }
+
+        CMBlockBufferReplaceDataBytes(
+            with: channelData[0],
+            blockBuffer: block,
+            offsetIntoDestination: 0,
+            dataLength: dataSize
+        )
+
+        CMSampleBufferCreate(
+            allocator: kCFAllocatorDefault,
+            dataBuffer: block,
+            dataReady: true,
+            makeDataReadyCallback: nil,
+            refcon: nil,
+            formatDescription: audioFormatDescription,
+            sampleCount: CMItemCount(buffer.frameLength),
+            sampleTimingEntryCount: 1,
+            sampleTimingArray: &timing,
+            sampleSizeEntryCount: 0,
+            sampleSizeArray: nil,
+            sampleBufferOut: &sampleBuffer
+        )
+
+        return sampleBuffer
     }
     
     /// Convert UIImage to CVPixelBuffer (BGRA format)
@@ -252,6 +515,27 @@ final class FFmpegExporter {
     
     /// Convert CVPixelBuffer to JPEG data
     private func pixelBufferToJPEG(_ pixelBuffer: CVPixelBuffer, quality: CGFloat = 0.95) -> Data? {
+        let width = CVPixelBufferGetWidth(pixelBuffer)
+        let height = CVPixelBufferGetHeight(pixelBuffer)
+        if width <= 0 || height <= 0 {
+            print("⚠️ [JPEG] Invalid pixel buffer size: \(width)x\(height)")
+            return nil
+        }
+        if CVPixelBufferIsPlanar(pixelBuffer) {
+            let planeCount = CVPixelBufferGetPlaneCount(pixelBuffer)
+            for plane in 0..<planeCount {
+                let planeHeight = CVPixelBufferGetHeightOfPlane(pixelBuffer, plane)
+                let bytesPerRow = CVPixelBufferGetBytesPerRowOfPlane(pixelBuffer, plane)
+                if planeHeight <= 0 || bytesPerRow <= 0 {
+                    print("⚠️ [JPEG] Invalid plane \(plane): height=\(planeHeight), bytesPerRow=\(bytesPerRow)")
+                    return nil
+                }
+            }
+        } else if CVPixelBufferGetBytesPerRow(pixelBuffer) <= 0 {
+            print("⚠️ [JPEG] Invalid bytesPerRow")
+            return nil
+        }
+        
         let ciImage = CIImage(cvPixelBuffer: pixelBuffer)
         let context = CIContext()
         

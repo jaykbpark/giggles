@@ -6,12 +6,37 @@ from backend.objects.RequestObjects import RequestVideoObject
 class ProcessingManager():
     def __init__(self,requestVideoObject:RequestVideoObject):
         video_bytes = requestVideoObject.videoData
-        self.audio_bytes =  self.extract_audio(video_bytes)
-        self.video_bytes = video_bytes
-        self.width = 1080 #1920
-        self.height = 720 #1080
         self.requestVideoObject = requestVideoObject
-   
+        self.video_bytes = video_bytes
+        
+        # Extract metadata and audio
+        self.set_dimensions_from_metadata(video_bytes)
+        self.audio_bytes = self.extract_audio(video_bytes)
+    
+    def set_dimensions_from_metadata(self, video_bytes: bytes):
+        with tempfile.NamedTemporaryFile(suffix=".mp4") as tmp:
+            tmp.write(video_bytes)
+            tmp.flush()
+            
+            probe = ffmpeg.probe(tmp.name)
+            video_stream = next((stream for stream in probe['streams'] if stream['codec_type'] == 'video'), None)
+            
+            if video_stream is None:
+                raise ValueError("No video stream found in the provided data.")
+
+            width = int(video_stream['width'])
+            height = int(video_stream['height'])
+
+          
+            rotation = 0
+            if 'tags' in video_stream and 'rotate' in video_stream['tags']:
+                rotation = int(video_stream['tags']['rotate'])
+            
+            if rotation in [90, 270]:
+                self.width, self.height = height, width
+            else:
+                self.width, self.height = width, height
+                
     def extract_audio(self, video_bytes: bytes):
         with tempfile.NamedTemporaryFile(suffix=".mp4") as tmp:
             tmp.write(video_bytes)

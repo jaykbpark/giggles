@@ -798,6 +798,15 @@ struct MemoryAssistantView: View {
         recognitionTask?.cancel()
         recognitionTask = nil
         isListening = false
+        
+        // Reset audio session to allow video playback
+        // This is critical - leaving the session in .record mode prevents AVPlayer from working
+        let audioSession = AVAudioSession.sharedInstance()
+        do {
+            try audioSession.setActive(false, options: .notifyOthersOnDeactivation)
+        } catch {
+            print("⚠️ Failed to deactivate audio session: \(error)")
+        }
     }
     
     private func stopListeningAndProcess() {

@@ -46,6 +46,7 @@ final class GlobalViewState: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var selectedFeedTab: FeedTab = .all
     @Published var currentState: ClipState? = nil
+    @Published var isSyncing: Bool = false
     
     // Filter & Sort
     @Published var sortOrder: SortOrder = .recent
@@ -60,6 +61,93 @@ final class GlobalViewState: ObservableObject {
     
     init() {
         loadClips()
+        // Sync with backend on app launch after a short delay
+        // This prevents the "flash" where clips load, then reload after sync
+        Task {
+            // Wait for initial UI render to complete
+            try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
+            await syncWithBackend()
+        }
+    }
+    
+    // MARK: - Backend Sync
+    
+    /// Sync local clips with backend data on app launch
+    /// Maps backend videos to local clips by serverVideoId or timestamp
+    func syncWithBackend() async {
+        // Note: Removed isSyncing state changes to prevent unnecessary UI updates
+        // The sync happens silently in the background
+        
+        do {
+            let backendVideos = try await APIService.shared.fetchAllVideos()
+            print("🔄 Syncing with backend: \(backendVideos.count) videos found")
+            
+            // Create a lookup by serverVideoId (the backend's videoId)
+            var backendLookup: [Int: APIService.BackendVideo] = [:]
+            for video in backendVideos {
+                if let videoId = Int(video.videoId) {
+                    backendLookup[videoId] = video
+                }
+            }
+            
+            // Update local clips with backend data
+            // Only create new objects if data actually changed
+            var updatedClips = clips
+            var hasChanges = false
+            
+            for (index, clip) in updatedClips.enumerated() {
+                // Match by serverVideoId if available
+                if let serverVideoId = clip.serverVideoId,
+                   let backendVideo = backendLookup[serverVideoId] {
+                    // Check if backend has different data
+                    let newTitle = backendVideo.title.isEmpty ? clip.title : backendVideo.title
+                    let newTranscript = backendVideo.transcript.isEmpty ? clip.transcript : backendVideo.transcript
+                    
+                    // Only update if something actually changed
+                    if newTitle != clip.title || newTranscript != clip.transcript {
+                        updatedClips[index] = ClipMetadata(
+                            id: clip.id,
+                            localIdentifier: clip.localIdentifier,
+                            serverVideoId: serverVideoId,
+                            title: newTitle,
+                            transcript: newTranscript,
+                            topics: clip.topics,
+                            capturedAt: clip.capturedAt,
+                            duration: clip.duration,
+                            isStarred: clip.isStarred,
+                            context: clip.context,
+                            audioNarrationURL: clip.audioNarrationURL,
+                            clipState: clip.clipState,
+                            thumbnailBase64: clip.thumbnailBase64,
+                            isPortrait: clip.isPortrait,
+                            localFileURL: clip.localFileURL,
+                            captionSegments: clip.captionSegments,
+                            showCaptions: clip.showCaptions,
+                            captionStyle: clip.captionStyle
+                        )
+                        hasChanges = true
+                        print("✅ Synced clip \(serverVideoId): \(newTitle)")
+                    }
+                }
+            }
+            
+            // Only update if there were actual content changes
+            if hasChanges {
+                clips = updatedClips
+                print("💾 Updated clips from backend sync")
+            } else {
+                print("✅ Backend sync complete - no changes needed")
+            }
+            
+        } catch {
+            print("⚠️ Backend sync failed: \(error.localizedDescription)")
+            // Continue with local data - sync failure is non-fatal
+        }
+    }
+    
+    /// Get the current maximum serverVideoId from local clips
+    var maxServerVideoId: Int {
+        clips.compactMap { $0.serverVideoId }.max() ?? 0
     }
     
     private func loadClips() {

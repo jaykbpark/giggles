@@ -398,12 +398,23 @@ struct ClipDetailView: View {
     // MARK: - Video Playback
     
     private func configureAudioSession() {
+        let audioSession = AVAudioSession.sharedInstance()
+        
         do {
-            let audioSession = AVAudioSession.sharedInstance()
-            try audioSession.setCategory(.playback, mode: .moviePlayback)
+            // First deactivate any existing session to ensure clean state
+            // This helps recover from other audio modes (e.g., speech recognition's .record mode)
+            try audioSession.setActive(false, options: .notifyOthersOnDeactivation)
+        } catch {
+            // Deactivation can fail if no session was active - this is OK
+            print("ℹ️ Audio session deactivation note: \(error.localizedDescription)")
+        }
+        
+        do {
+            // Now configure for video playback
+            try audioSession.setCategory(.playback, mode: .moviePlayback, options: [.allowAirPlay])
             try audioSession.setActive(true)
         } catch {
-            print("⚠️ Failed to configure audio session: \(error)")
+            print("⚠️ Failed to configure audio session for playback: \(error)")
         }
     }
     

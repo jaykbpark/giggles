@@ -26,6 +26,8 @@ struct RootView: View {
     @State private var showPhotoSaveError = false
     @State private var photoSaveErrorText = ""
     @State private var showPhotoSaveSuccess = false
+    @State private var showExportErrorMessage = false
+    @State private var exportErrorText = ""
     @State private var selectedTab: AppTab = .clips
     
     // Trim view state
@@ -113,6 +115,13 @@ struct RootView: View {
                                 if !glassesManager.isVideoStreaming {
                                     try await glassesManager.startVideoStream()
                                 }
+                                
+                                // Ensure capture coordinator is running to fill the buffer
+                                // This is important if the initial startCapture() failed (e.g., audio issues)
+                                if !captureCoordinator.isCapturing {
+                                    try await captureCoordinator.startCapture()
+                                }
+                                
                                 withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                                     showGlassesPreview.toggle()
                                 }
@@ -129,23 +138,6 @@ struct RootView: View {
                                     withAnimation {
                                         showStreamErrorMessage = false
                                     }
-                                }
-                            }
-                        }
-                    },
-                    onReauthorizeTap: {
-                        Task {
-                            print("[RootView] Reauthorize button tapped")
-                            let result = await glassesManager.reauthorize()
-                            print("[RootView] Reauthorize result: \(result)")
-                            HapticManager.playLight()
-                            streamErrorText = result
-                            withAnimation {
-                                showStreamErrorMessage = true
-                            }
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) {
-                                withAnimation {
-                                    showStreamErrorMessage = false
                                 }
                             }
                         }
@@ -266,7 +258,7 @@ struct RootView: View {
             .transition(.opacity)
             .zIndex(300)
         }
-    }
+        }
             
     // MARK: - Ask Tab Content
     
@@ -391,6 +383,11 @@ struct RootView: View {
         // Photo save error message
         if showPhotoSaveError {
             toastView(icon: "photo.badge.exclamationmark", text: photoSaveErrorText.isEmpty ? "Failed to save to Photos" : photoSaveErrorText, color: .red.opacity(0.8))
+        }
+        
+        // Export error message
+        if showExportErrorMessage {
+            toastView(icon: "xmark.circle", text: exportErrorText.isEmpty ? "Export failed" : exportErrorText, color: .red.opacity(0.8))
         }
         
         // Photo save success message
@@ -857,7 +854,7 @@ struct RootView: View {
                 }
                 print("✅ Clip exported: \(url.lastPathComponent)")
             } catch let error as ClipExportError {
-                print("❌ Export failed: \(error.localizedDescription)")
+                print("❌ Export failed (ClipExportError): \(error.localizedDescription)")
                 
                 // Show user-friendly error message
                 await MainActor.run {
@@ -885,11 +882,49 @@ struct RootView: View {
                             }
                         }
                     default:
-                        break
+                        // Handle other ClipExportError cases
+                        HapticManager.playError()
+                        exportErrorText = error.localizedDescription
+                        withAnimation {
+                            showExportErrorMessage = true
+                        }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+                            withAnimation {
+                                showExportErrorMessage = false
+                            }
+                        }
+                    }
+                }
+            } catch let error as ClipExporter.ExportError {
+                // Handle exporter-specific errors (timeout, writer failure, etc.)
+                print("❌ Export failed (ExportError): \(error.localizedDescription)")
+                await MainActor.run {
+                    HapticManager.playError()
+                    exportErrorText = error.localizedDescription
+                    withAnimation {
+                        showExportErrorMessage = true
+                    }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+                        withAnimation {
+                            showExportErrorMessage = false
+                        }
                     }
                 }
             } catch {
-                print("❌ Export failed: \(error.localizedDescription)")
+                // Generic fallback for any other errors
+                print("❌ Export failed (generic): \(error.localizedDescription)")
+                await MainActor.run {
+                    HapticManager.playError()
+                    exportErrorText = "Export failed: \(error.localizedDescription)"
+                    withAnimation {
+                        showExportErrorMessage = true
+                    }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+                        withAnimation {
+                            showExportErrorMessage = false
+                        }
+                    }
+                }
             }
             
             // Always reset saving state
@@ -1025,7 +1060,6 @@ struct GlassesStatusCard: View {
     var isPreviewVisible: Bool = false
     var onRetryTap: (() -> Void)? = nil
     var onCardTap: (() -> Void)? = nil
-    var onReauthorizeTap: (() -> Void)? = nil
     
     private var statusColor: Color {
         switch connectionState {
@@ -1093,33 +1127,21 @@ struct GlassesStatusCard: View {
                 ListeningIndicator()
             }
 
-            // Right: Preview pill and Re-auth button when connected, Retry button when not
+            // Right: Preview pill when connected, Retry button when not
             if connectionState.isConnected {
-                HStack(spacing: 8) {
-                    // Re-authorize button
-                    Button(action: { onReauthorizeTap?() }) {
-                        Image(systemName: "arrow.triangle.2.circlepath")
+                // Preview button
+                Button(action: { onCardTap?() }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: isPreviewVisible ? "eye.fill" : "eye")
                             .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(.orange)
-                            .padding(6)
-                            .background(.orange.opacity(0.15))
-                            .clipShape(Circle())
+                        Text("Preview")
+                            .font(.system(size: 12, weight: .semibold))
                     }
-                    
-                    // Preview button
-                    Button(action: { onCardTap?() }) {
-                        HStack(spacing: 4) {
-                            Image(systemName: isPreviewVisible ? "eye.fill" : "eye")
-                                .font(.system(size: 12, weight: .medium))
-                            Text("Preview")
-                                .font(.system(size: 12, weight: .semibold))
-                        }
-                        .foregroundStyle(isPreviewVisible ? .white : AppColors.accent)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(isPreviewVisible ? AppColors.accent : AppColors.accent.opacity(0.15))
-                        .clipShape(Capsule())
-                    }
+                    .foregroundStyle(isPreviewVisible ? .white : AppColors.accent)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(isPreviewVisible ? AppColors.accent : AppColors.accent.opacity(0.15))
+                    .clipShape(Capsule())
                 }
             } else {
                 // Retry button when not connected

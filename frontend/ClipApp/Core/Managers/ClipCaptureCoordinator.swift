@@ -59,6 +59,18 @@ final class ClipCaptureCoordinator: ObservableObject {
     /// Current buffer duration in seconds (calculated from timestamps)
     @Published private(set) var currentBufferDuration: TimeInterval = 0.0
     
+    /// Export progress: frames written so far
+    @Published private(set) var exportFramesWritten: Int = 0
+    
+    /// Export progress: total frames to write
+    @Published private(set) var exportTotalFrames: Int = 0
+    
+    /// Export progress as a percentage (0.0 to 1.0)
+    var exportProgress: Double {
+        guard exportTotalFrames > 0 else { return 0.0 }
+        return Double(exportFramesWritten) / Double(exportTotalFrames)
+    }
+    
     /// Minimum buffer duration required to record (default: 1 second)
     let minimumBufferDuration: TimeInterval = 1.0
     
@@ -108,6 +120,7 @@ final class ClipCaptureCoordinator: ObservableObject {
         
         setupWakeWordCallback()
         setupLaughterCallback()
+        setupExporterProgress()
     }
     
     /// Initialize with custom managers (for testing)
@@ -126,6 +139,7 @@ final class ClipCaptureCoordinator: ObservableObject {
         
         setupWakeWordCallback()
         setupLaughterCallback()
+        setupExporterProgress()
     }
     
     // MARK: - Setup
@@ -163,6 +177,15 @@ final class ClipCaptureCoordinator: ObservableObject {
         }
     }
     
+    private func setupExporterProgress() {
+        exporter.onProgress = { [weak self] framesWritten, totalFrames in
+            Task { @MainActor in
+                self?.exportFramesWritten = framesWritten
+                self?.exportTotalFrames = totalFrames
+            }
+        }
+    }
+    
     // MARK: - Capture Control
     
     /// Start capturing video and audio from glasses
@@ -172,41 +195,44 @@ final class ClipCaptureCoordinator: ObservableObject {
         // Clear buffers
         clearBuffers()
         
-        // Start glasses video stream
+        // 1. Start glasses video stream (required)
         if !glassesManager.isVideoStreaming {
             try await glassesManager.startVideoStream()
         }
         
-        // CRITICAL: Subscribe to video frames FIRST, before audio setup
-        // This ensures video buffer fills even if audio capture fails
-        setupStreamSubscriptions()
-        isCapturing = true
-        print("🎬 ClipCaptureCoordinator: Video capture started, setting up audio...")
+        // 2. Set up video subscription IMMEDIATELY (before attempting audio)
+        // This ensures video frames are captured even if audio fails
+        setupVideoSubscription()
         
-        // Start audio capture (Bluetooth) - non-fatal if this fails
+        // 3. Try audio capture (optional - don't fail if it doesn't work)
+        var audioAvailable = false
         do {
             try await audioManager.startCapture()
-            print("🎤 ClipCaptureCoordinator: Audio capture started")
+            setupAudioSubscriptions()
+            audioAvailable = true
+            print("🎤 Audio capture started successfully")
         } catch {
-            print("⚠️ ClipCaptureCoordinator: Audio capture failed (video recording still works): \(error.localizedDescription)")
-            // Continue without audio - video buffer will still capture frames
+            print("⚠️ Audio capture unavailable: \(error.localizedDescription)")
+            print("⚠️ Continuing with video-only recording")
+            // Continue without audio - video-only recording is fine
         }
         
-        // Request speech recognition authorization if needed
-        if wakeWordDetector.authorizationStatus == .notDetermined {
-            await wakeWordDetector.requestAuthorization()
-        }
-        
-        // Start wake word detection (only if audio is available)
-        if let audioFormat = audioManager.audioFormat, audioManager.isCapturing {
-            wakeWordDetector.startListening(audioFormat: audioFormat)
+        // 4. Wake word + laughter detection (only if audio is available)
+        if audioAvailable {
+            if wakeWordDetector.authorizationStatus == .notDetermined {
+                await wakeWordDetector.requestAuthorization()
+            }
             
-            // Start laughter detection (if enabled)
-            laughterDetector.startListening(audioFormat: audioFormat)
-            print("🎬 ClipCaptureCoordinator: Wake word detection started")
+            if let audioFormat = audioManager.audioFormat {
+                wakeWordDetector.startListening(audioFormat: audioFormat)
+                
+                // Start laughter detection (if enabled)
+                laughterDetector.startListening(audioFormat: audioFormat)
+            }
         }
         
-        print("🎬 ClipCaptureCoordinator: Capture fully started")
+        isCapturing = true
+        print("🎬 ClipCaptureCoordinator: Capture started (audio: \(audioAvailable ? "enabled" : "disabled"))")
     }
     
     /// Stop capturing
@@ -224,7 +250,9 @@ final class ClipCaptureCoordinator: ObservableObject {
     
     // MARK: - Stream Subscriptions
     
-    private func setupStreamSubscriptions() {
+    /// Set up video frame subscription to fill the rolling buffer
+    /// Called separately from audio to ensure video works even if audio fails
+    private func setupVideoSubscription() {
         // Subscribe to timestamped video frames
         glassesManager.timestampedVideoFramePublisher
             .receive(on: bufferQueue)
@@ -233,6 +261,12 @@ final class ClipCaptureCoordinator: ObservableObject {
             }
             .store(in: &cancellables)
         
+        print("📹 Video subscription set up")
+    }
+    
+    /// Set up audio subscriptions for buffer and wake word detection
+    /// Called only if audio capture succeeds
+    private func setupAudioSubscriptions() {
         // Subscribe to timestamped audio buffers
         audioManager.timestampedAudioPublisher
             .receive(on: bufferQueue)
@@ -249,6 +283,8 @@ final class ClipCaptureCoordinator: ObservableObject {
                 self?.laughterDetector.processAudioBuffer(buffer)
             }
             .store(in: &cancellables)
+        
+        print("🎤 Audio subscriptions set up")
     }
     
     // MARK: - Buffer Management
@@ -336,6 +372,8 @@ final class ClipCaptureCoordinator: ObservableObject {
         }
         
         isExporting = true
+        exportFramesWritten = 0
+        exportTotalFrames = 0
         
         let sourceEmoji: String
         switch source {
@@ -407,6 +445,8 @@ final class ClipCaptureCoordinator: ObservableObject {
         }
         
         isExporting = true
+        exportFramesWritten = 0
+        exportTotalFrames = 0
         defer { isExporting = false }
         
         let url = try await exportCurrentBuffer()

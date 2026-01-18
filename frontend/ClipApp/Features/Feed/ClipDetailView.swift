@@ -65,12 +65,20 @@ struct ClipDetailView: View {
         .statusBarHidden(true)
         .onAppear {
             startControlsTimer()
+            configureAudioSession()
             loadVideo()
         }
         .onDisappear {
             cleanupPlayer()
             controlsTimer?.invalidate()
             stopAudio()
+        }
+        .onChange(of: isPlaying) { _, playing in
+            if playing {
+                player?.play()
+            } else {
+                player?.pause()
+            }
         }
         .sheet(isPresented: $showShareSheet) {
             ShareSheet(items: shareItems)
@@ -211,26 +219,31 @@ struct ClipDetailView: View {
             
             // Video player or placeholder
             if isLoadingVideo {
-                ProgressView()
-                    .progressViewStyle(.circular)
-                    .tint(.white)
-                    .scaleEffect(1.5)
+                VStack(spacing: 16) {
+                    ProgressView()
+                        .progressViewStyle(.circular)
+                        .tint(.white)
+                        .scaleEffect(1.5)
+                    Text("Loading video...")
+                        .font(.system(size: 14))
+                        .foregroundStyle(.white.opacity(0.6))
+                }
             } else if let player = player {
                 VideoPlayer(player: player)
                     .disabled(true) // Disable default controls
             } else {
                 // Fallback placeholder for clips without video
                 VStack(spacing: 16) {
-                    Image(systemName: "video.fill")
+                    Image(systemName: videoLoadError != nil ? "exclamationmark.triangle" : "video.fill")
                         .font(.system(size: 48, weight: .light))
                         .foregroundStyle(.white.opacity(0.3))
                     
                     if let error = videoLoadError {
                         Text(error)
-                            .font(.caption)
+                            .font(.system(size: 14))
                             .foregroundStyle(.white.opacity(0.5))
                             .multilineTextAlignment(.center)
-                            .padding(.horizontal)
+                            .padding(.horizontal, 40)
                     }
                 }
             }
@@ -245,6 +258,19 @@ struct ClipDetailView: View {
             }
         }
     }
+    
+    // MARK: - Video Playback
+    
+    private func configureAudioSession() {
+        do {
+            let audioSession = AVAudioSession.sharedInstance()
+            try audioSession.setCategory(.playback, mode: .moviePlayback)
+            try audioSession.setActive(true)
+        } catch {
+            print("⚠️ Failed to configure audio session: \(error)")
+        }
+    }
+    
     
     private var controlsOverlay: some View {
         ZStack {

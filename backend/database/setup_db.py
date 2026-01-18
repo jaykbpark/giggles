@@ -12,7 +12,7 @@ client = MilvusClient("./milvus_storage.db")
 fields = [
     FieldSchema(name="id", dtype=DataType.INT64, is_primary=True, auto_id=True),
     FieldSchema(name="embedding",dtype=DataType.FLOAT_VECTOR, dim=512),
-    FieldSchema(name="video_id",dtype=DataType.INT64)
+    FieldSchema(name="video_id",dtype=DataType.VARCHAR, max_length=64)
 ]
 
 schema = CollectionSchema(fields,"Milvus Schema")

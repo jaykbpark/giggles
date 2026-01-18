@@ -6,7 +6,7 @@ from backend.objects.RequestObjects import RequestSearchObject, RequestVideoObje
 from backend.objects.ResponseObjects import ResponseTagsObject, ResponseVideoObject
 from backend.database_operations import DatabaseOperations
 from backend.preprocessing.processing_manager import ProcessingManager
-
+from backend.vectorizer import Vectorizer
 app = FastAPI()
 
 # Allow CORS for iOS app
@@ -46,6 +46,7 @@ async def create_video(
     )
     pm = ProcessingManager(video)
     db = DatabaseOperations()
+    vectorizer = Vectorizer()
     # preprocessing
     tags = db.query_tags_table_get_tags()
     ((transcription, tags), condensed_transcript) = pm.create_transcript_from_audio(tags)
@@ -56,6 +57,14 @@ async def create_video(
         db.insert_tags_table(tag, video.videoId)
     # vectorizing table insertion
     frames = pm.split_video_to_frames(3)
+    image_vectors = vectorizer.encode_images(frames)
+    
+    for image_vector in image_vectors:
+        db.insert_vector_table(image_vector,videoId)
+        
+    transcription_vector = vectorizer.encode_text(condensed_transcript)
+    db.insert_vector_table(transcription_vector,videoId)
+    db.close()
     return {"message": "Item created"}
 
 # get all videos

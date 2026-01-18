@@ -1,5 +1,6 @@
 from pymilvus import MilvusClient
 import sqlite3
+import numpy as np
 
 MILVUS_COLLECTION_NAME = "clip_embeddings"
 class DatabaseOperations():
@@ -19,16 +20,24 @@ class DatabaseOperations():
         )
         return response
     
-    def insert_vector_table(self,vector_data,video_id):
+    def insert_vector_table(self, vector_data, video_id):
+        if hasattr(vector_data, "tolist"):
+            vector_list = vector_data.tolist()
+        else:
+            vector_list = vector_data
+
+        data = [
+            {
+                "embedding": vector_list,  
+                "video_id": str(video_id)
+            }
+        ]
+        
         response = self.milvus_conn.insert(
-            collection_name=MILVUS_COLLECTION_NAME,
-            data=[
-                [],          
-                [vector_data],
-                [video_id] 
-            ]
+            collection_name="clip_embeddings",
+            data=data
         )
-        return response 
+        return response
      
     def query_video_table(self,video_id):
         self.cursor.execute(
@@ -56,8 +65,9 @@ class DatabaseOperations():
         self.cursor.execute(
             "SELECT DISTINCT tag from tags"
         )
-        return self.cursor.fetchall()
-    
+        res = self.cursor.fetchall()
+        res = [data[0] for data in res]
+        return res
     def insert_tags_table(self,tag,video_id):
         self.cursor.execute(
             "INSERT into tags (tag,video_id) VALUES (?,?)",

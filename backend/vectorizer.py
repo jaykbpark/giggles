@@ -37,31 +37,34 @@ class Vectorizer:
             
         return image_features.cpu().numpy().flatten()
     
-    def encode_images(self, images: List[Union[Image.Image, bytes, str]]) -> np.ndarray:
+    def encode_images(self, images):
         if not images:
-            return np.array([])
-        
+            return np.empty((0, 512), dtype=np.float32)
+
         processed_images = []
+
         for img in images:
-            if isinstance(img, bytes):
+            if isinstance(img, np.ndarray):
+                pil_img = Image.fromarray(img).convert("RGB")
+            elif isinstance(img, bytes):
                 pil_img = Image.open(BytesIO(img)).convert("RGB")
             elif isinstance(img, str):
-                image_bytes = base64.b64decode(img)
-                pil_img = Image.open(BytesIO(image_bytes)).convert("RGB")
+                pil_img = Image.open(BytesIO(base64.b64decode(img))).convert("RGB")
             elif isinstance(img, Image.Image):
                 pil_img = img.convert("RGB")
             else:
                 raise ValueError(f"Unsupported image type: {type(img)}")
-            
+
             processed_images.append(self.preprocess(pil_img))
-        
+
         image_batch = torch.stack(processed_images).to(self.device)
-        
+
         with torch.no_grad():
             image_features = self.model.encode_image(image_batch)
             image_features = image_features / image_features.norm(dim=-1, keepdim=True)
-            
-        return image_features.cpu().numpy()
+
+        return image_features.cpu().numpy().astype(np.float32)
+
     
     def encode_text(self, text: Union[str, List[str]]) -> np.ndarray:
         if isinstance(text, str):

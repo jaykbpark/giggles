@@ -8,8 +8,8 @@ class ProcessingManager():
         video_bytes = requestVideoObject.videoData
         self.audio_bytes =  self.extract_audio(video_bytes)
         self.video_bytes = video_bytes
-        self.width = 1920 #1920
-        self.height = 1080 #1080
+        self.width = 1080 #1920
+        self.height = 720 #1080
         self.requestVideoObject = requestVideoObject
    
     def extract_audio(self, video_bytes: bytes):

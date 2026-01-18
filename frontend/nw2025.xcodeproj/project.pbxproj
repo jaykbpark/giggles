@@ -32,14 +32,12 @@
 		4EC0317F2F16600000552603 /* ClipsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031802F16600000552603 /* ClipsListView.swift */; };
 		4EC031812F16700000552603 /* MetaGlassesManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031822F16700000552603 /* MetaGlassesManager.swift */; };
 		4EC031832F16700000552603 /* MetaSDKProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031842F16700000552603 /* MetaSDKProvider.swift */; };
-		4EC031852F16700000552603 /* MockGlassesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031862F16700000552603 /* MockGlassesProvider.swift */; };
 		4EC031872F16700000552603 /* GlassesStreamProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031882F16700000552603 /* GlassesStreamProvider.swift */; };
 		4EC031902F17800000552603 /* TitleGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031912F17800000552603 /* TitleGenerator.swift */; };
 		4EC031922F17800000552603 /* FilterBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031932F17800000552603 /* FilterBar.swift */; };
 		4EC031A02F18000000552603 /* AudioCaptureProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031A12F18000000552603 /* AudioCaptureProvider.swift */; };
 		4EC031A22F18000000552603 /* AudioCaptureManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031A32F18000000552603 /* AudioCaptureManager.swift */; };
 		4EC031A42F18000000552603 /* BluetoothAudioProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031A52F18000000552603 /* BluetoothAudioProvider.swift */; };
-		4EC031A62F18000000552603 /* MockAudioProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031A72F18000000552603 /* MockAudioProvider.swift */; };
 		4EC031A82F18000000552603 /* ClipExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031A92F18000000552603 /* ClipExporter.swift */; };
 		4EC031AA2F18000000552603 /* ClipCaptureCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031AB2F18000000552603 /* ClipCaptureCoordinator.swift */; };
 		4EC031B02F19000000552603 /* GlassesPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031B12F19000000552603 /* GlassesPreviewView.swift */; };
@@ -80,14 +78,12 @@
 		4EC031802F16600000552603 /* ClipsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipsListView.swift; sourceTree = "<group>"; };
 		4EC031822F16700000552603 /* MetaGlassesManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetaGlassesManager.swift; sourceTree = "<group>"; };
 		4EC031842F16700000552603 /* MetaSDKProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetaSDKProvider.swift; sourceTree = "<group>"; };
-		4EC031862F16700000552603 /* MockGlassesProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockGlassesProvider.swift; sourceTree = "<group>"; };
 		4EC031882F16700000552603 /* GlassesStreamProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassesStreamProvider.swift; sourceTree = "<group>"; };
 		4EC031912F17800000552603 /* TitleGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TitleGenerator.swift; sourceTree = "<group>"; };
 		4EC031932F17800000552603 /* FilterBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilterBar.swift; sourceTree = "<group>"; };
 		4EC031A12F18000000552603 /* AudioCaptureProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioCaptureProvider.swift; sourceTree = "<group>"; };
 		4EC031A32F18000000552603 /* AudioCaptureManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioCaptureManager.swift; sourceTree = "<group>"; };
 		4EC031A52F18000000552603 /* BluetoothAudioProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BluetoothAudioProvider.swift; sourceTree = "<group>"; };
-		4EC031A72F18000000552603 /* MockAudioProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockAudioProvider.swift; sourceTree = "<group>"; };
 		4EC031A92F18000000552603 /* ClipExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipExporter.swift; sourceTree = "<group>"; };
 		4EC031AB2F18000000552603 /* ClipCaptureCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipCaptureCoordinator.swift; sourceTree = "<group>"; };
 		4EC031B12F19000000552603 /* GlassesPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassesPreviewView.swift; sourceTree = "<group>"; };
@@ -262,7 +258,6 @@
 				4EC031882F16700000552603 /* GlassesStreamProvider.swift */,
 				4EC031822F16700000552603 /* MetaGlassesManager.swift */,
 				4EC031842F16700000552603 /* MetaSDKProvider.swift */,
-				4EC031862F16700000552603 /* MockGlassesProvider.swift */,
 			);
 			path = MetaGlasses;
 			sourceTree = "<group>";
@@ -273,7 +268,6 @@
 				4EC031A12F18000000552603 /* AudioCaptureProvider.swift */,
 				4EC031A32F18000000552603 /* AudioCaptureManager.swift */,
 				4EC031A52F18000000552603 /* BluetoothAudioProvider.swift */,
-				4EC031A72F18000000552603 /* MockAudioProvider.swift */,
 			);
 			path = AudioCapture;
 			sourceTree = "<group>";
@@ -382,14 +376,12 @@
 				4EC0317F2F16600000552603 /* ClipsListView.swift in Sources */,
 				4EC031812F16700000552603 /* MetaGlassesManager.swift in Sources */,
 				4EC031832F16700000552603 /* MetaSDKProvider.swift in Sources */,
-				4EC031852F16700000552603 /* MockGlassesProvider.swift in Sources */,
 				4EC031872F16700000552603 /* GlassesStreamProvider.swift in Sources */,
 				4EC031902F17800000552603 /* TitleGenerator.swift in Sources */,
 				4EC031922F17800000552603 /* FilterBar.swift in Sources */,
 				4EC031A02F18000000552603 /* AudioCaptureProvider.swift in Sources */,
 				4EC031A22F18000000552603 /* AudioCaptureManager.swift in Sources */,
 				4EC031A42F18000000552603 /* BluetoothAudioProvider.swift in Sources */,
-				4EC031A62F18000000552603 /* MockAudioProvider.swift in Sources */,
 				4EC031A82F18000000552603 /* ClipExporter.swift in Sources */,
 				4EC031AA2F18000000552603 /* ClipCaptureCoordinator.swift in Sources */,
 				4EC031B02F19000000552603 /* GlassesPreviewView.swift in Sources */,

@@ -131,7 +131,7 @@ final class ClipCaptureCoordinator: ObservableObject {
             try await glassesManager.startVideoStream()
         }
         
-        // Start audio capture (Bluetooth or mock)
+        // Start audio capture (Bluetooth)
         try await audioManager.startCapture()
         
         // Request speech recognition authorization if needed

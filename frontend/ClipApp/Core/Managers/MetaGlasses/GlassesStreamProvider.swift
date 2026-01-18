@@ -79,7 +79,7 @@ enum GlassesError: Error, Equatable, Sendable {
 // MARK: - Stream Provider Protocol
 
 /// Protocol defining the interface for glasses stream providers.
-/// Both mock and real SDK implementations conform to this protocol.
+/// SDK implementations conform to this protocol.
 protocol GlassesStreamProvider: AnyObject {
     
     // MARK: - Connection

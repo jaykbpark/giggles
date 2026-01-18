@@ -34,7 +34,6 @@ struct RootView: View {
                     connectionState: glassesManager.connectionState,
                     batteryLevel: glassesManager.batteryLevel,
                     deviceName: glassesManager.deviceName,
-                    isMockMode: glassesManager.isMockMode,
                     debugStatus: glassesManager.sdkDebugStatus,
                     onRetryTap: {
                         Task {

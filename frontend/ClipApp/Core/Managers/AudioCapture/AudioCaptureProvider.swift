@@ -54,7 +54,7 @@ enum AudioCaptureError: Error, Equatable, Sendable {
 // MARK: - Audio Capture Provider Protocol
 
 /// Protocol defining the interface for audio capture providers.
-/// Both mock and real Bluetooth implementations conform to this protocol.
+/// Bluetooth implementations conform to this protocol.
 protocol AudioCaptureProvider: AnyObject {
     
     // MARK: - State

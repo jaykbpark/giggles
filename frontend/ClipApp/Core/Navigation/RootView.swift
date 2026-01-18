@@ -141,9 +141,12 @@ struct RootView: View {
                 captureCoordinator.pauseAudioCapture()
             }
             if oldTab == .ask && newTab == .clips {
-                // Wait for tab switch animation to complete (350ms spring + buffer)
+                // Wait for tab switch animation and Ask tab audio cleanup to complete
+                // Increased from 400ms to 600ms to prevent race condition with MemoryAssistantView's
+                // audio session deactivation (which has a 50ms delay in stopListening())
                 Task {
-                    try? await Task.sleep(nanoseconds: 400_000_000) // 400ms
+                    try? await Task.sleep(nanoseconds: 600_000_000) // 600ms
+                    print("🎤 [Tab] Resuming audio capture after Ask tab")
                     await captureCoordinator.resumeAudioCapture()
                 }
             }

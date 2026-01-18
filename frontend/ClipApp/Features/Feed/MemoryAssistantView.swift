@@ -26,6 +26,9 @@ struct MemoryAssistantView: View {
     @State private var lastSpeechTime: Date = Date()
     private let silenceThreshold: TimeInterval = 1.8 // Seconds of silence before auto-submit
     
+    // Track when view is disappearing to prevent race conditions with async startListening() calls
+    @State private var isDisappearing = false
+    
     private let suggestedQuestions = [
         "What did I do yesterday?",
         "Who did I talk to today?",
@@ -74,10 +77,16 @@ struct MemoryAssistantView: View {
             }
         }
         .onAppear {
+            isDisappearing = false // Reset flag when view appears
             setupSpeechRecognition()
             // Auto-start listening when embedded (tab view)
             if isEmbedded {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    // Guard against race condition: don't start if view is disappearing
+                    guard !isDisappearing else {
+                        print("🎤 [Ask] Skipping auto-start: view is disappearing")
+                        return
+                    }
                     startListening()
                 }
                 // Start gradient animation
@@ -87,12 +96,20 @@ struct MemoryAssistantView: View {
             }
         }
         .onDisappear {
+            isDisappearing = true // Set flag BEFORE stopping to prevent async restarts
+            print("🎤 [Ask] View disappearing, stopping audio")
             stopListening()
         }
         .onChange(of: memoryAssistant.state) { _, newState in
             // Auto-restart listening after response completes
-            if isEmbedded && !newState.isActive && !isListening {
+            // Guard against race condition: don't restart if view is disappearing
+            if isEmbedded && !newState.isActive && !isListening && !isDisappearing {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                    // Double-check disappearing flag after delay
+                    guard !isDisappearing else {
+                        print("🎤 [Ask] Skipping auto-restart: view is disappearing")
+                        return
+                    }
                     if !memoryAssistant.state.isActive {
                         startListening()
                     }
@@ -799,13 +816,16 @@ struct MemoryAssistantView: View {
         recognitionTask = nil
         isListening = false
         
-        // Reset audio session to allow video playback
-        // This is critical - leaving the session in .record mode prevents AVPlayer from working
-        let audioSession = AVAudioSession.sharedInstance()
-        do {
-            try audioSession.setActive(false, options: .notifyOthersOnDeactivation)
-        } catch {
-            print("⚠️ Failed to deactivate audio session: \(error)")
+        // Reset audio session to allow wake word detection to reclaim it
+        // Small delay ensures audio engine cleanup completes before deactivation
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            let audioSession = AVAudioSession.sharedInstance()
+            do {
+                try audioSession.setActive(false, options: .notifyOthersOnDeactivation)
+                print("🎤 [Ask] Audio session deactivated successfully")
+            } catch {
+                print("⚠️ [Ask] Failed to deactivate audio session: \(error)")
+            }
         }
     }
     

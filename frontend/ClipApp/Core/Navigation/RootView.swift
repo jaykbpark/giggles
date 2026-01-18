@@ -539,6 +539,10 @@ struct RootView: View {
         do {
             try await glassesManager.connect()
             print("🕶️ Connected to glasses")
+            
+            // Give Bluetooth audio route time to establish after glasses connection
+            // This prevents the "speaker audio" issue on first launch
+            try? await Task.sleep(nanoseconds: 500_000_000) // 0.5s
         } catch {
             print("⚠️ Failed to connect to glasses: \(error.localizedDescription)")
             // Continue anyway - audio capture still works via Bluetooth

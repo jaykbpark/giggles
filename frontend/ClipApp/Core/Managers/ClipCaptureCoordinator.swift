@@ -625,8 +625,8 @@ final class ClipCaptureCoordinator: ObservableObject {
             self.lastVideoFrameTime = Date()
             if self.isVideoStreamStale {
                 self.isVideoStreamStale = false
-            }
         }
+    }
     }
     
     /// Copy a CVPixelBuffer to ensure we own the data

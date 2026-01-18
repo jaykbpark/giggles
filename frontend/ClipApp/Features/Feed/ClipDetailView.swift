@@ -769,7 +769,7 @@ struct ClipDetailView: View {
         let shareText = textParts.joined(separator: "\n\n")
         
         if !shareText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            itemsToShare.append(shareText)
+        itemsToShare.append(shareText)
         }
         
         if itemsToShare.isEmpty {

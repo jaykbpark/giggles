@@ -96,13 +96,13 @@ struct FeedView: View {
                                 onToggleStar: { viewState.toggleStar(for: clip.id) }
                             )
                             .contentShape(Rectangle()) // Ensures tap area matches visual bounds
-                            .onTapGesture {
-                                HapticManager.playLight()
-                                withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) {
-                                    selectedClip = clip
+                                .onTapGesture {
+                                    HapticManager.playLight()
+                                    withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) {
+                                        selectedClip = clip
+                                    }
                                 }
-                            }
-                            .padding(.horizontal, 20)
+                                .padding(.horizontal, 20)
                         }
                     }
                     .padding(.top, 12)
@@ -156,44 +156,44 @@ struct ClipCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Thumbnail area - placeholder defines size, thumbnail overlays inherit bounds
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [Color(.systemGray4), Color(.systemGray5)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [Color(.systemGray4), Color(.systemGray5)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
                     )
-                )
                 .aspectRatio(aspectRatio, contentMode: .fit)
                 .overlay {
                     // Real thumbnail if loaded (prefer stored thumbnail)
                     if let thumbnail = thumbnail ?? clip.thumbnailImage {
-                        Image(uiImage: thumbnail)
-                            .resizable()
-                            .aspectRatio(contentMode: .fill)
+                    Image(uiImage: thumbnail)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
                     }
                 }
                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                 .overlay {
-                    // Gradient overlay
-                    LinearGradient(
-                        colors: [.clear, Color.black.opacity(0.35)],
-                        startPoint: .center,
-                        endPoint: .bottom
-                    )
+                // Gradient overlay
+                        LinearGradient(
+                            colors: [.clear, Color.black.opacity(0.35)],
+                            startPoint: .center,
+                            endPoint: .bottom
+                        )
                 }
                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                 .overlay {
-                    // Play icon
-                    Image(systemName: "play.fill")
-                        .font(.system(size: 32))
-                        .foregroundStyle(.white.opacity(0.9))
-                }
+                // Play icon
+                Image(systemName: "play.fill")
+                    .font(.system(size: 32))
+                    .foregroundStyle(.white.opacity(0.9))
+            }
             .matchedGeometryEffect(id: clip.id, in: namespace)
             .task {
                 // Only load from Photos if no stored thumbnail
                 if clip.thumbnailImage == nil {
-                    await loadThumbnail()
+                await loadThumbnail()
                 }
             }
             .overlay(alignment: .topTrailing) {
@@ -330,7 +330,7 @@ struct ClipCard: View {
         }
         
         await MainActor.run {
-            self.thumbnail = image
+                    self.thumbnail = image
         }
     }
 }

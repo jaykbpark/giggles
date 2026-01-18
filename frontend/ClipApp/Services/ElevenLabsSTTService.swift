@@ -37,9 +37,14 @@ final class ElevenLabsSTTService: NSObject, ObservableObject {
     private let modelId = "scribe_v2_realtime"
     private let sampleRate: Int = 16000
     
-    /// Phrases to detect in the transcript
+    /// Phrases to detect in the transcript (exact matches)
     private let clipPhrases = ["clip that", "click that", "clip dat", "clip it", "clip this"]
-    private let questionPhrase = "hey clip"
+    
+    /// Wake phrase variations for aggressive matching (includes common mishears)
+    private let wakePhrasesExact = ["hey clip", "hey clipp", "hey, clip", "a clip", "hey klip", "hey clep"]
+    
+    /// Prefix patterns to detect wake phrase early (before user finishes speaking)
+    private let wakePrefixes = ["hey cl", "hey kl", "a cl", "hey, cl"]
     
     // MARK: - WebSocket
     
@@ -59,7 +64,14 @@ final class ElevenLabsSTTService: NSObject, ObservableObject {
     
     /// Track last assistant invocation to prevent repeated wake triggers
     private var lastAssistantInvokeTime: Date?
-    private let assistantCooldown: TimeInterval = 3.0
+    private let assistantCooldown: TimeInterval = 2.0  // Reduced from 3.0 for faster re-trigger
+    
+    /// Track last partial wake detection (separate from final to allow immediate response)
+    private var lastPartialWakeTime: Date?
+    private let partialWakeCooldown: TimeInterval = 1.0  // Short cooldown for partials
+    
+    /// Track if we already fired for current utterance to prevent duplicate triggers
+    private var hasFiredForCurrentUtterance: Bool = false
     
     // MARK: - Initialization
     
@@ -355,13 +367,58 @@ final class ElevenLabsSTTService: NSObject, ObservableObject {
     
     private func checkForPhrases(in transcript: String, isPartial: Bool) {
         let lowercased = transcript.lowercased()
+            .replacingOccurrences(of: ",", with: "")  // Remove punctuation for matching
+            .replacingOccurrences(of: ".", with: "")
+            .replacingOccurrences(of: "!", with: "")
+            .replacingOccurrences(of: "?", with: "")
         
-        // Check cooldown
-        if let lastDetection = lastPhraseDetectionTime,
-           Date().timeIntervalSince(lastDetection) < phraseCooldown {
-            return
+        // Reset utterance tracking when we get a final result
+        if !isPartial {
+            hasFiredForCurrentUtterance = false
         }
         
+        // === AGGRESSIVE WAKE WORD DETECTION (PRIORITY) ===
+        // For partials: Use very short cooldown and prefix matching
+        // This fires AS SOON as we detect "hey cl..." pattern
+        
+        if isPartial {
+            // Check partial cooldown (very short for responsiveness)
+            if let lastPartial = lastPartialWakeTime,
+               Date().timeIntervalSince(lastPartial) < partialWakeCooldown {
+                // Still check for question completion even during cooldown
+            } else if !hasFiredForCurrentUtterance {
+                // AGGRESSIVE: Check for prefix patterns first (fires before phrase completes)
+                for prefix in wakePrefixes {
+                    if lowercased.contains(prefix) {
+                        lastPartialWakeTime = Date()
+                        hasFiredForCurrentUtterance = true
+                        lastAssistantInvokeTime = Date()
+                        onAssistantInvoked?()
+                        print("🎤⚡ ElevenLabs STT: FAST DETECT prefix '\(prefix)' - invoking assistant!")
+                        return
+                    }
+                }
+                
+                // Check for full wake phrases with fuzzy matching
+                for phrase in wakePhrasesExact {
+                    if lowercased.contains(phrase) || fuzzyMatch(lowercased, phrase) {
+                        lastPartialWakeTime = Date()
+                        hasFiredForCurrentUtterance = true
+                        lastAssistantInvokeTime = Date()
+                        onAssistantInvoked?()
+                        print("🎤⚡ ElevenLabs STT: FAST DETECT wake phrase '\(phrase)' - invoking assistant!")
+                        return
+                    }
+                }
+            }
+        }
+        
+        // === CLIP PHRASE DETECTION ===
+        // Check cooldown for clip triggers
+        if let lastDetection = lastPhraseDetectionTime,
+           Date().timeIntervalSince(lastDetection) < phraseCooldown {
+            // Skip clip detection during cooldown
+        } else {
         // Check for clip phrases
         for phrase in clipPhrases {
             if lowercased.contains(phrase) {
@@ -371,29 +428,87 @@ final class ElevenLabsSTTService: NSObject, ObservableObject {
                 print("🎤 ElevenLabs STT: Detected '\(phrase)' - triggering clip")
                 return
             }
+            }
         }
         
-        // Check for question phrase
-        if lowercased.contains(questionPhrase) {
-            // Extract the question (everything after "hey clip")
-            if let range = lowercased.range(of: questionPhrase) {
-                let question = String(transcript[range.upperBound...]).trimmingCharacters(in: .whitespaces)
-                if question.isEmpty {
-                    // Wake phrase without a question yet - invoke assistant
-                    if let lastInvoke = lastAssistantInvokeTime,
-                       Date().timeIntervalSince(lastInvoke) < assistantCooldown {
-                        return
-                    }
-                    lastAssistantInvokeTime = Date()
-                    onAssistantInvoked?()
-                    print("🎤 ElevenLabs STT: Detected 'hey clip' wake phrase")
-                } else {
+        // === QUESTION DETECTION (after wake word) ===
+        // Look for question following "hey clip" - only on final transcripts to get complete question
+        if !isPartial {
+            // Find any wake phrase and extract question after it
+            for phrase in wakePhrasesExact {
+                if let range = lowercased.range(of: phrase) {
+                    let question = String(transcript[range.upperBound...])
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                        .replacingOccurrences(of: "^[,\\.\\s]+", with: "", options: .regularExpression)
+                    
+                    if !question.isEmpty && question.count > 2 {
+                        // Got a question - fire it
+                        if let lastDetection = lastPhraseDetectionTime,
+                           Date().timeIntervalSince(lastDetection) < phraseCooldown {
+                            return
+                        }
                     lastPhraseDetectionTime = Date()
                     onPhraseDetected?(.heyClip(question: question))
-                    print("🎤 ElevenLabs STT: Detected 'hey clip' with question: \(question)")
+                        print("🎤 ElevenLabs STT: Detected question: '\(question)'")
+                        return
+                    }
                 }
             }
         }
+    }
+    
+    /// Simple fuzzy matching - checks if strings are similar (handles common speech-to-text errors)
+    private func fuzzyMatch(_ text: String, _ pattern: String) -> Bool {
+        // Check for common transcription variations
+        let normalized = text
+            .replacingOccurrences(of: "hey, ", with: "hey ")
+            .replacingOccurrences(of: "a ", with: "hey ")  // "a clip" -> "hey clip"
+            .replacingOccurrences(of: "hey clipt", with: "hey clip")
+            .replacingOccurrences(of: "heyclip", with: "hey clip")
+        
+        if normalized.contains(pattern) {
+            return true
+        }
+        
+        // Check edit distance for short patterns (allow 1 error)
+        let words = text.components(separatedBy: .whitespaces)
+        for i in 0..<max(0, words.count - 1) {
+            let twoWords = words[i..<min(i+2, words.count)].joined(separator: " ")
+            if levenshteinDistance(twoWords, pattern) <= 1 {
+                return true
+                }
+            }
+        
+        return false
+    }
+    
+    /// Calculate Levenshtein edit distance between two strings
+    private func levenshteinDistance(_ s1: String, _ s2: String) -> Int {
+        let s1Array = Array(s1)
+        let s2Array = Array(s2)
+        let m = s1Array.count
+        let n = s2Array.count
+        
+        if m == 0 { return n }
+        if n == 0 { return m }
+        
+        var matrix = [[Int]](repeating: [Int](repeating: 0, count: n + 1), count: m + 1)
+        
+        for i in 0...m { matrix[i][0] = i }
+        for j in 0...n { matrix[0][j] = j }
+        
+        for i in 1...m {
+            for j in 1...n {
+                let cost = s1Array[i-1] == s2Array[j-1] ? 0 : 1
+                matrix[i][j] = min(
+                    matrix[i-1][j] + 1,      // deletion
+                    matrix[i][j-1] + 1,      // insertion
+                    matrix[i-1][j-1] + cost  // substitution
+                )
+            }
+        }
+        
+        return matrix[m][n]
     }
     
     private func handleWebSocketError(_ error: Error) {

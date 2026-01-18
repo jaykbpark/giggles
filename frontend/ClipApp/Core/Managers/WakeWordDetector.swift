@@ -71,8 +71,11 @@ final class WakeWordDetector: ObservableObject {
         "clip this"
     ]
     
-    /// The wake phrase for asking questions (case-insensitive)
-    private let questionPhrase = "hey clip"
+    /// The wake phrase for asking questions - exact matches
+    private let questionPhrases = ["hey clip", "hey clipp", "hey, clip", "a clip", "hey klip", "hey clep"]
+    
+    /// Prefix patterns for AGGRESSIVE early detection (before phrase completes)
+    private let wakePrefixes = ["hey cl", "hey kl", "a cl", "hey, cl"]
     
     /// Track if we've already processed the current question to avoid duplicates
     private var lastProcessedQuestion: String = ""
@@ -81,6 +84,11 @@ final class WakeWordDetector: ObservableObject {
     private var waitingForQuestion: Bool = false
     private var waitingForQuestionStartTime: Date?
     private let questionWaitTimeout: TimeInterval = 5.0  // Wait up to 5 seconds for question
+    
+    /// Track if we've already fired wake for current recognition session (prevent duplicates)
+    private var hasFiredWakeThisSession: Bool = false
+    private var lastWakeTriggerTime: Date?
+    private let wakeCooldown: TimeInterval = 1.0  // Short cooldown for fast re-trigger
     
     // MARK: - Initialization
     
@@ -190,7 +198,12 @@ final class WakeWordDetector: ObservableObject {
         appendTranscriptSegments(from: result)
         pruneTranscriptBuffer()
         
+        // Normalize for matching - remove punctuation
         let lowercased = transcription.lowercased()
+            .replacingOccurrences(of: ",", with: "")
+            .replacingOccurrences(of: ".", with: "")
+            .replacingOccurrences(of: "!", with: "")
+            .replacingOccurrences(of: "?", with: "")
         
         // If we're waiting for a question after "Hey Clip", check for it
         if waitingForQuestion {
@@ -200,6 +213,7 @@ final class WakeWordDetector: ObservableObject {
                 print("🎤 [WakeWord] Question wait timeout - resetting")
                 waitingForQuestion = false
                 waitingForQuestionStartTime = nil
+                hasFiredWakeThisSession = false
             } else {
                 // Try to extract question from current transcription
                 tryExtractQuestion(from: transcription)
@@ -207,13 +221,50 @@ final class WakeWordDetector: ObservableObject {
             }
         }
         
-        // Check for "Hey Clip" question phrase first (higher priority)
-        if lowercased.contains(questionPhrase) {
+        // === AGGRESSIVE WAKE WORD DETECTION ===
+        // Check cooldown first
+        let canTriggerWake = !hasFiredWakeThisSession || (
+            lastWakeTriggerTime.map { Date().timeIntervalSince($0) > wakeCooldown } ?? true
+        )
+        
+        if canTriggerWake {
+            // PRIORITY 1: Check for prefix patterns (FASTEST - fires before phrase completes)
+            for prefix in wakePrefixes {
+                if lowercased.contains(prefix) {
+                    print("🎤⚡ [WakeWord] FAST DETECT prefix '\(prefix)' - invoking!")
+                    hasFiredWakeThisSession = true
+                    lastWakeTriggerTime = Date()
+                    triggerWakePhrase(from: transcription)
+                    return
+                }
+            }
+            
+            // PRIORITY 2: Check for full wake phrases
+            for phrase in questionPhrases {
+                if lowercased.contains(phrase) {
+                    print("🎤 [WakeWord] Detected wake phrase '\(phrase)'")
+                    hasFiredWakeThisSession = true
+                    lastWakeTriggerTime = Date()
             triggerQuestion(from: transcription)
+                    return
+                }
+            }
         }
+        
         // Check for clip capture phrases
-        else if clipPhrases.contains(where: { lowercased.contains($0) }) {
+        if clipPhrases.contains(where: { lowercased.contains($0) }) {
             triggerClip()
+        }
+    }
+    
+    /// Handle wake phrase detection - triggers assistant immediately
+    private func triggerWakePhrase(from transcription: String) {
+        if !waitingForQuestion {
+            print("🎤 [WakeWord] 'Hey Clip' detected (fast) - waiting for question...")
+            waitingForQuestion = true
+            waitingForQuestionStartTime = Date()
+            isProcessingQuestion = true  // Show UI feedback
+            onAssistantInvoked?()
         }
     }
     
@@ -291,15 +342,24 @@ final class WakeWordDetector: ObservableObject {
     }
     
     private func triggerQuestion(from transcription: String) {
-        // Extract the question (everything after "hey clip")
+        // Extract the question (everything after any wake phrase)
         let lowercased = transcription.lowercased()
-        guard let range = lowercased.range(of: questionPhrase) else { return }
+            .replacingOccurrences(of: ",", with: "")
+            .replacingOccurrences(of: ".", with: "")
         
-        // Get text after "hey clip"
-        let afterPhrase = String(transcription[range.upperBound...]).trimmingCharacters(in: .whitespaces)
+        // Find any matching wake phrase
+        var afterPhrase = ""
+        for phrase in questionPhrases {
+            if let range = lowercased.range(of: phrase) {
+                afterPhrase = String(transcription[range.upperBound...])
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    .replacingOccurrences(of: "^[,\\.\\s]+", with: "", options: .regularExpression)
+                break
+            }
+        }
         
         // If no question yet, start waiting for it
-        if afterPhrase.isEmpty {
+        if afterPhrase.isEmpty || afterPhrase.count < 3 {
             if !waitingForQuestion {
                 print("🎤 [WakeWord] 'Hey Clip' detected - waiting for question...")
                 waitingForQuestion = true
@@ -325,6 +385,7 @@ final class WakeWordDetector: ObservableObject {
         lastProcessedQuestion = afterPhrase
         waitingForQuestion = false
         waitingForQuestionStartTime = nil
+        hasFiredWakeThisSession = false  // Reset for next detection
         isProcessingQuestion = true
         onAssistantInvoked?()
         
@@ -398,6 +459,9 @@ final class WakeWordDetector: ObservableObject {
         
         // Clear current transcript for new session
         currentTranscript = ""
+        
+        // Reset wake detection state for new session
+        hasFiredWakeThisSession = false
         
         stopRecognitionSession()
         startRecognitionSession()

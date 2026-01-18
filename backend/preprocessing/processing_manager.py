@@ -24,18 +24,27 @@ class ProcessingManager():
             if video_stream is None:
                 raise ValueError("No video stream found in the provided data.")
 
-            width = int(video_stream['width'])
-            height = int(video_stream['height'])
+            # Store original dimensions (before rotation) for raw frame extraction
+            self.original_width = int(video_stream['width'])
+            self.original_height = int(video_stream['height'])
 
-          
-            rotation = 0
+            # Detect rotation from metadata
+            self.rotation = 0
             if 'tags' in video_stream and 'rotate' in video_stream['tags']:
-                rotation = int(video_stream['tags']['rotate'])
+                self.rotation = int(video_stream['tags']['rotate'])
+            # Also check side_data for rotation (newer ffmpeg)
+            if 'side_data_list' in video_stream:
+                for side_data in video_stream['side_data_list']:
+                    if side_data.get('side_data_type') == 'Display Matrix' and 'rotation' in side_data:
+                        self.rotation = int(side_data['rotation'])
             
-            if rotation in [90, 270]:
-                self.width, self.height = height, width
+            # Final dimensions after rotation is applied
+            if self.rotation in [90, 270, -90, -270]:
+                self.width, self.height = self.original_height, self.original_width
             else:
-                self.width, self.height = width, height
+                self.width, self.height = self.original_width, self.original_height
+            
+            print(f"📹 Video: {self.original_width}x{self.original_height}, rotation={self.rotation}, final={self.width}x{self.height}")
                 
     def extract_audio(self, video_bytes: bytes):
         with tempfile.NamedTemporaryFile(suffix=".mp4") as tmp:
@@ -50,29 +59,51 @@ class ProcessingManager():
             )
         return out
 
-    def split_video_to_frames(self,fps):
-        frame_size = self.width * self.height * 3
+    def split_video_to_frames(self, fps):
+        """Extract frames from video, properly handling rotation."""
         with tempfile.NamedTemporaryFile(suffix=".mp4") as tmp:
             tmp.write(self.video_bytes)
             tmp.flush()
 
+            # Build ffmpeg pipeline
+            stream = ffmpeg.input(tmp.name)
+            
+            # Apply rotation correction based on metadata
+            # This ensures raw output matches the intended orientation
+            if self.rotation == 90 or self.rotation == -270:
+                stream = stream.filter('transpose', 1)  # 90 clockwise
+            elif self.rotation == 180 or self.rotation == -180:
+                stream = stream.filter('transpose', 1).filter('transpose', 1)  # 180
+            elif self.rotation == 270 or self.rotation == -90:
+                stream = stream.filter('transpose', 2)  # 90 counter-clockwise
+            
+            # Sample at target fps
+            stream = stream.filter('fps', fps=fps)
+            
+            # Scale to a consistent size for CLIP (224x224 is CLIP's input size)
+            # This normalizes all videos regardless of original resolution
+            stream = stream.filter('scale', 224, 224)
+            
             process = (
-                ffmpeg
-                .input(tmp.name)
-                .filter('fps', fps=fps)
+                stream
                 .output('pipe:1', format='rawvideo', pix_fmt='rgb24')
                 .run_async(pipe_stdout=True, pipe_stderr=True)
             )
 
+            # After scaling to 224x224, frame size is fixed
+            scaled_frame_size = 224 * 224 * 3
+            
             frames = []
             while True:
-                raw_frame = process.stdout.read(frame_size)
-                if len(raw_frame) < frame_size:
+                raw_frame = process.stdout.read(scaled_frame_size)
+                if len(raw_frame) < scaled_frame_size:
                     break
-                frame = np.frombuffer(raw_frame, np.uint8).reshape((self.height, self.width, 3))
+                frame = np.frombuffer(raw_frame, np.uint8).reshape((224, 224, 3))
                 frames.append(frame)
 
             process.wait()
+            
+        print(f"📹 Extracted {len(frames)} frames at {fps} fps (224x224)")
         return frames
         
         

@@ -1,10 +1,24 @@
-# Cursor Rules - Clip (nw2025)
+# Cursor Rules - Clip (Meta Wearables DAT iOS Project)
 
 > **Project:** Clip (iOS companion app for Meta Ray-Ban glasses)  
-> **Platform:** iOS 26+ (SwiftUI + Liquid Glass)  
-> **UI Direction:** Warm minimal, timeline-first
+> **Platform:** iOS 17.0+ (Swift 5.0+, SwiftUI)  
+> **SDK:** Meta Wearables Device Access Toolkit (DAT)  
+> **UI Direction:** Warm minimal, timeline-first, Liquid Glass (iOS 26+)
 
 Development progress lives in [`frontend/PROGRESS.md`](frontend/PROGRESS.md).
+
+---
+
+## Table of Contents
+
+1. [Non-Negotiable Workflow](#non-negotiable-workflow)
+2. [Meta Wearables DAT SDK](#meta-wearables-dat-sdk)
+3. [Architecture Patterns](#architecture-patterns)
+4. [Code Style Rules](#code-style-rules)
+5. [Common Gotchas & Warnings](#common-gotchas--warnings)
+6. [Info.plist Configuration](#infoplist-configuration)
+7. [Design Rules (Liquid Glass)](#design-rules-liquid-glass)
+8. [File Structure](#file-structure)
 
 ---
 
@@ -12,7 +26,7 @@ Development progress lives in [`frontend/PROGRESS.md`](frontend/PROGRESS.md).
 
 ### 1) Pull first, always
 ```bash
-cd /Users/jaypark/Documents/GitHub/nw2025 && git pull origin main
+cd /Users/rook/Documents/GitHub/giggles && git pull origin main
 git log --oneline -10
 ```
 After pulling, **explicitly say**: "Pulled latest and on `main`."
@@ -26,7 +40,7 @@ After pulling, **explicitly say**: "Pulled latest and on `main`."
 
 **Simulator with Mock Mode (recommended for simulator):**
 ```bash
-cd /Users/jaypark/Documents/GitHub/nw2025/frontend && \
+cd /Users/rook/Documents/GitHub/giggles/frontend && \
 xcodebuild -project nw2025.xcodeproj -scheme nw2025 \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
   -configuration Debug build && \
@@ -37,7 +51,7 @@ SIMCTL_CHILD_USE_MOCK_GLASSES=1 xcrun simctl launch "iPhone 17 Pro" me.park.jay.
 
 **Simulator without Mock Mode (real SDK):**
 ```bash
-cd /Users/jaypark/Documents/GitHub/nw2025/frontend && \
+cd /Users/rook/Documents/GitHub/giggles/frontend && \
 xcodebuild -project nw2025.xcodeproj -scheme nw2025 \
   -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
   -configuration Debug build && \
@@ -48,7 +62,7 @@ xcrun simctl launch "iPhone 17 Pro" me.park.jay.nw2025
 
 **Device with Mock Mode:**
 ```bash
-cd /Users/jaypark/Documents/GitHub/nw2025/frontend && \
+cd /Users/rook/Documents/GitHub/giggles/frontend && \
 xcodebuild -project nw2025.xcodeproj -scheme nw2025 \
   -destination 'id=00008140-001534E83647001C' \
   -configuration Debug -allowProvisioningUpdates build && \
@@ -60,7 +74,7 @@ xcrun devicectl device process launch --device 00008140-001534E83647001C \
 
 **Device without Mock Mode (real glasses connected):**
 ```bash
-cd /Users/jaypark/Documents/GitHub/nw2025/frontend && \
+cd /Users/rook/Documents/GitHub/giggles/frontend && \
 xcodebuild -project nw2025.xcodeproj -scheme nw2025 \
   -destination 'id=00008140-001534E83647001C' \
   -configuration Debug -allowProvisioningUpdates build && \
@@ -84,57 +98,630 @@ After pushing, **explicitly say**: branch + commit hash + summary.
 
 ---
 
+## Meta Wearables DAT SDK
+
+**SPM URL:** `https://github.com/facebook/meta-wearables-dat-ios`  
+**Docs:** `https://wearables.developer.meta.com/docs/develop`
+
+### SDK Imports
+
+```swift
+import MWDATCore    // Core SDK: Wearables, registration, permissions, device management
+import MWDATCamera  // Camera/streaming: StreamSession, VideoFrame, PhotoData
+
+#if DEBUG
+import MWDATMockDevice  // Debug-only mock device simulation (MockDeviceKit)
+#endif
+```
+
+### 1. SDK Initialization (REQUIRED)
+
+Call `Wearables.configure()` **once** at app startup in the `@main` App struct:
+
+```swift
+@main
+struct ClipApp: App {
+    init() {
+        do {
+            try Wearables.configure()
+        } catch {
+            #if DEBUG
+            print("[SDK] Configuration failed: \(error)")
+            #endif
+        }
+    }
+    
+    var body: some Scene {
+        WindowGroup {
+            ContentView()
+        }
+    }
+}
+```
+
+**Rules:**
+- Call ONLY ONCE at app launch
+- Use `Wearables.shared` singleton for all subsequent SDK access
+- Wrap in do-catch and log errors in DEBUG builds
+- NEVER call `configure()` multiple times
+
+### 2. Registration Flow
+
+Registration state is tracked via `RegistrationState` enum:
+- `.available` - SDK available, not yet registered
+- `.registering` - Registration in progress
+- `.registered` - Successfully registered with Meta AI app
+- `.unavailable` - SDK not available
+
+```swift
+// Start registration (opens Meta AI app for OAuth)
+try wearables.startRegistration()
+
+// Handle callback URL via SwiftUI .onOpenURL
+.onOpenURL { url in
+    // Check for metaWearablesAction query parameter
+    if url.absoluteString.contains("metaWearablesAction") {
+        Task {
+            let handled = try await Wearables.shared.handleUrl(url)
+        }
+    }
+}
+
+// Listen for registration state changes
+let token = wearables.addRegistrationStateListener { state in
+    Task { @MainActor in
+        switch state {
+        case .registered:
+            // Proceed to device detection
+        case .registering:
+            // Show loading state
+        case .available, .unavailable:
+            // Handle accordingly
+        @unknown default:
+            break
+        }
+    }
+}
+```
+
+### 3. Device Detection Pattern
+
+**CRITICAL:** Only listen for devices AFTER registration completes.
+
+```swift
+// Use async stream for device detection
+func observeDevices() {
+    deviceTask = Task {
+        for await devices in wearables.devicesStream() {
+            // Process device list
+            if let firstDevice = devices.first,
+               let device = wearables.deviceForIdentifier(firstDevice) {
+                await connectToDevice(device)
+            }
+        }
+    }
+}
+
+// Or use manual device checking
+let deviceIds = wearables.devices  // Returns [DeviceIdentifier]
+if let deviceId = deviceIds.first,
+   let device = wearables.deviceForIdentifier(deviceId) {
+    // Use device
+}
+
+// Monitor device link state
+let linkToken = device.addLinkStateListener { linkState in
+    switch linkState {
+    case .connected:    // Ready for streaming
+    case .connecting:   // Connection in progress
+    case .disconnected: // Not connected
+    @unknown default: break
+    }
+}
+```
+
+### 4. Streaming Pattern
+
+```swift
+// Create stream session with configuration
+let config = StreamSessionConfig(
+    videoCodec: .raw,      // or .h264
+    resolution: .medium,   // .low, .medium, .high
+    frameRate: 30
+)
+
+let deviceSelector = SpecificDeviceSelector(device: device.identifier)
+// Or use AutoDeviceSelector() for automatic selection
+
+let session = StreamSession(
+    streamSessionConfig: config,
+    deviceSelector: deviceSelector
+)
+
+// Set up listeners BEFORE starting
+videoFrameToken = session.videoFramePublisher.listen { frame in
+    Task { @MainActor in
+        // frame.sampleBuffer contains the video data
+        if let pixelBuffer = CMSampleBufferGetImageBuffer(frame.sampleBuffer) {
+            // Process pixel buffer
+        }
+        // Or convert to UIImage
+        let image = frame.makeUIImage()
+    }
+}
+
+streamStateToken = session.statePublisher.listen { state in
+    Task { @MainActor in
+        switch state {
+        case .streaming:       // Active streaming
+        case .stopped:         // Stream stopped
+        case .paused:          // Stream paused
+        case .waitingForDevice: // Waiting for device
+        case .starting:        // Starting up
+        case .stopping:        // Stopping
+        @unknown default: break
+        }
+    }
+}
+
+errorToken = session.errorPublisher.listen { error in
+    Task { @MainActor in
+        // Handle StreamSessionError
+    }
+}
+
+photoToken = session.photoDataPublisher.listen { photoData in
+    Task { @MainActor in
+        // Handle captured photo
+    }
+}
+
+// ALWAYS check/request camera permission before starting
+let status = try await wearables.requestPermission(.camera)
+guard status == .granted else { return }
+
+// Start the session
+await session.start()
+
+// Stop when done
+await session.stop()
+```
+
+### 5. Mock Mode Implementation
+
+```swift
+@MainActor
+final class MetaGlassesManager: ObservableObject {
+    static let shared = MetaGlassesManager()
+    
+    private let provider: GlassesStreamProvider
+    let isMockMode: Bool
+    
+    init() {
+        // Check for USE_MOCK_GLASSES environment variable
+        let useMock = ProcessInfo.processInfo.environment["USE_MOCK_GLASSES"] != nil
+        self.isMockMode = useMock
+        
+        if useMock {
+            self.provider = MockGlassesProvider()
+            print("🕶️ MetaGlassesManager: Using MOCK provider")
+        } else {
+            self.provider = MetaSDKProvider()
+            print("🕶️ MetaGlassesManager: Using REAL SDK provider")
+        }
+    }
+}
+```
+
+**Mock Mode Activation:**
+- Environment Variable: `USE_MOCK_GLASSES=1`
+- Simulator: Use `SIMCTL_CHILD_USE_MOCK_GLASSES=1` prefix before `xcrun simctl launch`
+
+---
+
+## Architecture Patterns
+
+### ViewModel Pattern (REQUIRED)
+
+```swift
+@MainActor
+final class StreamSessionViewModel: ObservableObject {
+    // Published properties for reactive UI
+    @Published private(set) var connectionState: ConnectionState = .disconnected
+    @Published private(set) var isStreaming = false
+    @Published private(set) var currentFrame: UIImage?
+    @Published var errorMessage: String?
+    
+    // Store Task references for async streams
+    private var deviceTask: Task<Void, Never>?
+    private var streamTask: Task<Void, Never>?
+    
+    // Store listener tokens for SDK listeners
+    private var linkStateToken: (any AnyListenerToken)?
+    private var videoFrameToken: (any AnyListenerToken)?
+    private var streamStateToken: (any AnyListenerToken)?
+    
+    // Dependency injection for testability
+    private let wearables: any WearablesInterface
+    
+    init(wearables: any WearablesInterface = Wearables.shared) {
+        self.wearables = wearables
+    }
+    
+    deinit {
+        // CRITICAL: Cancel all Tasks and tokens
+        deviceTask?.cancel()
+        streamTask?.cancel()
+        
+        Task {
+            await linkStateToken?.cancel()
+            await videoFrameToken?.cancel()
+            await streamStateToken?.cancel()
+        }
+    }
+}
+```
+
+### Error Handling Pattern
+
+```swift
+// Registration errors
+do {
+    try wearables.startRegistration()
+} catch let error as RegistrationError {
+    switch error {
+    case .metaAIAppNotInstalled:
+        showError("Please install the Meta AI app")
+    case .developerModeNotEnabled:
+        showError("Enable Developer Mode in Meta AI app")
+    default:
+        showError("Registration failed: \(error.localizedDescription)")
+    }
+}
+
+// Streaming errors
+enum StreamSessionError {
+    case internalError
+    case deviceNotFound
+    case deviceNotConnected
+    case timeout
+    case videoStreamingError
+    case audioStreamingError
+    case permissionDenied
+}
+
+// Custom app error type
+enum GlassesError: Error, LocalizedError {
+    case sdkNotAvailable
+    case deviceNotFound
+    case notConnected
+    case permissionDenied
+    case connectionFailed(String)
+    case streamFailed(String)
+    case audioNotSupported
+    
+    var errorDescription: String? {
+        switch self {
+        case .sdkNotAvailable:
+            return "Meta SDK is not available"
+        case .deviceNotFound:
+            return "No glasses found. Make sure they're paired in Meta AI app"
+        case .notConnected:
+            return "Glasses not connected"
+        case .permissionDenied:
+            return "Camera permission denied"
+        case .connectionFailed(let msg):
+            return "Connection failed: \(msg)"
+        case .streamFailed(let msg):
+            return "Stream failed: \(msg)"
+        case .audioNotSupported:
+            return "Audio streaming not yet supported by SDK"
+        }
+    }
+}
+```
+
+---
+
+## Code Style Rules
+
+### 1. Use SwiftUI for All Views
+```swift
+// GOOD
+struct StreamView: View {
+    @StateObject private var viewModel = StreamSessionViewModel()
+    
+    var body: some View {
+        // View content
+    }
+}
+
+// BAD - Don't use UIKit views unless absolutely necessary
+class StreamViewController: UIViewController { }
+```
+
+### 2. MVVM Separation
+- Views: Display only, no business logic
+- ViewModels: All SDK interaction, state management, business logic
+- Models: Data structures only
+
+### 3. Dependency Injection for Testability
+```swift
+// GOOD - Protocol-based injection
+protocol WearablesInterface {
+    var registrationState: RegistrationState { get }
+    var devices: [DeviceIdentifier] { get }
+    func startRegistration() throws
+}
+
+class ViewModel {
+    private let wearables: any WearablesInterface
+    
+    init(wearables: any WearablesInterface = Wearables.shared) {
+        self.wearables = wearables
+    }
+}
+
+// BAD - Direct singleton access everywhere
+class ViewModel {
+    func connect() {
+        Wearables.shared.startRegistration() // Hard to test
+    }
+}
+```
+
+### 4. Wrap Mock Imports in DEBUG
+```swift
+// GOOD
+#if DEBUG
+import MWDATMockDevice
+
+func setupMockDevice() {
+    MockDeviceKit.enable()
+}
+#endif
+
+// BAD - Mock code in release builds
+import MWDATMockDevice // Will fail in production
+```
+
+### 5. MainActor for UI Updates
+```swift
+// GOOD - Listener callbacks dispatched to MainActor
+videoFrameToken = session.videoFramePublisher.listen { frame in
+    Task { @MainActor in
+        self.currentFrame = frame.makeUIImage()
+    }
+}
+
+// BAD - UI updates from background
+videoFrameToken = session.videoFramePublisher.listen { frame in
+    self.currentFrame = frame.makeUIImage() // Crash risk
+}
+```
+
+### 6. Proper Resource Cleanup
+```swift
+// GOOD - Always clean up in deinit
+deinit {
+    deviceTask?.cancel()
+    
+    Task {
+        await videoFrameToken?.cancel()
+        await streamSession?.stop()
+    }
+}
+
+// BAD - Leaking resources
+deinit {
+    // Nothing here = memory leaks and zombie listeners
+}
+```
+
+---
+
+## Common Gotchas & Warnings
+
+### ⚠️ Critical Issues
+
+1. **Registration MUST complete before devices appear**
+   ```swift
+   // WRONG - Checking devices before registration
+   let devices = wearables.devices // Always empty!
+   
+   // RIGHT - Wait for .registered state first
+   if wearables.registrationState == .registered {
+       let devices = wearables.devices
+   }
+   ```
+
+2. **Meta AI app must have Developer Mode enabled**
+   - Open Meta AI app → Settings → Developer Mode → Enable
+   - Required for `MetaAppID` of "0" during development
+
+3. **Glasses must be paired in Meta AI app FIRST**
+   - The DAT SDK cannot pair glasses directly
+   - User must complete pairing in Meta AI app before your app can detect them
+
+4. **URL scheme MUST match Meta Developer Portal**
+   - Info.plist `AppLinkURLScheme` must exactly match what's registered
+   - Mismatch = OAuth callbacks silently fail
+
+5. **Audio streaming NOT supported**
+   ```swift
+   // The Meta DAT SDK does NOT support microphone streaming from glasses
+   // Use iPhone microphone for wake word detection instead
+   try await provider.startAudioStream() // Will throw GlassesError.audioNotSupported
+   ```
+
+### ⚡ Performance Issues
+
+1. **Cancel Tasks in deinit**
+   - Uncancelled Tasks cause memory leaks
+   - Zombie listeners keep receiving callbacks
+
+2. **Don't call configure() multiple times**
+   - SDK initialization is expensive
+   - Multiple calls cause undefined behavior
+
+3. **Use weak self in listeners**
+   ```swift
+   token = publisher.listen { [weak self] value in
+       guard let self else { return }
+       // Use self
+   }
+   ```
+
+### 🔧 Debugging Tips
+
+1. **Check registration state first** when devices aren't appearing
+2. **Enable verbose logging** in DEBUG builds
+3. **Use mock mode** when glasses aren't available
+4. **Console output** `🕶️ MetaGlassesManager: Using MOCK provider` confirms mock mode
+
+---
+
+## Info.plist Configuration
+
+**REQUIRED** keys for Meta Wearables DAT SDK:
+
+```xml
+<!-- Meta Wearables SDK Configuration -->
+<key>MWDAT</key>
+<dict>
+    <key>AppLinkURLScheme</key>
+    <string>clipapp://</string>
+    <key>MetaAppID</key>
+    <string>YOUR_META_APP_ID</string>
+    <key>ClientToken</key>
+    <string>YOUR_CLIENT_TOKEN</string>
+    <key>TeamID</key>
+    <string>YOUR_APPLE_TEAM_ID</string>
+</dict>
+
+<!-- Background Modes for Bluetooth -->
+<key>UIBackgroundModes</key>
+<array>
+    <string>bluetooth-peripheral</string>
+    <string>external-accessory</string>
+</array>
+
+<!-- Bluetooth Permission -->
+<key>NSBluetoothAlwaysUsageDescription</key>
+<string>Needed to connect to Meta AI Glasses</string>
+
+<!-- External Accessory Protocol -->
+<key>UISupportedExternalAccessoryProtocols</key>
+<array>
+    <string>com.meta.ar.wearable</string>
+</array>
+
+<!-- URL Schemes to Query -->
+<key>LSApplicationQueriesSchemes</key>
+<array>
+    <string>fb-viewapp</string>
+</array>
+
+<!-- Camera Permission (for photo capture) -->
+<key>NSCameraUsageDescription</key>
+<string>Required to capture photos from glasses</string>
+
+<!-- Microphone Permission (for iPhone-based wake word) -->
+<key>NSMicrophoneUsageDescription</key>
+<string>Required for voice commands</string>
+
+<!-- Location Permission (required for BLE scanning on iOS) -->
+<key>NSLocationWhenInUseUsageDescription</key>
+<string>Required to discover nearby glasses via Bluetooth</string>
+```
+
+---
+
 ## Design Rules (Liquid Glass)
 
-- Use `.glassEffect()` for chrome and controls.
-- Use `.glassEffect(.regular.interactive())` for tappable elements.
-- Avoid glass on primary content blocks (transcripts, timeline cards).
+For iOS 26+ Liquid Glass UI:
 
-Docs:  
+- Use `.glassEffect()` for chrome and controls
+- Use `.glassEffect(.regular.interactive())` for tappable elements
+- Avoid glass on primary content blocks (transcripts, timeline cards)
+- Warm off-white background, soft surfaces, subtle shadows
+- Generous spacing; avoid visual noise
+
+**Docs:**  
 `/Applications/Xcode.app/Contents/PlugIns/IDEIntelligenceChat.framework/Versions/A/Resources/AdditionalDocumentation/`
 
 ---
 
-## Product Structure (Reference)
+## File Structure
 
 ```
 ClipApp/
-├── App/                 // ClipApp.swift, GlobalViewState.swift
-├── Core/                // Managers, Navigation, DesignSystem
-├── Features/Feed/       // TimelineView, MomentCard, ClipDetailView
-├── Models/              // ClipMetadata, SearchResult
-└── Services/            // APIService, MockData
+├── App/
+│   ├── ClipApp.swift              # @main entry, SDK configuration
+│   └── GlobalViewState.swift      # App-wide state
+├── Core/
+│   ├── DesignSystem/
+│   │   ├── Colors.swift
+│   │   ├── Gradients.swift
+│   │   └── Typography.swift
+│   ├── Managers/
+│   │   ├── MetaGlasses/
+│   │   │   ├── MetaGlassesManager.swift    # Unified interface
+│   │   │   ├── GlassesStreamProvider.swift # Protocol
+│   │   │   ├── MetaSDKProvider.swift       # Real SDK wrapper
+│   │   │   └── MockGlassesProvider.swift   # Mock for testing
+│   │   ├── WakeWordDetector.swift
+│   │   └── CameraManager.swift
+│   └── Navigation/
+│       └── RootView.swift
+├── Features/
+│   └── Feed/
+│       ├── TimelineView.swift
+│       ├── MomentCard.swift
+│       └── ClipDetailView.swift
+├── Models/
+│   ├── ClipMetadata.swift
+│   └── SearchResult.swift
+├── Services/
+│   ├── APIService.swift
+│   └── MockData.swift
+└── Info.plist                      # REQUIRED MWDAT keys
 ```
 
 ---
 
-## Wake Word (Clip That)
+## Wake Word Integration
 
 Location: `Core/Managers/WakeWordDetector.swift`
 
 ```swift
+// Wake word uses iPhone microphone (NOT glasses microphone)
 wakeWordDetector.startListening(audioFormat: format)
 wakeWordDetector.processAudioBuffer(buffer)
-wakeWordDetector.onClipTriggered = { transcript in ... }
+wakeWordDetector.onClipTriggered = { transcript in
+    // Trigger 30s video capture
+}
 ```
+
+**Notes:**
+- On-device recognition
+- 30s rolling transcript buffer
+- Auto restart every 50s
+- Uses iPhone mic since glasses audio not supported by SDK
 
 ---
 
-## Meta Wearables SDK
+## Quick Reference
 
-SPM URL: `https://github.com/facebook/meta-wearables-dat-ios`  
-Docs: `https://wearables.developer.meta.com/docs/develop`
-
-### Mock Mode
-
-The app supports a mock glasses provider for development without physical hardware.
-
-- **Environment Variable:** `USE_MOCK_GLASSES=1`
-- **Simulator:** Use `SIMCTL_CHILD_USE_MOCK_GLASSES=1` prefix before `xcrun simctl launch`
-- **Location:** `Core/Managers/MetaGlasses/`
-  - `MetaGlassesManager.swift` - Unified interface, auto-selects provider
-  - `MockGlassesProvider.swift` - Generates synthetic video/audio
-  - `MetaSDKProvider.swift` - Real SDK integration
-
-When mock mode is enabled, you'll see: `🕶️ MetaGlassesManager: Using MOCK provider`
-
+| Task | Pattern |
+|------|---------|
+| Initialize SDK | `try Wearables.configure()` once in `@main` |
+| Get SDK instance | `Wearables.shared` |
+| Start registration | `try wearables.startRegistration()` |
+| Handle OAuth callback | `try await wearables.handleUrl(url)` |
+| Check registration | `wearables.registrationState == .registered` |
+| Get devices | `wearables.devices` (after registration) |
+| Get device object | `wearables.deviceForIdentifier(id)` |
+| Start stream | `await session.start()` |
+| Stop stream | `await session.stop()` |
+| Check mock mode | `ProcessInfo.processInfo.environment["USE_MOCK_GLASSES"] != nil` |

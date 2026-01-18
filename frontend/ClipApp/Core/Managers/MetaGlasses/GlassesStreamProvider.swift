@@ -59,7 +59,7 @@ enum GlassesError: Error, LocalizedError, Equatable, Sendable {
     var errorDescription: String? {
         switch self {
         case .notConnected:
-            return "Glasses not connected. Tap Retry to reconnect."
+            return "Glasses not connected"
         case .connectionFailed(let reason):
             return "Connection failed: \(reason)"
         case .streamFailed(let reason):

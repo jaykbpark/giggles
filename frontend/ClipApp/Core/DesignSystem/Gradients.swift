@@ -51,6 +51,16 @@ enum AppGradients {
         startPoint: .topLeading,
         endPoint: .bottomTrailing
     )
+    
+    // Disabled state gradient (greyed out)
+    static let disabled = LinearGradient(
+        colors: [
+            Color.gray.opacity(0.4),
+            Color.gray.opacity(0.3)
+        ],
+        startPoint: .topLeading,
+        endPoint: .bottomTrailing
+    )
 }
 
 // MARK: - Legacy Support

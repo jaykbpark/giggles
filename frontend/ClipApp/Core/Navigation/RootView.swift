@@ -23,6 +23,7 @@ struct RootView: View {
     @State private var buttonBounceScale: CGFloat = 1.0
     @State private var cancellables = Set<AnyCancellable>()
     @State private var showBufferTooShortMessage = false
+    @State private var showNoGlassesMessage = false
     @State private var isSavingClip = false
     @State private var showGlassesPreview = false
     @State private var showNoVideoFramesMessage = false
@@ -325,6 +326,11 @@ struct RootView: View {
     
     @ViewBuilder
     private var toastMessages: some View {
+        // No glasses connected message
+        if showNoGlassesMessage {
+            toastView(icon: "eyeglasses", text: "Connect your Meta glasses to record", color: .black.opacity(0.8))
+        }
+        
         // Buffer too short message
         if showBufferTooShortMessage {
             toastView(icon: nil, text: "Buffer too short. Wait a moment...", color: .black.opacity(0.8))
@@ -843,9 +849,27 @@ struct RootView: View {
     
     // MARK: - Record Button
     
+    private var canRecord: Bool {
+        glassesManager.connectionState.isConnected
+    }
+    
     private var recordButton: some View {
         Button {
-            triggerRecording()
+            if canRecord {
+                triggerRecording()
+            } else {
+                // Show toast prompting user to connect glasses
+                HapticManager.playLight()
+                withAnimation {
+                    showNoGlassesMessage = true
+                }
+                // Auto-dismiss after 2.5 seconds
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+                    withAnimation {
+                        showNoGlassesMessage = false
+                    }
+                }
+            }
         } label: {
             ZStack {
                 // Completion burst rings (behind everything)
@@ -876,7 +900,7 @@ struct RootView: View {
                 Circle()
                     .trim(from: 0, to: recordProgress)
                     .stroke(
-                        AppColors.accent.opacity(0.6),
+                        (canRecord ? AppColors.accent : Color.gray).opacity(0.6),
                         style: StrokeStyle(lineWidth: 2, lineCap: .round)
                     )
                     .rotationEffect(.degrees(-90))
@@ -889,12 +913,12 @@ struct RootView: View {
                     .glassEffect(.regular.interactive(), in: .circle)
 
                 Circle()
-                    .stroke(AppColors.accent.opacity(0.25), lineWidth: 1)
+                    .stroke((canRecord ? AppColors.accent : Color.gray).opacity(0.25), lineWidth: 1)
                     .frame(width: 72, height: 72)
 
                 // Accent core
                 Circle()
-                    .fill(AppGradients.accent)
+                    .fill(canRecord ? AppGradients.accent : AppGradients.disabled)
                     .frame(width: 56, height: 56)
                     .scaleEffect(buttonBounceScale)
 
@@ -919,16 +943,20 @@ struct RootView: View {
             .frame(width: 96, height: 96)
         }
         .buttonStyle(RecordButtonStyle())
-        .shadow(color: AppColors.accent.opacity(showCompletionBurst ? 0.5 : 0.25), radius: showCompletionBurst ? 24 : 16, y: 10)
+        .shadow(color: (canRecord ? AppColors.accent : Color.gray).opacity(showCompletionBurst ? 0.5 : 0.25), radius: showCompletionBurst ? 24 : 16, y: 10)
+        .opacity(canRecord ? 1.0 : 0.6)
         .onLongPressGesture(minimumDuration: 0, pressing: { isPressing in
-            if isPressing {
+            if isPressing && canRecord {
                 HapticManager.playLight()
             }
         }, perform: {})
-        .accessibilityLabel("Record clip")
+        .accessibilityLabel(canRecord ? "Record clip" : "Record clip (glasses not connected)")
     }
     
     private func triggerRecording() {
+        // Require glasses connection
+        guard canRecord else { return }
+        
         // Prevent double-tap
         guard !isRecording else { return }
         

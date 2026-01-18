@@ -7,6 +7,7 @@ from google import genai
 from pathlib import Path
 from backend.database_operations import DatabaseOperations
 import json
+import time
 
 '''
 # test area
@@ -61,7 +62,19 @@ class TranscriptProcessor:
             model="gemini-3-flash-preview",
             contents=prompt,
         )
-        prompt_and_tags = json.loads(response.text)
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                prompt_and_tags = json.loads(response.text)
+            except json.JSONDecodeError as e:
+                if attempt < max_retries - 1:
+                    time.sleep(0.5) # Wait before retrying
+                else:
+                    print("Max retries reached. Failed to parse JSON.")
+                    return None # Or raise the exception
+            except Exception as e: # Catch other potential errors
+                print(f"An unexpected error occurred: {e}")
+                return None
         return (transcription_text, prompt_and_tags["prompt"], prompt_and_tags["tags"])
 
 # inputs into gemini and processes, puts tags in, checks against db

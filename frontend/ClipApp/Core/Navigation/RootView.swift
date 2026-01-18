@@ -34,7 +34,13 @@ struct RootView: View {
                     connectionState: glassesManager.connectionState,
                     batteryLevel: glassesManager.batteryLevel,
                     deviceName: glassesManager.deviceName,
-                    isMockMode: glassesManager.isMockMode
+                    isMockMode: glassesManager.isMockMode,
+                    debugStatus: glassesManager.sdkDebugStatus,
+                    onRetryTap: {
+                        Task {
+                            try? await glassesManager.connect()
+                        }
+                    }
                 )
                 .padding(.horizontal, 20)
                 .padding(.bottom, 8)
@@ -66,6 +72,21 @@ struct RootView: View {
                     }
                 }
                 .transition(.opacity)
+            }
+            
+            // Live glasses preview (top-right corner)
+            if glassesManager.isVideoStreaming && selectedClip == nil && !showSearch {
+                VStack {
+                    HStack {
+                        Spacer()
+                        GlassesPreviewView()
+                            .padding(.top, 70)
+                            .padding(.trailing, 16)
+                    }
+                    Spacer()
+                }
+                .transition(.opacity)
+                .zIndex(10)
             }
 
             // Detail view overlay
@@ -250,6 +271,21 @@ struct RootView: View {
             title: "Clip \(Date().formatted(date: .omitted, time: .shortened))",
             transcript: "[Recording]",
             topics: ["Clip"],
+            capturedAt: Date(),
+            duration: 30.0
+        )
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+            viewState.clips.insert(newClip, at: 0)
+        }
+    }
+    
+    private func addMockClipToTimeline() {
+        let newClip = ClipMetadata(
+            id: UUID(),
+            localIdentifier: "mock-\(UUID().uuidString)",
+            title: "Mock Clip \(Date().formatted(date: .omitted, time: .shortened))",
+            transcript: "[Mock recording - no video]",
+            topics: ["Mock", "Debug"],
             capturedAt: Date(),
             duration: 30.0
         )
@@ -565,6 +601,8 @@ struct GlassesStatusCard: View {
     var batteryLevel: Int = 82
     var deviceName: String = "Ray-Ban Meta"
     var isMockMode: Bool = false
+    var debugStatus: String = ""
+    var onRetryTap: (() -> Void)? = nil
     
     private var statusColor: Color {
         switch connectionState {
@@ -616,6 +654,13 @@ struct GlassesStatusCard: View {
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(.secondary)
                 }
+                
+                // Debug status
+                if !debugStatus.isEmpty {
+                    Text(debugStatus)
+                        .font(.system(size: 10, weight: .medium, design: .monospaced))
+                        .foregroundStyle(.secondary.opacity(0.7))
+                }
             }
 
             Spacer()
@@ -628,6 +673,17 @@ struct GlassesStatusCard: View {
             // Right: Battery with visual indicator (only show when connected)
             if connectionState.isConnected {
                 GlassesBatteryView(level: batteryLevel)
+            } else {
+                // Retry button when not connected
+                Button(action: { onRetryTap?() }) {
+                    Text("Retry")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.blue)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(.blue.opacity(0.15))
+                        .clipShape(Capsule())
+                }
             }
         }
         .padding(.vertical, 14)

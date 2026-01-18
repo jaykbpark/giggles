@@ -16,16 +16,8 @@
 	<string>Clip uses Bluetooth to connect to your Ray-Ban Meta glasses.</string>
 	<key>NSBluetoothPeripheralUsageDescription</key>
 	<string>Clip uses Bluetooth to connect to your Ray-Ban Meta glasses.</string>
-	<key>MWDAT</key>
-	<dict>
-		<key>MetaAppID</key>
-		<string>1599598524565922</string>
-		<key>Analytics</key>
-		<dict>
-			<key>OptOut</key>
-			<true/>
-		</dict>
-	</dict>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Clip uses local network to communicate with your glasses.</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -35,5 +27,17 @@
 			</array>
 		</dict>
 	</array>
+	<key>MWDAT</key>
+	<dict>
+		<key>MetaAppID</key>
+		<string>1599598524565922</string>
+		<key>Analytics</key>
+		<dict>
+			<key>OptOut</key>
+			<true/>
+		</dict>
+		<key>AppLinkURLScheme</key>
+		<string>clip1599598524565922://</string>
+	</dict>
 </dict>
 </plist>

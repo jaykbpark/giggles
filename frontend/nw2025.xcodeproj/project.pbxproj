@@ -7,21 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		4EC031732F16500000552603 /* FeedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031742F16500000552603 /* FeedView.swift */; };
-		4EC031672F16300000552603 /* WakeWordDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031662F16300000552603 /* WakeWordDetector.swift */; };
-		4EC031642F16252C00552603 /* Gradients.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031652F16252C00552603 /* Gradients.swift */; };
-		4EC031902F17800000552603 /* TitleGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031912F17800000552603 /* TitleGenerator.swift */; };
-		4EC031922F17800000552603 /* FilterBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031932F17800000552603 /* FilterBar.swift */; };
-		4EC031A02F18000000552603 /* AudioCaptureProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031A12F18000000552603 /* AudioCaptureProvider.swift */; };
-		4EC031A22F18000000552603 /* AudioCaptureManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031A32F18000000552603 /* AudioCaptureManager.swift */; };
-		4EC031A42F18000000552603 /* BluetoothAudioProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031A52F18000000552603 /* BluetoothAudioProvider.swift */; };
-		4EC031A62F18000000552603 /* MockAudioProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031A72F18000000552603 /* MockAudioProvider.swift */; };
-		4EC031A82F18000000552603 /* ClipExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031A92F18000000552603 /* ClipExporter.swift */; };
-		4EC031AA2F18000000552603 /* ClipCaptureCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031AB2F18000000552603 /* ClipCaptureCoordinator.swift */; };
-		4EC031B32F19000000552603 /* StateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031B22F19000000552603 /* StateView.swift */; };
-		4EC031B52F19000000552603 /* PresageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031B42F19000000552603 /* PresageService.swift */; };
-		4EC031B92F1A000000552603 /* ElevenLabsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031BA2F1A000000552603 /* ElevenLabsService.swift */; };
-		4EC031B72F19000000552603 /* SmartSpectraSwiftSDK in Frameworks */ = {isa = PBXBuildFile; productRef = 4EC031B82F19000000552603 /* SmartSpectraSwiftSDK */; };
 		4EC031532F16242C00552603 /* Colors.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC0313D2F16242C00552603 /* Colors.swift */; };
 		4EC031542F16242C00552603 /* APIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC0314F2F16242C00552603 /* APIService.swift */; };
 		4EC031552F16242C00552603 /* ClipApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031372F16242C00552603 /* ClipApp.swift */; };
@@ -37,6 +22,9 @@
 		4EC031612F16242C00552603 /* GlobalViewState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031382F16242C00552603 /* GlobalViewState.swift */; };
 		4EC031622F16242C00552603 /* ClipDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031472F16242C00552603 /* ClipDetailView.swift */; };
 		4EC031632F16242C00552603 /* SkeletonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC0313A2F16242C00552603 /* SkeletonView.swift */; };
+		4EC031642F16252C00552603 /* Gradients.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031652F16252C00552603 /* Gradients.swift */; };
+		4EC031672F16300000552603 /* WakeWordDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031662F16300000552603 /* WakeWordDetector.swift */; };
+		4EC031732F16500000552603 /* FeedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031742F16500000552603 /* FeedView.swift */; };
 		4EC031762F16400000552603 /* LaunchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031752F16400000552603 /* LaunchView.swift */; };
 		4EC031792F16400000552603 /* TimelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC0317A2F16400000552603 /* TimelineView.swift */; };
 		4EC0317B2F16400000552603 /* MomentCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC0317C2F16400000552603 /* MomentCard.swift */; };
@@ -46,6 +34,19 @@
 		4EC031832F16700000552603 /* MetaSDKProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031842F16700000552603 /* MetaSDKProvider.swift */; };
 		4EC031852F16700000552603 /* MockGlassesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031862F16700000552603 /* MockGlassesProvider.swift */; };
 		4EC031872F16700000552603 /* GlassesStreamProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031882F16700000552603 /* GlassesStreamProvider.swift */; };
+		4EC031902F17800000552603 /* TitleGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031912F17800000552603 /* TitleGenerator.swift */; };
+		4EC031922F17800000552603 /* FilterBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031932F17800000552603 /* FilterBar.swift */; };
+		4EC031A02F18000000552603 /* AudioCaptureProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031A12F18000000552603 /* AudioCaptureProvider.swift */; };
+		4EC031A22F18000000552603 /* AudioCaptureManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031A32F18000000552603 /* AudioCaptureManager.swift */; };
+		4EC031A42F18000000552603 /* BluetoothAudioProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031A52F18000000552603 /* BluetoothAudioProvider.swift */; };
+		4EC031A62F18000000552603 /* MockAudioProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031A72F18000000552603 /* MockAudioProvider.swift */; };
+		4EC031A82F18000000552603 /* ClipExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031A92F18000000552603 /* ClipExporter.swift */; };
+		4EC031AA2F18000000552603 /* ClipCaptureCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031AB2F18000000552603 /* ClipCaptureCoordinator.swift */; };
+		4EC031B02F19000000552603 /* GlassesPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031B12F19000000552603 /* GlassesPreviewView.swift */; };
+		4EC031B32F19000000552603 /* StateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031B22F19000000552603 /* StateView.swift */; };
+		4EC031B52F19000000552603 /* PresageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031B42F19000000552603 /* PresageService.swift */; };
+		4EC031B72F19000000552603 /* SmartSpectraSwiftSDK in Frameworks */ = {isa = PBXBuildFile; productRef = 4EC031B82F19000000552603 /* SmartSpectraSwiftSDK */; };
+		4EC031B92F1A000000552603 /* ElevenLabsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031BA2F1A000000552603 /* ElevenLabsService.swift */; };
 		EDE0E54B2F1C414600788AE2 /* MWDATCamera in Frameworks */ = {isa = PBXBuildFile; productRef = EDE0E54A2F1C414600788AE2 /* MWDATCamera */; };
 		EDE0E54D2F1C414600788AE2 /* MWDATCore in Frameworks */ = {isa = PBXBuildFile; productRef = EDE0E54C2F1C414600788AE2 /* MWDATCore */; };
 		EDE0E54F2F1C414600788AE2 /* MWDATMockDevice in Frameworks */ = {isa = PBXBuildFile; productRef = EDE0E54E2F1C414600788AE2 /* MWDATMockDevice */; };
@@ -71,10 +72,10 @@
 		4EC031652F16252C00552603 /* Gradients.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Gradients.swift; sourceTree = "<group>"; };
 		4EC031662F16300000552603 /* WakeWordDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WakeWordDetector.swift; sourceTree = "<group>"; };
 		4EC031682F16300000552603 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		4EC031742F16500000552603 /* FeedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedView.swift; sourceTree = "<group>"; };
 		4EC031752F16400000552603 /* LaunchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchView.swift; sourceTree = "<group>"; };
 		4EC0317A2F16400000552603 /* TimelineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineView.swift; sourceTree = "<group>"; };
 		4EC0317C2F16400000552603 /* MomentCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MomentCard.swift; sourceTree = "<group>"; };
-		4EC031742F16500000552603 /* FeedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedView.swift; sourceTree = "<group>"; };
 		4EC0317E2F16600000552603 /* ClipsGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipsGridView.swift; sourceTree = "<group>"; };
 		4EC031802F16600000552603 /* ClipsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipsListView.swift; sourceTree = "<group>"; };
 		4EC031822F16700000552603 /* MetaGlassesManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetaGlassesManager.swift; sourceTree = "<group>"; };
@@ -89,6 +90,7 @@
 		4EC031A72F18000000552603 /* MockAudioProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockAudioProvider.swift; sourceTree = "<group>"; };
 		4EC031A92F18000000552603 /* ClipExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipExporter.swift; sourceTree = "<group>"; };
 		4EC031AB2F18000000552603 /* ClipCaptureCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipCaptureCoordinator.swift; sourceTree = "<group>"; };
+		4EC031B12F19000000552603 /* GlassesPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassesPreviewView.swift; sourceTree = "<group>"; };
 		4EC031B22F19000000552603 /* StateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StateView.swift; sourceTree = "<group>"; };
 		4EC031B42F19000000552603 /* PresageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PresageService.swift; sourceTree = "<group>"; };
 		4EC031BA2F1A000000552603 /* ElevenLabsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElevenLabsService.swift; sourceTree = "<group>"; };
@@ -169,28 +171,6 @@
 			path = Managers;
 			sourceTree = "<group>";
 		};
-		4EC031AC2F18000000552603 /* AudioCapture */ = {
-			isa = PBXGroup;
-			children = (
-				4EC031A12F18000000552603 /* AudioCaptureProvider.swift */,
-				4EC031A32F18000000552603 /* AudioCaptureManager.swift */,
-				4EC031A52F18000000552603 /* BluetoothAudioProvider.swift */,
-				4EC031A72F18000000552603 /* MockAudioProvider.swift */,
-			);
-			path = AudioCapture;
-			sourceTree = "<group>";
-		};
-		4EC031892F16700000552603 /* MetaGlasses */ = {
-			isa = PBXGroup;
-			children = (
-				4EC031882F16700000552603 /* GlassesStreamProvider.swift */,
-				4EC031822F16700000552603 /* MetaGlassesManager.swift */,
-				4EC031842F16700000552603 /* MetaSDKProvider.swift */,
-				4EC031862F16700000552603 /* MockGlassesProvider.swift */,
-			);
-			path = MetaGlasses;
-			sourceTree = "<group>";
-		};
 		4EC031452F16242C00552603 /* Navigation */ = {
 			isa = PBXGroup;
 			children = (
@@ -218,6 +198,7 @@
 				4EC0317E2F16600000552603 /* ClipsGridView.swift */,
 				4EC031802F16600000552603 /* ClipsListView.swift */,
 				4EC031742F16500000552603 /* FeedView.swift */,
+				4EC031B12F19000000552603 /* GlassesPreviewView.swift */,
 				4EC0317C2F16400000552603 /* MomentCard.swift */,
 				4EC0317A2F16400000552603 /* TimelineView.swift */,
 			);
@@ -273,6 +254,28 @@
 				4EC031682F16300000552603 /* Info.plist */,
 			);
 			path = ClipApp;
+			sourceTree = "<group>";
+		};
+		4EC031892F16700000552603 /* MetaGlasses */ = {
+			isa = PBXGroup;
+			children = (
+				4EC031882F16700000552603 /* GlassesStreamProvider.swift */,
+				4EC031822F16700000552603 /* MetaGlassesManager.swift */,
+				4EC031842F16700000552603 /* MetaSDKProvider.swift */,
+				4EC031862F16700000552603 /* MockGlassesProvider.swift */,
+			);
+			path = MetaGlasses;
+			sourceTree = "<group>";
+		};
+		4EC031AC2F18000000552603 /* AudioCapture */ = {
+			isa = PBXGroup;
+			children = (
+				4EC031A12F18000000552603 /* AudioCaptureProvider.swift */,
+				4EC031A32F18000000552603 /* AudioCaptureManager.swift */,
+				4EC031A52F18000000552603 /* BluetoothAudioProvider.swift */,
+				4EC031A72F18000000552603 /* MockAudioProvider.swift */,
+			);
+			path = AudioCapture;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -389,6 +392,7 @@
 				4EC031A62F18000000552603 /* MockAudioProvider.swift in Sources */,
 				4EC031A82F18000000552603 /* ClipExporter.swift in Sources */,
 				4EC031AA2F18000000552603 /* ClipCaptureCoordinator.swift in Sources */,
+				4EC031B02F19000000552603 /* GlassesPreviewView.swift in Sources */,
 				4EC031B32F19000000552603 /* StateView.swift in Sources */,
 				4EC031B52F19000000552603 /* PresageService.swift in Sources */,
 				4EC031B92F1A000000552603 /* ElevenLabsService.swift in Sources */,
@@ -524,10 +528,14 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 8DX2TD97D2;
+				DEVELOPMENT_TEAM = 64UF22G88Y;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ClipApp/Info.plist;
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Clip uses Bluetooth to connect to your Ray-Ban Meta glasses.";
+				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = "Clip uses Bluetooth to connect to your Ray-Ban Meta glasses.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Clip needs camera access to stream video from your Ray-Ban Meta glasses.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Clip needs location access to discover your Ray-Ban Meta glasses via Bluetooth.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Clip needs microphone access to capture audio from your Ray-Ban Meta glasses.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Clip uses speech recognition to detect \"Clip That\" voice commands to save moments from your glasses.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -540,7 +548,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = me.park.jay.nw2025;
+				PRODUCT_BUNDLE_IDENTIFIER = me.lin.erik.nw2026;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -559,10 +567,14 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 8DX2TD97D2;
+				DEVELOPMENT_TEAM = 64UF22G88Y;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = ClipApp/Info.plist;
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "Clip uses Bluetooth to connect to your Ray-Ban Meta glasses.";
+				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = "Clip uses Bluetooth to connect to your Ray-Ban Meta glasses.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "Clip needs camera access to stream video from your Ray-Ban Meta glasses.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Clip needs location access to discover your Ray-Ban Meta glasses via Bluetooth.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Clip needs microphone access to capture audio from your Ray-Ban Meta glasses.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Clip uses speech recognition to detect \"Clip That\" voice commands to save moments from your glasses.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -575,7 +587,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = me.park.jay.nw2025;
+				PRODUCT_BUNDLE_IDENTIFIER = me.lin.erik.nw2026;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;

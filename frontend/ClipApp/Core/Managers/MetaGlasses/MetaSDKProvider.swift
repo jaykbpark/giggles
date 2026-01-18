@@ -1,11 +1,17 @@
 import AVFoundation
 import Combine
+import CoreLocation
 import CoreMedia
 import CoreVideo
 import UIKit
+import os.log
 
 import MWDATCore
 import MWDATCamera
+
+// #region agent log
+private let debugLog = OSLog(subsystem: "me.lin.erik.nw2026", category: "MetaSDK")
+// #endregion
 
 /// Real implementation of GlassesStreamProvider using Meta Wearables DAT SDK.
 /// This wraps the official Meta SDK for Ray-Ban Meta glasses integration.
@@ -69,6 +75,26 @@ final class MetaSDKProvider: GlassesStreamProvider {
     private(set) var batteryLevel: Int = 0
     private(set) var deviceName: String = "Ray-Ban Meta"
     
+    /// Debug status for UI display
+    var debugStatus: String {
+        guard let wearables = wearables else {
+            return "SDK:nil"
+        }
+        let regState: String
+        switch wearables.registrationState {
+        case .available: regState = "avail"
+        case .registered: regState = "reg"
+        case .registering: regState = "reg..."
+        case .unavailable: regState = "unavail"
+        @unknown default: regState = "?"
+        }
+        let devCount = wearables.devices.count
+        if devCount == 0 && wearables.registrationState == .registered {
+            return "\(regState) Dev:\(devCount) - Tap Retry to authorize"
+        }
+        return "\(regState) Dev:\(devCount)"
+    }
+    
     // MARK: - SDK State
     
     private var wearables: (any WearablesInterface)? {
@@ -85,6 +111,9 @@ final class MetaSDKProvider: GlassesStreamProvider {
     
     private var cancellables = Set<AnyCancellable>()
     
+    // Location manager for BLE device discovery (iOS requires location for BLE scanning)
+    private let locationManager = CLLocationManager()
+    
     // MARK: - Initialization
     
     init() {
@@ -95,6 +124,9 @@ final class MetaSDKProvider: GlassesStreamProvider {
             channels: 1,
             interleaved: false
         )
+        
+        // Request location permission (required for BLE device discovery on iOS)
+        locationManager.requestWhenInUseAuthorization()
         
         // Configure the SDK
         configureSDK()
@@ -116,7 +148,13 @@ final class MetaSDKProvider: GlassesStreamProvider {
         do {
             try Wearables.configure()
             wearables = Wearables.shared
+            // #region agent log H2,H3
+            os_log("[DEBUG-H2H3] SDK configured. RegState=%{public}@ DeviceCount=%{public}d", log: debugLog, type: .error, String(describing: wearables?.registrationState), wearables?.devices.count ?? 0)
+            // #endregion
         } catch {
+            // #region agent log H2
+            os_log("[DEBUG-H2] SDK config FAILED: %{public}@", log: debugLog, type: .error, String(describing: error))
+            // #endregion
             print("[MetaSDKProvider] Failed to configure SDK: \(error)")
             connectionStateSubject.send(.error(.sdkNotAvailable))
         }
@@ -134,6 +172,33 @@ final class MetaSDKProvider: GlassesStreamProvider {
         
         // Check initial state
         handleRegistrationStateChange(wearables.registrationState)
+        
+        // Start periodic device checking (devices may appear asynchronously)
+        startDevicePolling()
+    }
+    
+    private var devicePollTask: Task<Void, Never>?
+    
+    private func startDevicePolling() {
+        devicePollTask?.cancel()
+        devicePollTask = Task { [weak self] in
+            // Poll for devices every 2 seconds for 30 seconds
+            for _ in 0..<15 {
+                guard !Task.isCancelled else { return }
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                
+                guard let self = self else { return }
+                let deviceCount = self.wearables?.devices.count ?? 0
+                print("[MetaSDK] Device poll: \(deviceCount) devices")
+                
+                if deviceCount > 0 && self.connectionState != .connected {
+                    self.checkForDevices()
+                    if self.connectionState == .connected {
+                        return // Stop polling once connected
+                    }
+                }
+            }
+        }
     }
     
     private func handleRegistrationStateChange(_ state: RegistrationState) {
@@ -157,12 +222,21 @@ final class MetaSDKProvider: GlassesStreamProvider {
         guard let wearables = wearables else { return }
         
         let deviceIds = wearables.devices
+        // #region agent log H1,H5
+        os_log("[DEBUG-H1H5] checkForDevices: found %{public}d device(s)", log: debugLog, type: .error, deviceIds.count)
+        // #endregion
         guard let firstDeviceId = deviceIds.first,
               let device = wearables.deviceForIdentifier(firstDeviceId) else {
+            // #region agent log H1,H5
+            os_log("[DEBUG-H1H5] checkForDevices: NO devices found - sending deviceNotFound error", log: debugLog, type: .error)
+            // #endregion
             connectionStateSubject.send(.error(.deviceNotFound))
             return
         }
         
+        // #region agent log H5
+        os_log("[DEBUG-H5] checkForDevices: found device '%{public}@' linkState=%{public}@", log: debugLog, type: .error, device.name, String(describing: device.linkState))
+        // #endregion
         currentDevice = device
         deviceName = device.name
         observeDeviceLinkState(device)
@@ -205,49 +279,77 @@ final class MetaSDKProvider: GlassesStreamProvider {
         
         connectionStateSubject.send(.connecting)
         
-        // Check registration state
-        switch wearables.registrationState {
-        case .registered:
-            // Already registered, check for devices
+        // Check registration state first
+        print("[MetaSDK] Registration state: \(wearables.registrationState)")
+        print("[MetaSDK] Devices count: \(wearables.devices.count)")
+        
+        // If we have devices, try to connect to them
+        if wearables.devices.count > 0 {
             checkForDevices()
+            if connectionState == .connected {
+                print("[MetaSDK] Connected to existing device!")
+                return
+            }
+        }
+        
+        // No devices found - need to trigger the Meta AI app authorization flow
+        // startRegistration() opens Meta AI app for the user to grant access
+        print("[MetaSDK] No devices found. Registration state: \(wearables.registrationState)")
+        print("[MetaSDK] Opening Meta AI app for authorization...")
+        
+        do {
+            // startRegistration() should open Meta AI app
+            try wearables.startRegistration()
+            print("[MetaSDK] startRegistration called - Meta AI app should open")
+            // The app will redirect back via URL scheme, handled by handleURL()
+            return
+        } catch {
+            print("[MetaSDK] startRegistration error: \(error)")
+            print("[MetaSDK] Trying requestPermission as fallback...")
+        }
+        
+        // Fallback: try requestPermission
+        do {
+            let status = try await wearables.requestPermission(.camera)
+            print("[MetaSDK] Permission status: \(status)")
             
-            // Wait briefly for connection
-            try await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
-            
-            if connectionState != .connected {
-                // Check if we need camera permission
-                do {
-                    let status = try await wearables.checkPermissionStatus(.camera)
-                    if status == .denied {
-                        connectionStateSubject.send(.error(.permissionDenied))
-                        throw GlassesError.permissionDenied
+            if status == .granted {
+                // Permission granted, check for devices
+                print("[MetaSDK] Permission granted! Checking for devices...")
+                
+                // Give SDK time to discover devices after permission grant
+                for attempt in 1...5 {
+                    try await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
+                    print("[MetaSDK] Device check attempt \(attempt), count: \(wearables.devices.count)")
+                    
+                    if wearables.devices.count > 0 {
+                        checkForDevices()
+                        if connectionState == .connected {
+                            print("[MetaSDK] Connected!")
+                            return
+                        }
                     }
-                } catch {
-                    // Permission check failed, but we might still be able to connect
                 }
+                
+                // Still no devices after permission granted
+                print("[MetaSDK] Permission granted but no devices found")
+                connectionStateSubject.send(.error(.deviceNotFound))
+                
+            } else if status == .denied {
+                print("[MetaSDK] Permission denied by user")
+                connectionStateSubject.send(.error(.permissionDenied))
+                throw GlassesError.permissionDenied
+                
+            } else {
+                print("[MetaSDK] Permission status: \(status)")
+                connectionStateSubject.send(.disconnected)
             }
-            
-        case .available:
-            // Need to start registration
-            do {
-                try wearables.startRegistration()
-                // Registration will redirect to Meta AI app
-                // The connection will complete when handleUrl is called
-            } catch {
-                connectionStateSubject.send(.error(.connectionFailed(error.localizedDescription)))
-                throw GlassesError.connectionFailed(error.localizedDescription)
-            }
-            
-        case .registering:
-            // Already registering, wait for completion
-            break
-            
-        case .unavailable:
-            connectionStateSubject.send(.error(.sdkNotAvailable))
-            throw GlassesError.sdkNotAvailable
-            
-        @unknown default:
-            break
+        } catch let error as PermissionError {
+            print("[MetaSDK] Permission error: \(error)")
+            connectionStateSubject.send(.disconnected)
+        } catch {
+            print("[MetaSDK] Unexpected error: \(error)")
+            connectionStateSubject.send(.disconnected)
         }
     }
     
@@ -264,10 +366,45 @@ final class MetaSDKProvider: GlassesStreamProvider {
     
     /// Handle URL callback from Meta AI app after registration/permission flow
     func handleURL(_ url: URL) async -> Bool {
+        print("[MetaSDK] handleURL called: \(url)")
         guard let wearables = wearables else { return false }
         
         do {
-            return try await wearables.handleUrl(url)
+            let handled = try await wearables.handleUrl(url)
+            print("[MetaSDK] URL handled: \(handled)")
+            
+            if handled {
+                // After successful URL handling, poll for devices
+                print("[MetaSDK] URL callback successful! Checking for devices...")
+                
+                connectionStateSubject.send(.connecting)
+                
+                // Poll for devices - they may take a moment to appear
+                for attempt in 1...10 {
+                    try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
+                    
+                    let deviceCount = wearables.devices.count
+                    print("[MetaSDK] Poll \(attempt): RegState=\(wearables.registrationState), Devices=\(deviceCount)")
+                    
+                    if deviceCount > 0 {
+                        print("[MetaSDK] Devices found after URL callback!")
+                        checkForDevices()
+                        
+                        if connectionState == .connected {
+                            return true
+                        }
+                    }
+                }
+                
+                // If still no devices after polling
+                if wearables.devices.count == 0 {
+                    print("[MetaSDK] No devices found after URL callback")
+                    print("[MetaSDK] Make sure glasses are on and connected in Meta AI app")
+                    connectionStateSubject.send(.error(.deviceNotFound))
+                }
+            }
+            
+            return handled
         } catch {
             print("[MetaSDKProvider] Failed to handle URL: \(error)")
             return false

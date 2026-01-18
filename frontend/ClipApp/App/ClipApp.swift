@@ -18,6 +18,11 @@ struct ClipApp: App {
                 }
             }
             .animation(.easeInOut(duration: 0.3), value: launchComplete)
+            .onOpenURL { url in
+                Task {
+                    _ = await MetaGlassesManager.shared.handleURL(url)
+                }
+            }
         }
     }
 }

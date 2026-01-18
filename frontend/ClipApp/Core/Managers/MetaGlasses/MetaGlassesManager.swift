@@ -162,6 +162,16 @@ final class MetaGlassesManager: ObservableObject {
         updateDeviceInfo()
     }
     
+    // MARK: - URL Handling
+    
+    /// Handle URL callback from Meta AI app after registration
+    func handleURL(_ url: URL) async -> Bool {
+        guard let sdkProvider = provider as? MetaSDKProvider else {
+            return false
+        }
+        return await sdkProvider.handleURL(url)
+    }
+    
     // MARK: - Video Streaming
     
     /// Start the video stream from the glasses camera
@@ -243,5 +253,13 @@ extension MetaGlassesManager {
     /// Print debug info to console
     func printDebugInfo() {
         print(debugDescription)
+    }
+    
+    /// Get SDK debug status for UI display
+    var sdkDebugStatus: String {
+        guard let sdkProvider = provider as? MetaSDKProvider else {
+            return "Mock Mode"
+        }
+        return sdkProvider.debugStatus
     }
 }

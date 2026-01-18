@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 
 // MARK: - ClipState (Placeholder - will be shared with Presage integration)
 
@@ -81,6 +82,12 @@ struct ClipMetadata: Identifiable, Codable, Hashable, Sendable {
     var audioNarrationURL: String? = nil // URL to cached ElevenLabs audio narration
     var clipState: ClipState? = nil // Presage state data (optional)
     
+    // Thumbnail support - stored as base64 encoded JPEG for persistence
+    var thumbnailBase64: String? = nil
+    
+    // Video orientation - portrait clips are center-cropped from landscape
+    var isPortrait: Bool = false
+    
     // Caption support
     var captionSegments: [CaptionSegment]? = nil // Timed caption chunks
     var showCaptions: Bool = true // User preference for showing captions
@@ -122,6 +129,31 @@ struct ClipMetadata: Identifiable, Codable, Hashable, Sendable {
             formatter.dateFormat = "EEEE, MMM d"
             return formatter.string(from: capturedAt)
         }
+    }
+    
+    // MARK: - Thumbnail Helpers
+    
+    /// Get thumbnail as UIImage (decoded from base64)
+    var thumbnailImage: UIImage? {
+        guard let base64 = thumbnailBase64,
+              let data = Data(base64Encoded: base64) else {
+            return nil
+        }
+        return UIImage(data: data)
+    }
+    
+    /// Create a copy with thumbnail set from UIImage
+    func withThumbnail(_ image: UIImage, compressionQuality: CGFloat = 0.7) -> ClipMetadata {
+        var copy = self
+        if let jpegData = image.jpegData(compressionQuality: compressionQuality) {
+            copy.thumbnailBase64 = jpegData.base64EncodedString()
+        }
+        return copy
+    }
+    
+    /// Aspect ratio for display (9:16 for portrait, 16:9 for landscape)
+    var aspectRatio: CGFloat {
+        isPortrait ? 9.0/16.0 : 16.0/9.0
     }
 }
 

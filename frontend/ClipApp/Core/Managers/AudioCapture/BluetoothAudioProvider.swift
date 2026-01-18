@@ -123,14 +123,18 @@ final class BluetoothAudioProvider: AudioCaptureProvider {
     
     private func configureAudioSession() throws {
         let audioSession = AVAudioSession.sharedInstance()
+        
+        // First, try to deactivate any existing session to reset state
+        try? audioSession.setActive(false, options: .notifyOthersOnDeactivation)
 
         do {
             // Configure for play and record with Bluetooth support
             // .allowBluetooth routes input through connected Bluetooth device (glasses mic)
+            // .mixWithOthers allows this to work alongside Meta SDK's audio
             try audioSession.setCategory(
                 .playAndRecord,
                 mode: .measurement,
-                options: [.allowBluetooth, .defaultToSpeaker]
+                options: [.allowBluetooth, .defaultToSpeaker, .mixWithOthers, .allowBluetoothA2DP]
             )
 
             // Set preferred sample rate
@@ -140,19 +144,35 @@ final class BluetoothAudioProvider: AudioCaptureProvider {
             try audioSession.setPreferredIOBufferDuration(Double(bufferSize) / desiredSampleRate)
 
             // Activate the session
-            try audioSession.setActive(true)
+            try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
+            print("🎤 Audio session configured with Bluetooth support")
         } catch {
-            // Fallback to built-in mic if Bluetooth session activation fails
-            print("⚠️ Audio session Bluetooth config failed, falling back to device mic: \(error.localizedDescription)")
-            try audioSession.setCategory(.record, mode: .measurement, options: [])
-            try audioSession.setPreferredSampleRate(desiredSampleRate)
-            try audioSession.setPreferredIOBufferDuration(Double(bufferSize) / desiredSampleRate)
-            try audioSession.setActive(true)
+            // Fallback 1: Try without Bluetooth-specific options
+            print("⚠️ Audio session Bluetooth config failed: \(error.localizedDescription)")
+            print("🎤 Trying fallback with device mic...")
+            
+            do {
+                try audioSession.setCategory(.playAndRecord, mode: .measurement, options: [.mixWithOthers, .defaultToSpeaker])
+                try audioSession.setPreferredSampleRate(desiredSampleRate)
+                try audioSession.setPreferredIOBufferDuration(Double(bufferSize) / desiredSampleRate)
+                try audioSession.setActive(true)
+                print("🎤 Fallback 1 succeeded: Using device mic")
+            } catch {
+                // Fallback 2: Simplest config - just record mode
+                print("⚠️ Fallback 1 failed: \(error.localizedDescription)")
+                print("🎤 Trying minimal fallback...")
+                
+                try audioSession.setCategory(.record, mode: .default, options: [])
+                try audioSession.setActive(true)
+                print("🎤 Fallback 2 succeeded: Minimal config")
+            }
         }
         
         // Log the current input route
         if let input = audioSession.currentRoute.inputs.first {
             print("🎤 Audio input: \(input.portName) (\(input.portType.rawValue))")
+        } else {
+            print("⚠️ No audio input available")
         }
     }
     

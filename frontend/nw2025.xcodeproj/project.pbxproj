@@ -39,6 +39,7 @@
 		4EC031A22F18000000552603 /* AudioCaptureManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031A32F18000000552603 /* AudioCaptureManager.swift */; };
 		4EC031A42F18000000552603 /* BluetoothAudioProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031A52F18000000552603 /* BluetoothAudioProvider.swift */; };
 		4EC031A82F18000000552603 /* ClipExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031A92F18000000552603 /* ClipExporter.swift */; };
+		4EC031AE2F18000000552603 /* FFmpegExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031AF2F18000000552603 /* FFmpegExporter.swift */; };
 		4EC031AA2F18000000552603 /* ClipCaptureCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031AB2F18000000552603 /* ClipCaptureCoordinator.swift */; };
 		4EC031B02F19000000552603 /* GlassesPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031B12F19000000552603 /* GlassesPreviewView.swift */; };
 		4EC031B32F19000000552603 /* StateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC031B22F19000000552603 /* StateView.swift */; };
@@ -92,6 +93,7 @@
 		4EC031A32F18000000552603 /* AudioCaptureManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioCaptureManager.swift; sourceTree = "<group>"; };
 		4EC031A52F18000000552603 /* BluetoothAudioProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BluetoothAudioProvider.swift; sourceTree = "<group>"; };
 		4EC031A92F18000000552603 /* ClipExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipExporter.swift; sourceTree = "<group>"; };
+		4EC031AF2F18000000552603 /* FFmpegExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FFmpegExporter.swift; sourceTree = "<group>"; };
 		4EC031AB2F18000000552603 /* ClipCaptureCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipCaptureCoordinator.swift; sourceTree = "<group>"; };
 		4EC031B12F19000000552603 /* GlassesPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassesPreviewView.swift; sourceTree = "<group>"; };
 		4EC031B22F19000000552603 /* StateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StateView.swift; sourceTree = "<group>"; };
@@ -174,6 +176,7 @@
 				4EC031402F16242C00552603 /* CameraManager.swift */,
 				4EC031C52F1B000000552603 /* CaptionManager.swift */,
 				4EC031A92F18000000552603 /* ClipExporter.swift */,
+				4EC031AF2F18000000552603 /* FFmpegExporter.swift */,
 				4EC031AB2F18000000552603 /* ClipCaptureCoordinator.swift */,
 				4EC031412F16242C00552603 /* HapticManager.swift */,
 				4EC031C72F1B000000552603 /* LaughterDetector.swift */,
@@ -404,6 +407,7 @@
 				4EC031A22F18000000552603 /* AudioCaptureManager.swift in Sources */,
 				4EC031A42F18000000552603 /* BluetoothAudioProvider.swift in Sources */,
 				4EC031A82F18000000552603 /* ClipExporter.swift in Sources */,
+				4EC031AE2F18000000552603 /* FFmpegExporter.swift in Sources */,
 				4EC031AA2F18000000552603 /* ClipCaptureCoordinator.swift in Sources */,
 				4EC031B02F19000000552603 /* GlassesPreviewView.swift in Sources */,
 				4EC031B32F19000000552603 /* StateView.swift in Sources */,

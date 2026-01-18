@@ -522,7 +522,7 @@ struct MemoryAssistantView: View {
         VStack(spacing: 24) {
             Spacer()
             
-            // Thinking state - just show spinner
+            // Thinking state - just show spinner (no background)
             if memoryAssistant.state == .thinking {
                 VStack(spacing: 16) {
                     ProgressView()
@@ -531,55 +531,67 @@ struct MemoryAssistantView: View {
                     
                     Text("Thinking...")
                         .font(.system(size: 16, weight: .medium))
-                        .foregroundStyle(AppColors.textSecondary)
+                        .foregroundStyle(AppColors.textPrimary)
                 }
             }
             
-            // Speaking state - show response only
+            // Speaking state - show response with subtle white card
             if memoryAssistant.state == .speaking, let response = memoryAssistant.lastResponse {
-                VStack(spacing: 20) {
+                VStack(spacing: 16) {
                     // Animated speaker icon
                     Image(systemName: "speaker.wave.2.fill")
-                        .font(.system(size: 28))
+                        .font(.system(size: 24))
                         .foregroundStyle(AppColors.accent)
                         .symbolEffect(.variableColor.iterative)
                     
                     // Response text
                     Text(response)
-                        .font(.system(size: 18, weight: .medium))
+                        .font(.system(size: 17, weight: .medium))
                         .foregroundStyle(AppColors.textPrimary)
                         .multilineTextAlignment(.center)
                         .lineSpacing(4)
-                        .padding(.horizontal, 32)
                     
                     // Stop button
                     Button {
                         memoryAssistant.stopSpeaking()
                     } label: {
                         Text("Stop")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 24)
-                            .padding(.vertical, 10)
-                            .background(AppColors.accent.opacity(0.8))
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(AppColors.accent)
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 8)
+                            .background(AppColors.accent.opacity(0.12))
                             .clipShape(Capsule())
                     }
                 }
+                .padding(.horizontal, 24)
+                .padding(.vertical, 20)
+                .background {
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .fill(.white.opacity(0.85))
+                        .shadow(color: .black.opacity(0.06), radius: 16, y: 4)
+                }
+                .padding(.horizontal, 24)
             }
             
             // Error state
             if case .error(let message) = memoryAssistant.state {
                 VStack(spacing: 12) {
                     Image(systemName: "exclamationmark.triangle")
-                        .font(.system(size: 32))
+                        .font(.system(size: 28))
                         .foregroundStyle(.orange)
                     
                     Text(message)
                         .font(.system(size: 14, weight: .medium))
                         .foregroundStyle(AppColors.textSecondary)
                         .multilineTextAlignment(.center)
-                        .padding(.horizontal, 32)
                 }
+                .padding(20)
+                .background {
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(.white.opacity(0.85))
+                }
+                .padding(.horizontal, 32)
             }
             
             Spacer()

@@ -143,6 +143,11 @@ struct ClipCard: View {
     
     @State private var thumbnail: UIImage?
     
+    /// Aspect ratio based on clip orientation
+    private var aspectRatio: CGFloat {
+        clip.isPortrait ? 9.0/16.0 : 16.0/9.0
+    }
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Thumbnail area
@@ -156,15 +161,15 @@ struct ClipCard: View {
                             endPoint: .bottomTrailing
                         )
                     )
-                    .aspectRatio(16/9, contentMode: .fit)
+                    .aspectRatio(aspectRatio, contentMode: .fit)
                 
-                // Real thumbnail if loaded
-                if let thumbnail = thumbnail {
+                // Real thumbnail if loaded (prefer stored thumbnail)
+                if let thumbnail = thumbnail ?? clip.thumbnailImage {
                     Image(uiImage: thumbnail)
                         .resizable()
                         .aspectRatio(contentMode: .fill)
                         .frame(maxWidth: .infinity)
-                        .aspectRatio(16/9, contentMode: .fit)
+                        .aspectRatio(aspectRatio, contentMode: .fit)
                         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
                 
@@ -177,7 +182,7 @@ struct ClipCard: View {
                             endPoint: .bottom
                         )
                     )
-                    .aspectRatio(16/9, contentMode: .fit)
+                    .aspectRatio(aspectRatio, contentMode: .fit)
                 
                 // Play icon
                 Image(systemName: "play.fill")
@@ -186,7 +191,10 @@ struct ClipCard: View {
             }
             .matchedGeometryEffect(id: clip.id, in: namespace)
             .task {
-                await loadThumbnail()
+                // Only load from Photos if no stored thumbnail
+                if clip.thumbnailImage == nil {
+                    await loadThumbnail()
+                }
             }
             .overlay(alignment: .topTrailing) {
                 Button {

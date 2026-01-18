@@ -338,9 +338,9 @@ final class ClipExporter {
     /// Generate thumbnail from a video file URL
     /// - Parameters:
     ///   - url: Video file URL
-    ///   - time: Time to capture thumbnail (default: 0.5 seconds in)
+    ///   - time: Time to capture thumbnail (default: 1.0 seconds in to avoid black first frames)
     /// - Returns: Thumbnail UIImage
-    func generateThumbnail(from url: URL, at time: TimeInterval = 0.5) async -> UIImage? {
+    func generateThumbnail(from url: URL, at time: TimeInterval = 1.0) async -> UIImage? {
         let asset = AVAsset(url: url)
         let imageGenerator = AVAssetImageGenerator(asset: asset)
         imageGenerator.appliesPreferredTrackTransform = true

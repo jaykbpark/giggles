@@ -65,6 +65,6 @@ class TranscriptProcessor:
             contents=prompt,
         )
         prompt_and_tags = json.loads(response.text)
-        return (prompt_and_tags[prompt], prompt_and_tags[tags])
+        return (transcription_text, prompt_and_tags[prompt], prompt_and_tags[tags])
 
 # inputs into gemini and processes, puts tags in, checks against db

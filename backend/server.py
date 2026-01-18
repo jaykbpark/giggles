@@ -4,6 +4,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
 from objects.RequestObjects import RequestSearchObject, RequestVideoObject
 from objects.ResponseObjects import ResponseTagsObject, ResponseVideoObject
+from database_operations import DatabaseOperations
+from preprocessing.processing_manager import ProcessingManager
 
 app = FastAPI()
 
